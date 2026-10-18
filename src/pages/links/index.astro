@@ -11,11 +11,11 @@ interface FriendGroup {
 }
 
 const friends = (friendsData.friends as FriendGroup[]).filter((group) => group.link_list.length > 0)
-const headings = [{ depth: 2, slug: 'blogroll', text: '友链' }]
+const headings = [{ depth: 2, slug: 'blogroll', text: '推荐博客' }]
 ---
 
 <CommonPage title='友链' {headings} info={{ slug: '/links', hideComment: true }}>
-  <h2 id='blogroll'>友链</h2>
+  <h2 id='blogroll'>推荐博客</h2>
   {
     friends.length > 0 ? (
       <div class='not-prose space-y-8'>
