@@ -1,3 +1,16 @@
 {
-  "friends": []
+  "friends": [
+    {
+      "id_name": "friends",
+      "desc": "",
+      "link_list": [
+        {
+          "avatar": "/links/royzhao.jpg",
+          "name": "Roy Zhao",
+          "intro": "royzhao.cn",
+          "link": "https://royzhao.cn/"
+        }
+      ]
+    }
+  ]
 }
