@@ -14,7 +14,7 @@ const friends = (friendsData.friends as FriendGroup[]).filter((group) => group.l
 const headings = [{ depth: 2, slug: 'blogroll', text: '友链' }]
 ---
 
-<CommonPage title='友情链接' {headings} info={{ slug: '/links', hideComment: true }}>
+<CommonPage title='友链' {headings} info={{ slug: '/links', hideComment: true }}>
   <h2 id='blogroll'>友链</h2>
   {
     friends.length > 0 ? (
