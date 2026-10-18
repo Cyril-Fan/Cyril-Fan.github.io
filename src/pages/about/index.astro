@@ -1,0 +1,45 @@
+---
+import PageLayout from '@/layouts/CommonPage.astro'
+import { Button, Icon } from '@/components/user'
+import config from '@/site-config'
+
+const headings = [
+  { depth: 2, slug: 'about-me', text: '关于我' },
+  { depth: 2, slug: 'interests', text: '研究兴趣' },
+  { depth: 2, slug: 'contact', text: '联系我' }
+]
+---
+
+<PageLayout title='About' {headings}>
+  <h2 id='about-me'>关于我<a class='anchor' href='#about-me'>#</a></h2>
+  <p>你好，我是 Cyril Fan，吉林大学软件工程本科生。欢迎来到我的个人网站。</p>
+  <p>我喜欢通过研究和动手实践探索人工智能，也在这里记录学习与思考。</p>
+
+  <h2 id='interests'>研究兴趣<a class='anchor' href='#interests'>#</a></h2>
+  <ul>
+    <li>深度学习（Deep Learning）</li>
+    <li>多模态大语言模型（Multimodal Large Language Models）</li>
+    <li>AI 智能体（AI Agents）</li>
+  </ul>
+  <Button title='查看学术主页' class='w-fit' href='/academic' style='ahead' />
+
+  <h2 id='contact'>联系我<a class='anchor' href='#contact'>#</a></h2>
+  <p>欢迎通过邮件或 GitHub 与我交流。</p>
+  <div class='not-prose flex flex-wrap gap-3'>
+    {config.personal?.email && (
+      <Button title={config.personal.email} href={`mailto:${config.personal.email}`}>
+        <Icon name='email' class='size-4' slot='before' />
+      </Button>
+    )}
+    {config.personal?.githubUsername && (
+      <Button
+        title={`GitHub · ${config.personal.githubUsername}`}
+        href={`https://github.com/${config.personal.githubUsername}`}
+        target='_blank'
+        rel='noopener noreferrer'
+      >
+        <Icon name='github' class='size-4' slot='before' />
+      </Button>
+    )}
+  </div>
+</PageLayout>

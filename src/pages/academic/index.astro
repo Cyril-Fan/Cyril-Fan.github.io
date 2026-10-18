@@ -1,0 +1,45 @@
+---
+import PageLayout from '@/layouts/CommonPage.astro'
+import { Icon } from '@/components/user'
+
+const headings = [
+  { depth: 2, slug: 'about-me', text: '学术背景' },
+  { depth: 2, slug: 'research-interests', text: '研究兴趣' },
+  { depth: 2, slug: 'publications', text: '论文' },
+  { depth: 2, slug: 'open-source-projects', text: '开源项目' }
+]
+
+const interests = [
+  { title: '深度学习', subtitle: 'Deep Learning', icon: 'cpu' as const },
+  { title: '多模态大语言模型', subtitle: 'Multimodal Large Language Models', icon: 'image' as const },
+  { title: 'AI 智能体', subtitle: 'AI Agents', icon: 'robot' as const }
+]
+---
+
+<PageLayout title='Academic' {headings}>
+  <h2 id='about-me'>学术背景<a class='anchor' href='#about-me'>#</a></h2>
+  <p>我是 Cyril Fan，吉林大学软件工程本科生，喜欢通过研究与动手实践探索人工智能。</p>
+
+  <h2 id='research-interests'>研究兴趣<a class='anchor' href='#research-interests'>#</a></h2>
+  <div class='not-prose grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+    {interests.map((interest) => (
+      <div class='group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all hover:border-foreground/25 hover:shadow-md'>
+        <div class='flex items-start gap-4'>
+          <div class='flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/20'>
+            <Icon class='size-5 text-primary' name={interest.icon} />
+          </div>
+          <div class='min-w-0 flex-1'>
+            <p class='text-lg font-medium leading-tight text-foreground'>{interest.title}</p>
+            <p class='mt-2 text-sm leading-relaxed text-muted-foreground'>{interest.subtitle}</p>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <h2 id='publications'>论文<a class='anchor' href='#publications'>#</a></h2>
+  <p class='text-muted-foreground'>暂无公开展示的论文。</p>
+
+  <h2 id='open-source-projects'>开源项目<a class='anchor' href='#open-source-projects'>#</a></h2>
+  <p class='text-muted-foreground'>暂无公开展示的项目。</p>
+</PageLayout>

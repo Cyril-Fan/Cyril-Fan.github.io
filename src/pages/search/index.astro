@@ -1,0 +1,33 @@
+---
+import { PFSearch } from '@/components/pages'
+import { Button } from '@/components/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+import { integ } from '@/site-config'
+
+const meta = {
+  description: '搜索本站文章与页面',
+  title: '站内搜索'
+}
+---
+
+<PageLayout {meta}>
+  <Button title='返回首页' href='/' style='back' />
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-6 text-3xl font-medium'>站内搜索</h1>
+    </div>
+
+    <div id='content' class='animate'>
+      {
+        integ.pagefind ? (
+          <>
+            <p class='text-muted-foreground'>输入关键词，查找本站文章与页面。</p>
+            <PFSearch />
+          </>
+        ) : (
+          <p>Pagefind is disabled.</p>
+        )
+      }
+    </div>
+  </main>
+</PageLayout>

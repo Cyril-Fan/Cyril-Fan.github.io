@@ -1,0 +1,99 @@
+---
+import type { CollectionEntry } from 'astro:content'
+import { cn } from '@/utils'
+import { Icon } from '@/components/user'
+import config from '@/site-config'
+
+interface Props {
+  data: Pick<CollectionEntry<'blog'>['data'], 'title' | 'publishDate' | 'updatedDate'>
+  class?: string
+}
+
+const { data: { title, publishDate, updatedDate }, class: className } = Astro.props
+const english = Astro.currentLocale === 'en'
+const author = english ? config.author_en || config.author : config.author
+const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? 'https://cyril-fan.top').href
+const formatDate = (date: Date) => date.toLocaleDateString(english ? 'en-US' : 'zh-CN', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'Asia/Shanghai'
+})
+---
+
+<div
+  class={cn('relative flex min-w-0 flex-col gap-y-3 rounded-xl border border-border px-3 py-3 sm:px-4', className)}
+  data-article-copyright
+>
+  <div class='font-medium text-foreground'>{title}</div>
+  <a href={canonicalURL} class='break-all text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground'>
+    {canonicalURL}
+  </a>
+
+  <dl class='flex flex-wrap gap-x-6 gap-y-2 text-sm'>
+    <div>
+      <dt class='text-muted-foreground'>{english ? 'Author' : '作者'}</dt>
+      <dd class='text-foreground'>{author}</dd>
+    </div>
+    <div>
+      <dt class='text-muted-foreground'>{english ? 'Published' : '发布日期'}</dt>
+      <dd class='text-foreground'>
+        <time datetime={publishDate.toISOString()}>{formatDate(publishDate)}</time>
+      </dd>
+    </div>
+    {updatedDate && (
+      <div>
+        <dt class='text-muted-foreground'>{english ? 'Updated' : '更新日期'}</dt>
+        <dd class='text-foreground'>
+          <time datetime={updatedDate.toISOString()}>{formatDate(updatedDate)}</time>
+        </dd>
+      </div>
+    )}
+  </dl>
+
+  <p class='m-0 text-sm text-muted-foreground'>
+    {english ? 'Copyright belongs to the author. ' : '内容版权归作者所有。'}
+    {config.personal?.email && (
+      <>
+        {english ? 'For permission to republish or use this content, contact ' : '转载或使用内容，请联系 '}
+        <a href={`mailto:${config.personal.email}`} class='underline underline-offset-4 hover:text-foreground'>
+          {config.personal.email}
+        </a>{english ? '.' : '。'}
+      </>
+    )}
+  </p>
+
+  <div class='flex flex-wrap items-center gap-3'>
+    <button
+      type='button'
+      class='inline-flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground'
+      data-copy-article-link
+      data-copy-text={canonicalURL}
+      data-copy-success={english ? 'Link copied.' : '链接已复制。'}
+      data-copy-error={english ? 'Could not copy. Please copy the link above.' : '复制失败，请手动复制上方链接。'}
+    >
+      <Icon class='size-4' name='link' />
+      {english ? 'Copy link' : '复制链接'}
+    </button>
+    <span class='text-xs text-muted-foreground' data-copy-status role='status' aria-live='polite'></span>
+  </div>
+</div>
+
+<script>
+  const bindCopyLinks = () => {
+    document.querySelectorAll<HTMLButtonElement>('[data-copy-article-link]').forEach((button) => {
+      button.onclick = async () => {
+        const status = button.closest('[data-article-copyright]')?.querySelector('[data-copy-status]')
+        try {
+          await navigator.clipboard.writeText(button.dataset.copyText || '')
+          if (status) status.textContent = button.dataset.copySuccess || ''
+        } catch {
+          if (status) status.textContent = button.dataset.copyError || ''
+        }
+      }
+    })
+  }
+
+  bindCopyLinks()
+  document.addEventListener('astro:page-load', bindCopyLinks)
+</script>

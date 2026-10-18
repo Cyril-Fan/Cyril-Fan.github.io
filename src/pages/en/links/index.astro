@@ -1,0 +1,36 @@
+---
+import config from '@/site-config'
+import CommonPage from '@/layouts/CommonPage.astro'
+import FriendList from '@/components/links/FriendList.astro'
+import friendsData from '@/public/links.json'
+
+interface FriendGroup {
+  id_name: string
+  desc: string
+  link_list: { avatar: string; name: string; intro: string; link: string }[]
+}
+
+const friends = (friendsData.friends as FriendGroup[]).filter((group) => group.link_list.length > 0)
+const headings = [{ depth: 2, slug: 'blogroll', text: 'Blogroll' }]
+---
+
+<CommonPage title='Links' {headings} info={{ slug: '/en/links', hideComment: true }}>
+  <h2 id='blogroll'>Blogroll</h2>
+  {
+    friends.length > 0 ? (
+      <div class='not-prose space-y-8'>
+        {friends.map((group) => <FriendList list={group} />)}
+      </div>
+    ) : (
+      <div class='not-prose rounded-xl border border-border bg-card px-6 py-10 text-center'>
+        <p class='text-xl font-medium'>No links yet.</p>
+        <p class='mt-3 text-muted-foreground'>A place for friends and their writing. More links will be added over time.</p>
+        {config.personal?.email && (
+          <a class='mt-5 inline-block text-sm hover:text-primary' href={'mailto:' + config.personal.email}>
+            Feel free to say hello by email.
+          </a>
+        )}
+      </div>
+    )
+  }
+</CommonPage>

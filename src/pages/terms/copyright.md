@@ -1,0 +1,13 @@
+---
+layout: '@/layouts/IndividualPage.astro'
+title: '版权说明'
+description: '更新于 2026-10-18'
+language: '中文'
+back: '/terms/list'
+---
+
+本站由 Cyril Fan 维护。除另有说明外，本站原创文字、个人资料和自有图片的版权归 Cyril Fan 所有。需要转载、改编或其他授权，请联系 [1943480241@qq.com](mailto:1943480241@qq.com)。引用时请注明作者与原文链接。
+
+网站主题基于 [Axi404/Axi-Theme](https://github.com/Axi404/Axi-Theme)，主题源码采用 Apache-2.0 许可证；源码仓库保留完整许可证与主题来源说明。主题源码许可与文章、头像等内容的版权分别适用。
+
+第三方代码、图片、名称和标识的权利归各自权利人，遵循其原有许可与页面注明的来源。如发现署名或使用存在问题，请通过上述邮箱提供相关页面与说明。

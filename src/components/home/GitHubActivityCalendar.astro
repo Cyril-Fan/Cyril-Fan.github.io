@@ -1,0 +1,221 @@
+---
+import {
+  differenceInCalendarDays,
+  eachDayOfInterval,
+  formatISO,
+  getDay,
+  getMonth,
+  isValid,
+  nextDay,
+  parseISO,
+  subWeeks
+} from 'date-fns'
+
+interface GitHubActivityDay {
+  date: string
+  count: number
+  level: number
+}
+
+interface GitHubActivityApiResponse {
+  contributions: GitHubActivityDay[]
+  total: { lastYear: number }
+}
+
+interface Props {
+  username: string
+}
+
+type CalendarDay = GitHubActivityDay | undefined
+
+function isActivityDay(value: unknown): value is GitHubActivityDay {
+  if (!value || typeof value !== 'object') return false
+  const day = value as Partial<GitHubActivityDay>
+  return (
+    typeof day.date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(day.date) &&
+    isValid(parseISO(day.date)) &&
+    typeof day.count === 'number' &&
+    Number.isInteger(day.count) &&
+    day.count >= 0 &&
+    typeof day.level === 'number' &&
+    Number.isInteger(day.level) &&
+    day.level >= 0 &&
+    day.level <= 4
+  )
+}
+
+async function fetchData(username: string): Promise<GitHubActivityApiResponse | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12_000)
+
+  try {
+    const response = await fetch(
+      `https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(username)}?y=last`,
+      { signal: controller.signal }
+    )
+    if (!response.ok) return null
+
+    const data = (await response.json()) as Partial<GitHubActivityApiResponse> | null
+    if (
+      !data ||
+      !Array.isArray(data.contributions) ||
+      !data.contributions.length ||
+      !data.contributions.every(isActivityDay) ||
+      !Number.isInteger(data.total?.lastYear) ||
+      (data.total?.lastYear ?? -1) < 0
+    ) return null
+
+    const contributions = [...data.contributions].sort((a, b) => a.date.localeCompare(b.date))
+    if (new Set(contributions.map((day) => day.date)).size !== contributions.length) return null
+    const range = differenceInCalendarDays(
+      parseISO(contributions[contributions.length - 1].date),
+      parseISO(contributions[0].date)
+    )
+    if (range < 0 || range > 400) return null
+
+    return {
+      contributions,
+      total: { lastYear: data.total!.lastYear }
+    }
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function groupByWeeks(activities: GitHubActivityDay[]): CalendarDay[][] {
+  if (!activities.length) return []
+
+  const firstDate = parseISO(activities[0].date)
+  const lastDate = parseISO(activities[activities.length - 1].date)
+  const calendar = new Map(activities.map((day) => [day.date, day]))
+  const normalized = eachDayOfInterval({ start: firstDate, end: lastDate }).map((day) =>
+    calendar.get(formatISO(day, { representation: 'date' }))
+  )
+  const firstCalendarDate = getDay(firstDate) === 0 ? firstDate : subWeeks(nextDay(firstDate, 0), 1)
+  const padding: CalendarDay[] = Array(differenceInCalendarDays(firstDate, firstCalendarDate)).fill(undefined)
+  const padded = [...padding, ...normalized]
+
+  return Array.from(
+    { length: Math.ceil(padded.length / 7) },
+    (_, index) => padded.slice(index * 7, index * 7 + 7)
+  )
+}
+
+const { username } = Astro.props
+const english = Astro.currentLocale === 'en'
+const githubURL = `https://github.com/${encodeURIComponent(username)}`
+const data = await fetchData(username)
+const activities = data?.contributions ?? []
+const weeks = groupByWeeks(activities)
+const startDate = activities[0]?.date
+const endDate = activities[activities.length - 1]?.date
+const totalCount = data?.total.lastYear
+
+const monthNames = english
+  ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  : ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+const monthLabels = weeks.reduce<{ weekIndex: number; label: string }[]>((labels, week, weekIndex) => {
+  const firstActivity = week.find((day) => day)
+  if (!firstActivity) return labels
+  const month = monthNames[getMonth(parseISO(firstActivity.date))]
+  if (!labels.length || labels[labels.length - 1].label !== month) {
+    labels.push({ weekIndex, label: month })
+  }
+  return labels
+}, [])
+
+const blockSize = 12
+const blockMargin = 4
+const blockRadius = 2
+const labelHeight = 22
+const width = Math.max(1, weeks.length * (blockSize + blockMargin) - blockMargin)
+const height = labelHeight + (blockSize + blockMargin) * 7 - blockMargin
+const titleId = `github-contributions-${username.replace(/[^a-zA-Z0-9-]/g, '')}`
+const chartTitle = english
+  ? `GitHub contributions for ${username}: ${totalCount} from ${startDate} to ${endDate}.`
+  : `${username} 的 GitHub 贡献记录：${startDate} 至 ${endDate}，共 ${totalCount} 次贡献。`
+const colors = [
+  'fill-[#ebedf0] dark:fill-[#161b22]',
+  'fill-[#c6e48b] dark:fill-[#0e4429]',
+  'fill-[#7bc96f] dark:fill-[#006d32]',
+  'fill-[#239a3b] dark:fill-[#26a641]',
+  'fill-[#196127] dark:fill-[#39d353]'
+]
+---
+
+<section class='min-w-0 w-full max-w-full' aria-label={english ? 'GitHub activity' : 'GitHub 贡献记录'}>
+  {data ? (
+    <>
+      <div class='min-w-0 w-full max-w-full overflow-x-auto pb-2'>
+        <svg
+          class='block max-w-none'
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role='img'
+          aria-labelledby={titleId}
+        >
+          <title id={titleId}>{chartTitle}</title>
+          <g font-size='14'>
+            {monthLabels.map(({ label, weekIndex }) => (
+              <text
+                x={(blockSize + blockMargin) * weekIndex}
+                y={0}
+                dominant-baseline='hanging'
+                fill='currentColor'
+              >
+                {label}
+              </text>
+            ))}
+          </g>
+          {weeks.map((week, weekIndex) => (
+            <g transform={`translate(${(blockSize + blockMargin) * weekIndex}, 0)`}>
+              {week.map((activity, dayIndex) => activity ? (
+                <rect
+                  class:list={['stroke-foreground/10 hover:opacity-80', colors[activity.level]]}
+                  x={0}
+                  y={labelHeight + (blockSize + blockMargin) * dayIndex}
+                  width={blockSize}
+                  height={blockSize}
+                  rx={blockRadius}
+                  ry={blockRadius}
+                  data-date={activity.date}
+                  data-level={activity.level}
+                >
+                  <title>{english
+                    ? `${activity.count} contributions on ${activity.date}`
+                    : `${activity.date}：${activity.count} 次贡献`}</title>
+                </rect>
+              ) : null)}
+            </g>
+          ))}
+        </svg>
+      </div>
+      <div class='mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm'>
+        <a href={githubURL} target='_blank' rel='noopener noreferrer' class='text-muted-foreground hover:text-foreground'>
+          {english ? `${totalCount} contributions` : `${totalCount} 次贡献`}
+          <span class='block text-xs'>{startDate} – {endDate}</span>
+        </a>
+        <div class='flex shrink-0 items-center gap-1' aria-hidden='true'>
+          <span>{english ? 'Less' : '少'}</span>
+          {colors.map((color) => (
+            <svg width={blockSize} height={blockSize}>
+              <rect width={blockSize} height={blockSize} rx={blockRadius} ry={blockRadius} class={color} />
+            </svg>
+          ))}
+          <span>{english ? 'More' : '多'}</span>
+        </div>
+      </div>
+    </>
+  ) : (
+    <p class='rounded-xl border border-border bg-card px-4 py-5 text-sm text-muted-foreground'>
+      {english ? 'Contribution history is temporarily unavailable. ' : '贡献记录暂不可用，'}
+      <a href={githubURL} target='_blank' rel='noopener noreferrer' class='underline underline-offset-4 hover:text-foreground'>
+        {english ? 'View GitHub' : '查看 GitHub'}
+      </a>
+    </p>
+  )}
+</section>
