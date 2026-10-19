@@ -108,14 +108,21 @@ async function setup(context, language, { identity = guest(), rows = [], configu
     this.dispatchEvent(new window.Event('close'))
   }
 
-  const fixture = { window, identity, rows, calls: [], handlers: {}, signals: [], accountId: 'account-id', accountSequence: 0 }
+  const fixture = { window, identity, rows, calls: [], handlers: {}, signals: [], accountId: 'account-id', accountSequence: 0, avatarFetches: [], revokedAvatarUrls: [] }
+  window.URL.createObjectURL = () => `blob:avatar-${fixture.accountSequence}`
+  window.URL.revokeObjectURL = value => fixture.revokedAvatarUrls.push(value)
+  window.fetch = async (...args) => {
+    fixture.avatarFetches.push(args)
+    if(fixture.handlers.avatarFetch) return fixture.handlers.avatarFetch(...args)
+    return new Response('{}')
+  }
   const client = {
     auth: {
       onAuthStateChange: callback => { fixture.authCallback = callback; return { data: { subscription: { unsubscribe() {} } } } },
       getSession: async () => {
         if (fixture.handlers.getSession) return fixture.handlers.getSession()
         return ok({ session: fixture.identity.can_post || fixture.identity.is_admin || fixture.identity.banned
-          ? { user: { id: fixture.accountId, email_confirmed_at: '2026-10-19T00:00:00Z' } }
+          ? { access_token: `${fixture.accountId}-token`, user: { id: fixture.accountId, email_confirmed_at: '2026-10-19T00:00:00Z' } }
           : null })
       }
     },
@@ -139,16 +146,20 @@ async function setup(context, language, { identity = guest(), rows = [], configu
     const module = { exports: {} }
     modules.set(name, module)
     let source = read(`src/lib/${name}.ts`)
-    if (name === 'comment-auth') source = source
+    source = source
       .replaceAll('import.meta.env.PUBLIC_SUPABASE_URL', JSON.stringify(configured ? 'https://example.supabase.co' : ''))
       .replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY', JSON.stringify(configured ? 'sb_publishable_dom_regression' : ''))
     const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
     const require = (id) => {
       if (id === '@supabase/supabase-js') return { createClient: () => client }
-      if (id === './comment-auth' || id === './comment-utils') return loadModule(id.slice(2))
+      if (id === './comment-auth' || id === './comment-utils' || id === './comment-avatar') return loadModule(id.slice(2))
       throw new Error(`Unexpected module at test boundary: ${id}`)
     }
     window.Function('require', 'module', 'exports', code)(require, module, module.exports)
+    if(name === 'comment-avatar') module.exports.prepareCommentAvatar = async (...args) => {
+      if(fixture.handlers.prepareAvatar) return fixture.handlers.prepareAvatar(...args)
+      return new Blob(['prepared-jpeg'], {type:'image/jpeg'})
+    }
     return module.exports
   }
   const authModule = loadModule('comment-auth')
@@ -297,6 +308,11 @@ for (const language of ['zh', 'en']) {
     assert.equal(actions[0].textContent, language === 'en' ? 'Delete' : '删除')
     assert.equal(actions[0].disabled, false)
     assert.match(ui.status.textContent, language === 'en' ? /can delete.*own comments/i : /仍可删除自己的留言/)
+    assert.equal(ui.select('[data-identity]').parentElement, ui.select('[data-identity-home]'))
+    assert.equal(ui.select('[data-identity]').hidden, false)
+    assert.equal(ui.select('[data-identity-name]').textContent, 'Reader')
+    assert.equal(ui.select('[data-restricted-badge]').hidden, false)
+    assert.equal(ui.select('[data-profile-edit]').hidden, true)
   })
 
   test(`${language}: content validation errors explain how to correct the preserved draft`, async (context) => {
@@ -409,6 +425,25 @@ for (const language of ['zh', 'en']) {
     ui.submit()
     await until(() => ui.calls.filter(call => call.name === 'comment_create').length === 2 && !ui.textarea.disabled, 'second comment')
     assert.equal(ui.calls.filter(call => call.name === 'comment_create')[1].args.p_nickname, 'New reader')
+  })
+
+  test(`${language}: owner avatars reuse the local website image with initials on failure and cannot be copied by nickname`, async context => {
+    const ui = await setup(context, language, { identity: member({ is_admin: true }), rows: [row(1, { nickname: 'Cyril Fan', is_admin_author: true }), row(2, { nickname: 'Cyril Fan' })] })
+    const ownAvatar=ui.select('[data-identity-avatar]')
+    const oldCommentAvatar=ui.select(`#comment-${row(1).id} .comment-avatar`)
+    for(const avatar of [ownAvatar,oldCommentAvatar]) {
+      const image=avatar.querySelector('img')
+      assert.equal(image.getAttribute('src'), '/avatar/avatar.png')
+      assert.equal(image.alt, '')
+      image.dispatchEvent(new ui.window.Event('error'))
+      assert.equal(avatar.querySelector('img'), null)
+      assert.equal(avatar.textContent, 'CF')
+    }
+    assert.equal(ui.select(`#comment-${row(2).id} .comment-avatar`).querySelector('img'), null)
+    ui.changeIdentity(member())
+    await until(() => ui.select('[data-identity-name]').textContent === 'Reader' && !ui.post.disabled, 'ordinary member after owner')
+    assert.equal(ownAvatar.querySelector('img'), null)
+    assert.equal(ownAvatar.textContent, 'R')
   })
 
   test(`${language}: nickname editing is explicit, cancellable, and does not submit on IME confirmation`, async (context) => {
@@ -581,6 +616,7 @@ for (const language of ['zh', 'en']) {
   test(`${language}: destructive actions stay in a dismissible menu and auth change cancels their confirmation`, async (context) => {
     const ui = await setup(context, language, { identity: member({ is_admin: true }), rows: [row(1, { can_delete: true })] })
     const menu = ui.select('.comment-menu')
+    assert.match(menu.querySelector('summary').getAttribute('aria-label'), /Reader 1/)
     assert.equal(menu.open, false)
     menu.open = true
     menu.querySelector('summary').dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -651,6 +687,152 @@ for (const language of ['zh', 'en']) {
 
 
 for (const language of ['zh', 'en']) {
+  const loginReply = ui => [...ui.list.querySelectorAll('.comment-item-actions > button')].find(button => button.textContent === (language === 'en' ? 'Sign in to reply' : '登录后回复'))
+
+  test(`${language}: guests can select a reply before signing in and resume it without posting automatically`, async context => {
+    const ui = await setup(context, language, { rows: [row(1)] })
+    loginReply(ui).click()
+    assert.equal(ui.select('[data-guest]').hidden, false)
+    assert.match(ui.select('[data-login-reply-label]').textContent, /Reader 1/)
+    assert.equal(ui.window.document.activeElement, ui.select('[name=email]'))
+    ui.changeIdentity(member())
+    await until(() => !ui.post.disabled && ui.compose.parentElement.id === `comment-${row(1).id}`, 'selected reply restored after sign-in')
+    assert.equal(ui.select('[data-login-reply]').hidden, true)
+    assert.equal(ui.window.document.activeElement, ui.textarea)
+    assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
+    ui.draft('An explicit reply after signing in')
+    ui.submit()
+    await until(() => ui.calls.some(call => call.name === 'comment_create'), 'explicit reply sent')
+    assert.equal(ui.calls.find(call => call.name === 'comment_create').args.p_parent_id, row(1).id)
+  })
+
+  test(`${language}: cancelling a guest reply leaves sign-in usable and does not select a target after login`, async context => {
+    const ui = await setup(context, language, { rows: [row(1)] })
+    loginReply(ui).click()
+    ui.select('[data-cancel-login-reply]').click()
+    assert.equal(ui.select('[data-login-reply]').hidden, true)
+    assert.equal(ui.window.document.activeElement, ui.select('[name=email]'))
+    ui.changeIdentity(member())
+    await until(() => !ui.post.disabled, 'ordinary sign-in after cancelling reply')
+    assert.equal(ui.compose.parentElement, ui.select('[data-compose-home]'))
+    assert.equal(ui.select('[data-reply]').hidden, true)
+  })
+
+  test(`${language}: a guest reply selected on an earlier page remains loaded after sign-in`, async context => {
+    const firstPage=Array.from({length:30},(_,index)=>row(index+1))
+    const ui = await setup(context, language, { rows:firstPage })
+    ui.handlers.comment_list = args => ok(args.p_before ? [row(31)] : firstPage)
+    ui.select('[data-more]').click()
+    await until(() => ui.list.children.length===31 && ui.select('[data-list]').getAttribute('aria-busy')==='false','earlier guest page')
+    ui.select(`#comment-${row(31).id} .comment-item-actions > button`).click()
+    ui.changeIdentity(member())
+    await until(() => !ui.post.disabled && ui.compose.parentElement.id===`comment-${row(31).id}`,'earlier reply target after sign-in')
+    assert.equal(ui.list.children.length,31)
+    assert.equal(ui.select('[data-login-reply]').hidden,true)
+  })
+
+  test(`${language}: an account switch during sign-in discards the first account's guest reply intent`, async context => {
+    const ui = await setup(context, language, { rows: [row(1)] })
+    loginReply(ui).click()
+    const firstRead = deferred()
+    ui.handlers.comment_list = () => firstRead.promise
+    ui.changeIdentity(member({ nickname: 'First account' }))
+    await flush()
+    delete ui.handlers.comment_list
+    ui.changeIdentity(member({ nickname: 'Second account' }))
+    await until(() => !ui.post.disabled && ui.select('[data-identity-name]').textContent === 'Second account', 'second sign-in account')
+    firstRead.resolve(ok([row(1)]))
+    await flush()
+    assert.equal(ui.compose.parentElement, ui.select('[data-compose-home]'))
+    assert.equal(ui.select('[data-login-reply]').hidden, true)
+    assert.equal(ui.select('[data-reply]').hidden, true)
+    assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
+  })
+
+  test(`${language}: an unverified account cannot resume or post a guest reply`, async context => {
+    const ui = await setup(context, language, { rows: [row(1)] })
+    loginReply(ui).click()
+    ui.handlers.getSession = () => ok({ session: { user: { id: 'unverified-account', email_confirmed_at: null } } })
+    ui.authCallback('SIGNED_IN', { user: { id: 'unverified-account' } })
+    await until(() => ui.select('[data-account]').textContent.includes(language === 'en' ? 'not verified' : '尚未验证'), 'unverified auth display')
+    await until(() => ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'unverified permissions')
+    ui.draft('Must not be sent')
+    ui.submit()
+    assert.equal(ui.compose.hidden, true)
+    assert.equal(ui.post.disabled, true)
+    assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
+  })
+
+  test(`${language}: a guest reply target deleted during login cannot become an accidental root comment`, async context => {
+    const ui = await setup(context, language, { rows: [row(1)] })
+    loginReply(ui).click()
+    ui.rows = [row(1, { deleted: true, body: '' })]
+    ui.changeIdentity(member())
+    await until(() => !ui.compose.hidden && ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'deleted target after sign-in')
+    assert.equal(ui.post.disabled, true)
+    assert.equal(ui.select('[data-reply]').hidden, false)
+    assert.match(ui.select('[data-reply] span').textContent, language === 'en' ? /cancel the reply/i : /取消回复/)
+    ui.select('[data-cancel-reply]').click()
+    assert.equal(ui.post.disabled, false)
+  })
+
+  test(`${language}: moderation is explained before posting and owner pending replies are also identified`, async context => {
+    const ui = await setup(context, language, { identity: member({ moderation_enabled: true }), rows: [row(1, { is_pending: true })] })
+    assert.equal(ui.select('[data-moderation-note]').hidden, false)
+    ui.changeIdentity(member({ is_admin: true, moderation_enabled: true }))
+    await until(() => ui.select('[data-owner-badge]').hidden === false && ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'owner moderation identity')
+    assert.equal(ui.select('[data-moderation-note]').hidden, true, 'Owner root posts do not require review')
+    ;[...ui.list.querySelectorAll('.comment-item-actions > button')].find(button => button.textContent === (language === 'en' ? 'Reply' : '回复')).click()
+    assert.equal(ui.select('[data-moderation-note]').hidden, false, 'A pending parent also keeps its owner reply pending')
+    ui.select('[data-cancel-reply]').click()
+    assert.equal(ui.select('[data-moderation-note]').hidden, true)
+  })
+
+  test(`${language}: loading another page after silent admin removal refreshes earlier permissions and hides private rows`, async context => {
+    const oldRows=Array.from({length:30},(_,index)=>row(index+1,{can_delete:true,is_pending:index===0}))
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:oldRows})
+    ui.identity=member()
+    const publicRows=Array.from({length:30},(_,index)=>row(index+2))
+    ui.handlers.comment_list=args=>ok(args.p_before ? [row(32)] : publicRows)
+    ui.select('[data-more]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && ui.select('[data-admin]').hidden,'silent role removal refresh')
+    assert.equal(ui.list.querySelector(`#comment-${row(1).id}`),null)
+    assert.equal(ui.list.querySelectorAll('.comment-menu').length,0,'Old administrator delete and ban controls disappear')
+    assert.equal(ui.list.children.length,31,'The requested earlier page remains included after permission refresh')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_list' && !call.args.p_before).length,2)
+  })
+
+  test(`${language}: a session account changed without an auth event cannot retain earlier private rows or a reply target`, async context => {
+    const oldRows=Array.from({length:30},(_,index)=>row(index+1,{can_delete:true,is_pending:index===0}))
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:oldRows})
+    ;[...ui.list.querySelectorAll('.comment-item-actions > button')].find(button=>button.textContent===(language==='en'?'Reply':'回复')).click()
+    ui.draft('Preserve text, not the old private target')
+    ui.identity=member({nickname:'Second reader'})
+    ui.accountId='different-session-account'
+    ui.handlers.comment_list=()=>ok([row(31)])
+    ui.select('[data-more]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && ui.select('[data-identity-name]').textContent==='Second reader','silent account replacement')
+    assert.equal(ui.list.children.length,1)
+    assert.equal(ui.list.querySelector(`#comment-${row(1).id}`),null)
+    assert.equal(ui.list.querySelectorAll('.comment-menu').length,0)
+    assert.equal(ui.select('[data-reply]').hidden,true)
+    assert.equal(ui.compose.parentElement,ui.select('[data-compose-home]'))
+    assert.equal(ui.textarea.value,'Preserve text, not the old private target')
+  })
+
+  test(`${language}: a silently revoked session discovered during pagination clears posting and old delete controls`, async context => {
+    const oldRows=Array.from({length:30},(_,index)=>row(index+1,{can_delete:true}))
+    const ui=await setup(context,language,{identity:member(),rows:oldRows})
+    ui.identity=guest()
+    ui.handlers.comment_list=()=>ok([row(31)])
+    ui.select('[data-more]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && !ui.select('[data-login-prompt]').hidden,'silently revoked sign-in')
+    assert.equal(ui.post.disabled,true)
+    assert.equal(ui.compose.hidden,true)
+    assert.equal(ui.list.querySelectorAll('.comment-menu').length,0)
+    assert.equal(ui.list.children.length,1)
+  })
+
   test(`${language}: a rejected unknown-account session check fails closed without an unhandled rejection`, async context => {
     const ui = await setup(context, language, { identity: member() })
     ui.draft('Keep this draft if account storage fails')
@@ -661,5 +843,120 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.textarea.value, 'Keep this draft if account storage fails')
     assert.equal(ui.status.parentElement, ui.select('[data-status-home]'))
     assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
+  })
+}
+
+const avatarKey = '20f34ef2-7542-482d-96c4-142dbf2be103'
+const avatarPath = `${avatarKey}.jpg?v=1`
+const avatarMember = (extra={}) => member({ avatar_key:avatarKey, avatar_path:avatarPath, ...extra })
+function chooseAvatarFile(ui) {
+  ui.select('[data-avatar-edit]').click()
+  const input=ui.select('[data-avatar-file]')
+  Object.defineProperty(input,'files',{configurable:true,value:[new ui.window.File(['original'], 'picture.png',{type:'image/png'})]})
+  Object.defineProperty(input,'value',{configurable:true,writable:true,value:'C:\\fakepath\\picture.png'})
+  input.dispatchEvent(new ui.window.Event('change',{bubbles:true}))
+}
+for(const language of ['zh','en']) {
+  test(`${language}: avatar actions follow owner, new member, active member, banned and guest roles`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember()})
+    assert.equal(ui.select('[data-avatar-edit]').hidden,false)
+    assert.equal(ui.select('[data-avatar-remove]').hidden,false)
+    assert.equal(ui.select('[data-identity-avatar] img').src,`https://example.supabase.co/storage/v1/object/public/comment-avatars/${avatarPath}`)
+    ui.select('[data-identity-avatar] img').dispatchEvent(new ui.window.Event('error'))
+    assert.equal(ui.select('[data-identity-avatar]').textContent,'R')
+    ui.changeIdentity(avatarMember({banned:true,can_post:false}))
+    await until(()=>!ui.select('[data-restricted-badge]').hidden,'banned identity')
+    assert.equal(ui.select('[data-avatar-edit]').hidden,true)
+    assert.equal(ui.select('[data-avatar-remove]').hidden,false)
+    assert.equal(ui.select('[data-avatar-remove]').closest('[data-identity]').parentElement,ui.select('[data-identity-home]'))
+    ui.changeIdentity(avatarMember({is_admin:true}))
+    await until(()=>!ui.select('[data-owner-badge]').hidden,'owner identity')
+    assert.equal(ui.select('[data-avatar-edit]').hidden,true)
+    assert.equal(ui.select('[data-avatar-remove]').hidden,true)
+    ui.changeIdentity(member({nickname:null}))
+    await until(()=>!ui.select('[data-profile-editor]').hidden,'new member identity')
+    assert.equal(ui.select('[data-avatar-edit]').hidden,true)
+    ui.changeIdentity(guest())
+    await until(()=>!ui.select('[data-login-prompt]').hidden,'guest identity')
+    assert.equal(ui.select('[data-avatar-remove]').hidden,true)
+  })
+
+  test(`${language}: avatar selection remains local until save, cancel releases preview and keeps reply draft`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember(),rows:[row(1)]})
+    ui.draft('My comment draft')
+    chooseAvatarFile(ui)
+    await until(()=>!ui.select('[data-avatar-save]').disabled,'local avatar preview')
+    assert.equal(ui.select('[data-avatar-preview]').hidden,false)
+    assert.equal(ui.avatarFetches.length,0)
+    assert.match(ui.select('[data-avatar-file]').value,/picture\.png$/)
+    assert.match(ui.select('[data-avatar-preview]').textContent,language==='en'?/public/:/公开/)
+    ui.select('[data-avatar-cancel]').click()
+    assert.equal(ui.select('[data-avatar-editor]').hidden,true)
+    assert.equal(ui.select('[data-avatar-preview-image]').hasAttribute('src'),false)
+    assert.equal(ui.select('[data-avatar-file]').value,'')
+    assert.deepEqual(ui.revokedAvatarUrls,['blob:avatar-0'])
+    assert.equal(ui.textarea.value,'My comment draft')
+    assert.equal(ui.avatarFetches.length,0)
+  })
+
+  test(`${language}: saving an avatar refreshes historic images; network failure keeps preview for retry`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember(),rows:[row(1,{avatar_path:avatarPath})]})
+    chooseAvatarFile(ui)
+    await until(()=>!ui.select('[data-avatar-save]').disabled,'preview before save')
+    ui.handlers.avatarFetch=async()=>new Response('private provider error',{status:503})
+    ui.select('[data-avatar-save]').click()
+    await until(()=>!ui.select('[data-avatar-save]').disabled && ui.status.dataset.error==='true','failed save retains preview')
+    assert.equal(ui.select('[data-avatar-preview]').hidden,false)
+    assert.equal(ui.avatarFetches[0][1].headers.Authorization,'Bearer account-id-token')
+    assert.equal(ui.avatarFetches[0][1].body.type,'image/jpeg')
+    const newPath=`${avatarKey}.jpg?v=2`
+    ui.handlers.avatarFetch=async()=>{
+      ui.identity=avatarMember({avatar_path:newPath}); ui.rows=[row(1,{avatar_path:newPath})]
+      return new Response('{}')
+    }
+    ui.select('[data-avatar-save]').click()
+    await until(()=>ui.select('[data-avatar-editor]').hidden && !ui.textarea.disabled,'avatar saved')
+    assert.match(ui.select('[data-identity-avatar] img').src,/v=2$/)
+    assert.match(ui.select('[data-list] .comment-avatar img').src,/v=2$/)
+    assert.equal(ui.status.dataset.error,'false')
+  })
+
+  test(`${language}: account switch aborts avatar processing and discards late preview without touching a new account`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember()})
+    const processing=deferred(); let signal
+    ui.handlers.prepareAvatar=(_file,options)=>{signal=options.signal;return processing.promise}
+    chooseAvatarFile(ui)
+    await until(()=>Boolean(signal),'avatar processing started')
+    ui.changeIdentity(avatarMember({nickname:'Another member',avatar_key:'25f34ef2-7542-482d-96c4-142dbf2be103',avatar_path:null}))
+    await until(()=>ui.select('[data-identity-name]').textContent==='Another member','next account identity')
+    assert.equal(signal.aborted,true)
+    processing.resolve(new Blob(['jpeg'],{type:'image/jpeg'}))
+    await flush()
+    assert.equal(ui.select('[data-avatar-editor]').hidden,true)
+    assert.equal(ui.select('[data-avatar-preview-image]').hasAttribute('src'),false)
+    assert.equal(ui.avatarFetches.length,0)
+    assert.equal(ui.textarea.disabled,false)
+  })
+
+  test(`${language}: remove avatar requires confirmation and a server-confirmed disappearance even for banned authors`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember({banned:true,can_post:false})})
+    ui.select('[data-avatar-remove]').click(); ui.select('dialog').close('cancel')
+    await flush(); assert.equal(ui.avatarFetches.length,0)
+    ui.handlers.avatarFetch=async()=>new Response('[]')
+    ui.select('[data-avatar-remove]').click(); ui.select('dialog').close('confirm')
+    await until(()=>ui.avatarFetches.length===1 && !ui.select('[data-avatar-remove]').disabled,'empty delete result checked')
+    assert.equal(ui.status.dataset.error,'true')
+    assert.equal(ui.select('[data-avatar-remove]').hidden,false)
+    ui.handlers.avatarFetch=async()=>{ui.identity=avatarMember({banned:true,can_post:false,avatar_path:null});return new Response('[]')}
+    ui.select('[data-avatar-remove]').click(); ui.select('dialog').close('confirm')
+    await until(()=>ui.select('[data-avatar-remove]').hidden && ui.status.dataset.error==='false','confirmed avatar removed')
+    assert.equal(ui.select('[data-identity-avatar]').querySelector('img'),null)
+    assert.equal(ui.status.parentElement,ui.select('[data-status-home]'))
+  })
+
+  test(`${language}: unsupported avatar paths never create a third-party image request`,async context=>{
+    const ui=await setup(context,language,{identity:avatarMember({avatar_path:'https://tracker.example/a.jpg'}),rows:[row(1,{avatar_path:'../secret.jpg?v=1'}),row(2,{avatar_path:`${avatarKey}.jpg?v=1&email=private@example.com`})]})
+    assert.equal(ui.select('[data-identity-avatar]').querySelector('img'),null)
+    assert.equal(ui.select('[data-list]').querySelector('img'),null)
   })
 }

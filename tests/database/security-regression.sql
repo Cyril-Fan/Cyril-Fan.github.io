@@ -66,7 +66,7 @@ insert into comment_private.admins values ('10000000-0000-0000-0000-000000000001
 
 set local role anon;
 select set_config('request.jwt.claims','{}',true);
-select comment_test.assert(public.comment_me() = '{"nickname":null,"can_post":false,"is_admin":false,"banned":false,"moderation_enabled":false}'::jsonb, 'anonymous me is safe');
+select comment_test.assert(public.comment_me() = '{"nickname":null,"can_post":false,"is_admin":false,"banned":false,"moderation_enabled":false,"avatar_key":null,"avatar_path":null}'::jsonb, 'anonymous me is safe');
 select comment_test.assert((select count(*) from public.comment_list('/about')) = 0, 'anonymous can read empty thread');
 select comment_test.expect_error('select * from comment_private.comments', null, 'anon private table denied', '42501');
 select comment_test.expect_error('select * from comment_private.actor()', null, 'anon helper denied', '42501');
@@ -178,7 +178,7 @@ reset role;
 delete from auth.sessions where id='20000000-0000-0000-0000-000000000002';
 set local role authenticated;
 select comment_test.claims(2);
-select comment_test.assert(public.comment_me() = '{"nickname":null,"can_post":false,"is_admin":false,"banned":false,"moderation_enabled":false}'::jsonb, 'revoked session me degrades to anonymous');
+select comment_test.assert(public.comment_me() = '{"nickname":null,"can_post":false,"is_admin":false,"banned":false,"moderation_enabled":false,"avatar_key":null,"avatar_path":null}'::jsonb, 'revoked session me degrades to anonymous');
 select comment_test.assert(not exists(select 1 from public.comment_list('/about') where can_delete), 'revoked session has no deletion privilege');
 select comment_test.expect_error($q$select public.comment_delete(comment_test.id('ban-target'))$q$, 'session_expired', 'logout revocation enforced server side');
 reset role;
@@ -369,8 +369,8 @@ select comment_test.expect_error($q$select public.comment_profile_update('   ')$
 select comment_test.expect_error($q$select public.comment_profile_update(repeat('x',41))$q$, 'invalid_nickname', 'profile name length cap');
 select comment_test.expect_error($q$select public.comment_profile_update('Name'||chr(10))$q$, 'invalid_nickname', 'profile name controls rejected');
 select comment_test.assert(public.comment_profile_update(repeat('星',40))->>'nickname'=repeat('星',40), 'profile allows forty Unicode characters');
-select comment_test.assert(public.comment_profile_update('  Alice Nine  ') =
-  '{"nickname":"Alice Nine","can_post":true,"is_admin":false,"banned":false,"moderation_enabled":false}'::jsonb,
+select comment_test.assert(public.comment_profile_update('  Alice Nine  ') - 'avatar_key' =
+  '{"nickname":"Alice Nine","can_post":true,"is_admin":false,"banned":false,"moderation_enabled":false,"avatar_path":null}'::jsonb,
   'profile update returns sanitized own public status only');
 select comment_test.create_comment('profile-root','/blog/profile','Profile root','Stale first form');
 select comment_test.assert((select nickname='Alice Nine' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'create preserves an explicitly saved profile');
@@ -454,6 +454,72 @@ select comment_test.expect_error($q$select public.comment_profile_update('Delete
 set local role anon;
 select set_config('request.jwt.claims','{}',true);
 select comment_test.assert((select nickname='Bob Ten' and not is_admin_author and not can_delete from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'orphaned comment safely falls back to stored name');
+reset role;
+
+-- 004 exempts only an actual administrator from posting frequency limits.
+-- Do not age the owner's consecutive posts: both burst limits must be bypassed.
+update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
+set local role authenticated;
+select comment_test.claims(1);
+select comment_test.create_comment('owner-burst-1','/blog/owner-burst','Owner first',null);
+select comment_test.create_comment('owner-burst-2','/blog/owner-burst','Owner second',null,comment_test.id('owner-burst-1'));
+select comment_test.create_comment('owner-burst-3','/blog/owner-burst','Owner third',null);
+select comment_test.create_comment('owner-burst-4','/blog/owner-burst','Owner fourth',null);
+select comment_test.create_comment('owner-burst-5','/blog/owner-burst','Owner fifth',null);
+select comment_test.create_comment('owner-burst-6','/blog/owner-burst-other','Owner sixth',null);
+select comment_test.create_comment('owner-burst-7','/blog/owner-burst','Owner seventh',null);
+select comment_test.assert((select count(*) from comment_test.ids where label like 'owner-burst-%')=7, 'owner can post seven consecutive distinct comments including replies and another thread');
+select comment_test.assert((select bool_and(nickname='Cyril Fan' and is_admin_author) from public.comment_list('/blog/owner-burst')), 'owner burst keeps authoritative nickname and badge');
+select comment_test.assert((select (public.comment_create('/blog/owner-burst','Owner first',null,null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='owner-burst-1'), 'owner retry after burst returns original comment');
+select comment_test.assert((select count(*) from public.comment_list('/blog/owner-burst'))=6, 'owner retry after burst creates no extra row');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Changed owner body',null,null,(select request_id from comment_test.ids where label='owner-burst-1'))$q$, 'idempotency_conflict', 'owner frequency exemption does not bypass request payload integrity');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','  Owner first  ',null,null,gen_random_uuid())$q$, 'duplicate_comment', 'owner frequency exemption keeps normalized duplicate detection');
+select public.comment_delete(comment_test.id('owner-burst-1'));
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Owner first',null,null,gen_random_uuid())$q$, 'duplicate_comment', 'owner deletion still cannot bypass duplicate detection');
+select comment_test.assert((select (public.comment_create('/blog/owner-burst','Owner first',null,null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='owner-burst-1'), 'owner deleted burst comment remains safely idempotent');
+select comment_test.assert((select deleted and body='' from public.comment_list('/blog/owner-burst') where id=comment_test.id('owner-burst-1')), 'owner retry never restores erased burst content');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst',repeat('x',2001),null,null,gen_random_uuid())$q$, 'invalid_body', 'owner frequency exemption keeps body validation');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst',repeat('https://example.invalid ',6),null,null,gen_random_uuid())$q$, 'too_many_links', 'owner frequency exemption keeps link limit');
+
+-- Ordinary users cannot claim the exemption through names or signed metadata.
+select comment_test.claims(2);
+select public.comment_profile_update('Cyril Fan');
+select set_config('request.jwt.claims', (auth.jwt() || '{"is_admin":true,"role":"authenticated","user_metadata":{"is_admin":true,"role":"admin","nickname":"Cyril Fan"},"app_metadata":{"is_admin":true,"role":"admin"}}'::jsonb)::text, true);
+select comment_test.assert(not (public.comment_me()->>'is_admin')::boolean, 'matching owner name and admin metadata cannot obtain frequency exemption');
+select comment_test.create_comment('impostor-burst','/blog/owner-burst-impostor','Ordinary first','Cyril Fan');
+select comment_test.assert((select nickname='Cyril Fan' and not is_admin_author from public.comment_list('/blog/owner-burst-impostor')), 'admin metadata cannot add owner badge');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst-impostor','Ordinary second','Cyril Fan',null,gen_random_uuid())$q$, 'rate_limited', 'matching owner name and admin metadata retain thirty second limit');
+reset role;
+update comment_private.comments set created_at=clock_timestamp()-interval '1 minute' where id=comment_test.id('impostor-burst');
+-- Existing valid visitor posts count across threads, including deleted content.
+update comment_private.comments set created_at=clock_timestamp()-interval '1 minute' where id in (
+  comment_test.id('window1'),comment_test.id('window2'),comment_test.id('window3'),comment_test.id('window4')
+);
+set local role authenticated;
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst-impostor','Ordinary sixth','Cyril Fan',null,gen_random_uuid())$q$, 'rate_limited', 'matching owner name and admin metadata retain five per ten minutes across threads');
+
+-- The exemption does not grant posting to a stale, unverified or banned owner.
+reset role;
+update auth.users set email_confirmed_at=null where id='10000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select comment_test.claims(1);
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Unverified owner',null,null,gen_random_uuid())$q$, 'email_verification_required', 'owner frequency exemption still requires verified email');
+reset role;
+update auth.users set email_confirmed_at=now() where id='10000000-0000-0000-0000-000000000001';
+update auth.sessions set not_after=clock_timestamp()-interval '1 minute' where id='20000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Expired owner',null,null,gen_random_uuid())$q$, 'session_expired', 'owner frequency exemption still requires live session');
+reset role;
+update auth.sessions set not_after=null where id='20000000-0000-0000-0000-000000000001';
+update auth.users set banned_until=clock_timestamp()+interval '1 day' where id='10000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Banned owner',null,null,gen_random_uuid())$q$, 'user_banned', 'owner frequency exemption still requires unbanned account');
+reset role;
+update auth.users set banned_until=null where id='10000000-0000-0000-0000-000000000001';
+delete from comment_private.admins where user_id='10000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select comment_test.assert(not (public.comment_me()->>'is_admin')::boolean, 'removed owner membership immediately revokes exemption identity');
+select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Demoted owner','Cyril Fan',null,gen_random_uuid())$q$, 'rate_limited', 'removed owner membership immediately re-applies posting limits including existing owner posts');
 reset role;
 select comment_test.assert((select bool_and(proconfig @> array['search_path=""']) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where (n.nspname='comment_private' or (n.nspname='public' and p.proname like 'comment_%')) and p.prosecdef), 'all definer functions pin empty search path');
 select comment_test.assert(not has_schema_privilege('anon','comment_private','USAGE') and not has_schema_privilege('authenticated','comment_private','USAGE'), 'private schema usage remains denied');

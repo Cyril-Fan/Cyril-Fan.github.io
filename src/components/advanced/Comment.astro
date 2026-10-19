@@ -17,15 +17,29 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   </div>
   <div data-configured hidden>
     <CommentAuth lang={lang} />
+    <div data-login-reply hidden class='comment-reply-preview comment-login-reply'><span data-login-reply-label></span><button type='button' data-cancel-login-reply>{en ? 'Cancel reply' : '取消回复'}</button></div>
     <div data-login-prompt hidden class='comment-login-prompt'>
       <p>{en ? 'Join the conversation' : '一起聊聊吧'}<span>{en ? 'Sign in with a verified email to leave a comment.' : '验证邮箱并登录后，就可以留言和回复。'}</span></p>
       <button type='button' data-sign-in>{en ? 'Sign in to comment' : '登录后留言'}</button>
     </div>
+    <div data-identity-home></div>
     <div data-compose-home><form data-compose hidden>
       <div data-identity class='comment-identity' hidden>
         <span data-identity-avatar class='comment-avatar' aria-hidden='true'></span>
         <strong data-identity-name></strong><span data-owner-badge class='comment-badge' hidden>{en ? 'Site owner' : '站长'}</span>
+        <span data-restricted-badge class='comment-badge' hidden>{en ? 'Posting restricted' : '暂时禁言'}</span>
         <button type='button' data-profile-edit class='comment-text-button'>{en ? 'Edit nickname' : '修改昵称'}</button>
+        <button type='button' data-avatar-edit hidden class='comment-text-button'>{en ? 'Change avatar' : '设置头像'}</button>
+        <button type='button' data-avatar-remove hidden class='comment-text-button'>{en ? 'Remove avatar' : '移除头像'}</button>
+        <div data-avatar-editor hidden class='comment-avatar-editor'>
+          <label>{en ? 'Choose a picture' : '选择图片'}<input data-avatar-file type='file' accept='image/jpeg,image/png,image/webp' aria-describedby='comment-avatar-help' /></label>
+          <p id='comment-avatar-help' class='comment-note'>{en ? 'Still JPEG, PNG or WebP · Up to 8 MiB. The picture is cropped to a square in your browser.' : '静态 JPEG、PNG 或 WebP，最大 8 MiB；图片会在浏览器中居中裁成正方形。'}</p>
+          <div data-avatar-preview hidden class='comment-avatar-preview'>
+            <img data-avatar-preview-image width='96' height='96' alt={en ? 'Your new avatar preview' : '新头像预览'} />
+            <p class='comment-note'>{en ? 'Saving makes this avatar public beside all your comments, including earlier ones. Only the cropped image is uploaded; original photo metadata is removed.' : '保存后，这张头像会随你的所有留言公开显示，包括之前的留言。只上传裁剪后的图片，原图附带信息会被移除。'}</p>
+          </div>
+          <div class='comment-profile-actions'><button type='button' data-avatar-save disabled>{en ? 'Save avatar' : '保存头像'}</button><button type='button' data-avatar-cancel>{en ? 'Cancel' : '取消'}</button></div>
+        </div>
       </div>
       <div data-profile-editor hidden class='comment-profile-editor'>
         <label>{en ? 'Public nickname' : '公开昵称'}<input name='nickname' maxlength='40' autocomplete='nickname' aria-describedby='comment-name-hint' /></label>
@@ -35,6 +49,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
       <div data-reply hidden class='comment-reply-preview'><div><span></span><p data-reply-excerpt></p></div><button type='button' data-cancel-reply>{en ? 'Cancel reply' : '取消回复'}</button></div>
       <label class='comment-body-label'>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='3' maxlength='2000' required placeholder={en ? 'Share a thought or say hello…' : '分享想法，或来打个招呼…'} aria-describedby='comment-guide'></textarea></label>
       <div class='comment-compose-foot'><div class='comment-compose-meta'><span data-counter aria-live='off'>0 / 2000</span><span class='comment-shortcut'>{en ? 'Ctrl / ⌘ + Enter to post' : 'Ctrl / ⌘ + Enter 发布'}</span></div><button type='submit' data-submit disabled>{en ? 'Post comment' : '发布留言'}</button></div>
+      <p data-moderation-note hidden class='comment-note' aria-live='polite'>{en ? 'Your comment will be public after the site owner approves it. You can view or delete it while it is pending.' : '留言将在站长审核通过后公开；等待期间你可以查看或删除自己的留言。'}</p>
       <p id='comment-guide' class='comment-note'>{en ? 'Plain text · Email stays private · Deleting your comment keeps other people’s replies.' : '纯文本留言 · 邮箱不公开 · 删除留言会保留他人的回复'} <a href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a></p>
     </form></div>
     <details data-admin hidden class='comment-admin'><summary>{en ? 'Comment settings' : '留言管理设置'}</summary><label><input type='checkbox' data-moderation /> {en ? 'Review new comments before publishing' : '新评论先审核再公开'}</label></details>
@@ -92,8 +107,17 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments [data-compose] { margin-top:1rem; padding:1rem; border:1px solid hsl(var(--border)); border-radius:.75rem; }
   site-comments .comment-compose-reply { margin-top:.8rem; background:hsl(var(--muted) / .22); }
   site-comments .comment-identity { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; font-size:.9rem; }
+  site-comments [data-identity-home]:not(:empty) { padding:.75rem 0; }
+  site-comments .comment-login-reply { margin:.75rem 0; padding:.65rem .8rem; border-radius:.5rem; background:hsl(var(--muted)); }
   site-comments .comment-identity strong { font-weight:600; }
-  site-comments .comment-avatar { display:inline-flex; flex:none; align-items:center; justify-content:center; width:2rem; height:2rem; border-radius:50%; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:.75rem; font-weight:600; user-select:none; }
+  site-comments .comment-avatar { display:inline-flex; position:relative; overflow:hidden; flex:none; align-items:center; justify-content:center; width:2rem; height:2rem; border-radius:50%; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:.75rem; font-weight:600; user-select:none; }
+  site-comments .comment-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  site-comments .comment-avatar-editor { flex-basis:100%; min-width:0; padding:.75rem; margin-top:.4rem; border-radius:.5rem; background:hsl(var(--muted) / .5); }
+  site-comments .comment-avatar-editor label { margin:0; }
+  site-comments .comment-avatar-editor input[type=file] { max-width:100%; overflow:hidden; font-size:.8rem; }
+  site-comments .comment-avatar-preview { display:flex; align-items:center; gap:1rem; margin:.8rem 0; }
+  site-comments .comment-avatar-preview img { flex:none; width:6rem; height:6rem; border-radius:50%; object-fit:cover; }
+  site-comments .comment-avatar-preview p { min-width:0; margin:0; line-height:1.6; }
   site-comments .comment-text-button { border-color:transparent; padding:.25rem .4rem; color:hsl(var(--muted-foreground)); }
   site-comments .comment-profile-editor { padding:.7rem; border-radius:.5rem; background:hsl(var(--muted) / .5); }
   site-comments .comment-profile-editor label { margin:0; }
@@ -121,6 +145,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-menu-choices { position:absolute; z-index:5; min-width:10rem; left:0; top:calc(100% + .25rem); display:flex; flex-direction:column; align-items:stretch; gap:.15rem; padding:.35rem; border:1px solid hsl(var(--border)); border-radius:.6rem; background:hsl(var(--background)); box-shadow:0 4px 16px rgb(0 0 0 / .1); }
   site-comments .comment-menu-choices button { text-align:start; white-space:nowrap; }
   @media (max-width:480px) {
+    site-comments .comment-avatar-preview { flex-wrap:wrap; }
     site-comments { padding:1rem; }
     site-comments [data-compose] { padding:.75rem; }
     site-comments .comment-item-header time { flex-basis:100%; padding-left:2.55rem; font-size:.75rem; }

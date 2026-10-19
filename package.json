@@ -13,7 +13,7 @@
     "preview": "astro preview",
     "sync": "astro sync",
     "check": "astro check",
-    "test": "node --test tests/comment-auth.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs",
+    "test": "node --test tests/comment-auth.test.mjs tests/comment-avatar.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs",
     "test:database": "node tests/database/run-security.mjs",
     "astro": "astro",
     "format": "prettier --write '**/*.{js,jsx,ts,tsx,md,mdx,astro}'",

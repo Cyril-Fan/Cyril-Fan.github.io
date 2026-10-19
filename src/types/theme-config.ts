@@ -113,6 +113,8 @@ export const ThemeConfigSchema = () =>
 
     /** Configure the header of your site. */
     header: z.object({
+      /** Optional navigation brand, independent of the author and page metadata. */
+      title: z.string().optional(),
       /** The header menu items for your site.
        * @example
        * header: [

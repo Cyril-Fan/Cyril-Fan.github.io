@@ -4,6 +4,7 @@ import { Icon } from '@/components/user'
 import LanguageSwitch from '@/components/user/LanguageSwitch.astro'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 const english = Astro.currentLocale === 'en'
+const brandTitle = config.header?.title || config.title
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/'
 const menuTitles: Record<string, string> = {
   '/blog/all': english ? 'Blog' : '博客',
@@ -55,10 +56,10 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     >
     </div> -->
   <a
-    class='z-30 text-xl font-semibold group-[.not-top]:ms-2 sm:group-[.not-top]:ms-3'
+    class='header-brand z-30 min-w-0 text-xl font-semibold group-[.not-top]:ms-2 sm:group-[.not-top]:ms-3'
     style='transition:margin-inline 0.3s'
     href={getLocalizedUrl(Astro.currentLocale, '/')}
-    aria-label={english ? `${config.title} home` : `${config.title}，返回首页`}>{config.title}</a
+    aria-label={english ? `${brandTitle} home` : `${brandTitle}，返回首页`}>{brandTitle}</a
   >
 
   <div class='flex items-center gap-x-2'>
@@ -249,6 +250,16 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
 </script>
 
 <style>
+  .header-brand {
+    padding-inline-end: .65rem;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+
+  @media (max-width: 400px) {
+    .header-brand { font-size: 1rem; }
+  }
+
   header-component {
     transition:
       padding 0.3s,

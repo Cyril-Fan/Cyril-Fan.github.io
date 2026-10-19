@@ -9,8 +9,9 @@ export type CommentRow = {
   id: string; parent_id: string | null; nickname: string; body: string; created_at: string;
   deleted: boolean; can_delete: boolean; is_admin_author: boolean; is_pending: boolean;
   parent_nickname: string | null; parent_deleted: boolean; author_banned: boolean | null;
+  avatar_path?: string | null;
 }
-export type CommentMe = { nickname: string | null; can_post: boolean; is_admin: boolean; banned: boolean; moderation_enabled: boolean }
+export type CommentMe = { nickname: string | null; can_post: boolean; is_admin: boolean; banned: boolean; moderation_enabled: boolean; avatar_key?: string | null; avatar_path?: string | null }
 export function commentError(error: { message?: string; code?: string }, en: boolean): string {
   const code = error.message ?? ''
   const messages: Record<string, [string, string]> = {

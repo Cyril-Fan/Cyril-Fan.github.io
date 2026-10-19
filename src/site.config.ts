@@ -41,6 +41,7 @@ export const theme: ThemeUserConfig = {
 
   /** Configure the header of your site. */
   header: {
+    title: "Cyril Fan's Blog",
     menu: [
       { title: '博客', link: '/blog/all' },
       { title: '研究', link: '/academic' },

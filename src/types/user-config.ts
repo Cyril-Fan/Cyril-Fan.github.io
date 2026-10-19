@@ -30,6 +30,7 @@ export const UserConfigSchema = z.object({
   
   // 头部配置
   header: z.object({
+    title: z.string().optional(),
     menu: z.array(z.object({
       title: z.string(),
       link: z.string()

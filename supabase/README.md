@@ -6,9 +6,15 @@ using the SQL editor or Supabase migrations. An existing deployment of `001`
 needs `202610190002_comment_parent_author_guard.sql`, which makes the
 pending-parent ownership check fail closed when an Auth account was removed,
 then `202610190003_current_profile_names.sql`. A deployment already on `002`
-only needs `003`, which adds current profile names and an authenticated rename RPC.
+needs `003`, which adds current profile names and an authenticated rename RPC,
+then `202610190004_admin_posting_frequency.sql`. A deployment already on `003`
+needs `004`, which exempts verified administrators from the two posting
+frequency limits while preserving all other validation, then
+`202610190005_profile_avatars.sql`. A deployment on `004` needs only `005`,
+which adds ordinary-user avatar slots, the dedicated Storage bucket and its
+ownership policies, and current avatar fields on the comment RPCs.
 Do not rerun or edit an already-applied migration. The migrations expect the real Supabase Auth
-schemas; **never apply `tests/database/bootstrap.sql` to Supabase**.
+and Storage schemas; **never apply `tests/database/bootstrap.sql` to Supabase**.
 
 ## Project setup
 
@@ -49,14 +55,15 @@ token validation failures can also be rejected before an RPC executes.
 
 | RPC | Return and behavior |
 | --- | --- |
-| `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false`. Administrator names are always `Cyril Fan`, including before their first post. |
+| `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled,avatar_key,avatar_path}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges, including null avatar fields. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false` and retains its own avatar fields for removal. Administrator names are always `Cyril Fan`, including before their first post; their avatar fields are null because the frontend uses the site's fixed portrait. |
 | `comment_profile_update(p_nickname)` | Same JSON as `comment_me`. Requires the caller's verified, active, unbanned session. Updates only that caller's profile; a user ID cannot be supplied. Admin input is ignored in favor of `Cyril Fan`. |
-| `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned}`. Comment and parent names use current profiles, including historical comments and deletion placeholders. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
+| `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned,avatar_path}`. Comment and parent names use current profiles, including historical comments and deletion placeholders. The avatar path also follows the current profile/object, and is null for administrators, missing objects and banned authors. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
 | `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized thread, body, and parent. Nickname is mutable metadata and does not affect retries. An existing profile wins over a stale form; the supplied name initializes a missing profile. Admins may omit the nickname value (`null`) and always publish as `Cyril Fan`. |
 | `comment_delete(p_id,p_branch=false)` | Void. Author clears only their own body; banned authors retain this right. Admin can clear any one body or set `p_branch=true` to erase and hide that comment and all descendants in the same thread. |
 | `comment_ban(p_comment_id,p_banned)` | Void, admin only. Resolves the author privately from a comment ID. Ban blocks posting using existing tokens; unban restores it. Cannot ban an admin. Existing published comments remain visible. |
 | `comment_moderation(p_enabled)` | Void, admin only. Controls whether future non-admin submissions require approval. |
 | `comment_review(p_id,p_approve)` | Void, admin only. Approve a pending record after its parent is published, or reject by erasing/hiding the selected branch. Rejection cannot be undone. |
+| `comment_avatar_is_owner(p_name,p_allow_banned=false)` | Boolean Storage-policy helper, authenticated role only. Checks the current verified session against the caller's private profile and exact fixed object name. `true` for the second argument permits a banned author to read/remove their own avatar; INSERT/UPDATE policies always use `false`. It never grants access by nickname, email, Auth metadata or Storage `owner_id`. The frontend need not call it. |
 
 The frontend must display `body` and `nickname` as **plain text**. Do not put them
 into `innerHTML`. A deleted row's body is the empty string and should render a
@@ -82,6 +89,54 @@ requests. A renamed profile is not a comment content edit, does not restore
 erased bodies, and cannot reset posting limits. After account deletion, the
 original name snapshot remains with the discussion; it is not anonymized by
 this implementation.
+
+## Profile avatars and Storage
+
+Migration `005` gives each existing/new profile a unique random `avatar_key`.
+The user must first save a nickname or post their first comment to create a
+profile; there is no automatic nickname or avatar-key-creation endpoint.
+`comment_me` returns the current ordinary user's own key. Upload only
+`<avatar_key>.jpg` to the public `comment-avatars` bucket with content type
+`image/jpeg`, `upsert:true` and a short `cacheControl` such as `60`. The bucket
+declares a 131072-byte (128 KiB) maximum and JPEG-only MIME type. Browser resizing
+and JPEG re-encoding are a convenience, not a server guarantee about actual file
+contents; Storage enforces its configured MIME/size rules, not image moderation.
+
+The bucket has separate SELECT/INSERT/UPDATE/DELETE policies. A verified account
+with a live matching session can operate only on its own exact filename.
+INSERT/UPDATE also require an unbanned ordinary account. SELECT/DELETE retain
+the author's removal right while banned. Administrator accounts use the fixed
+site portrait and cannot upload a separate comment avatar, even if they have an
+older private profile. Other buckets, filenames, folders and other accounts'
+objects are outside these policies. Keep any other Storage policies scoped to
+their own buckets: PostgreSQL combines permissive policies with OR.
+
+Supabase upsert needs SELECT, INSERT and UPDATE, so SELECT is granted only for
+the caller's own object. No anonymous listing policy is added. Public image
+delivery uses the bucket's public endpoint and does not require opening the
+object metadata listing. Policy details are based on the official
+[Storage access-control guide](https://supabase.com/docs/guides/storage/security/access-control)
+and [bucket configuration guide](https://supabase.com/docs/guides/storage/buckets/creating-buckets).
+
+`avatar_path` is `<avatar_key>.jpg?v=<updated_at epoch microseconds>`, or null
+when no object exists. Build its URL using the configured Supabase project's
+public Storage endpoint. Paths contain a random public avatar token, never an
+account UUID, email or email hash. A public avatar token is not a secret or an
+authorization credential; knowing it never grants write access. The version
+query changes after an overwrite, and all historical comments use the current
+object on their next list refresh. Deleting the object through the Storage API
+returns those comments to the default avatar. Replacing an avatar uses one slot
+instead of accumulating files under new names.
+
+Both site bans and native Auth bans suppress an author's `avatar_path` in
+comment lists. This hides it in the site UI; it does not revoke an already-known
+public image URL. Removal through Storage is necessary to delete the file, and
+previous browser/CDN copies can persist until expiry. Removing an Auth account
+cascades its private profile and stops avatar references in comment lists, but
+does not delete the Storage blob: record its opaque key privately and remove it
+through the Storage API or dashboard as part of account cleanup. Do not delete
+only the `storage.objects` SQL row, which can leave an untracked blob. Never
+place such private account-to-object mappings in the public repository.
 
 ## Threads, paging, and replies
 
@@ -131,10 +186,16 @@ malicious content:
 - At most five occurrences of an HTTP(S) or `www.` link, matched by
   `(https?://|www[.])[^[:space:]]+` case-insensitively. This is a link-count rule,
   not a URL safety filter.
-- At most one new comment per 30 seconds and five per rolling ten minutes per
-  account, across all threads, including admins. Identical normalized bodies by
-  the same account in the same thread within ten minutes are rejected.
+- Ordinary accounts may create at most one new comment per 30 seconds and five
+  per rolling ten minutes, across all threads. Active, verified administrators
+  in the private allowlist are exempt from these two frequency limits. Nicknames
+  and Auth metadata cannot grant the exemption; removal from the allowlist
+  immediately restores the limits, counting that account's existing posts.
   Deleting/hiding does not reset these counters.
+- Identical normalized bodies by the same account in the same thread within ten
+  minutes are rejected, including for administrators. Administrator posting
+  still requires a verified email, live session and unbanned account, and keeps
+  all body, link, reply and idempotency validation.
 - A UUID request ID is unique per account. Retries with the same normalized
   thread/body/parent return the same comment, including after deletion and name
   changes; a changed thread/body/parent fails. New hashes use version `2`, which
@@ -169,12 +230,18 @@ The test creates a fresh in-memory PostgreSQL backend through PGlite. Auth mocks
 exist only there. It applies all production migrations in order, changes to actual `anon`
 and `authenticated` roles, and runs SQL assertions for grants, private storage,
 verified email/session revocation, ownership, banned deletion, recursive removal,
-moderation visibility, stable paging, spam limits, profile ownership, fixed admin
+moderation visibility, stable paging, visitor spam limits, administrator frequency
+exemption without metadata/name-based escalation, profile ownership, fixed admin
 names, renamed historical comments/reply labels, and idempotency across renames.
 The runner also creates real data using `001`/`002` before applying `003` to
 verify existing nickname snapshots and erased-body request hashes survive the
 upgrade. These upgrade fixtures are removed before the main suite; the remaining
-fixtures and test helpers are rolled back.
+fixtures and test helpers are rolled back. Avatar tests use a minimal local
+Storage metadata schema with real PostgreSQL RLS to check ownership, fixed paths,
+grants, cross-account operations, upsert, session revocation, banned removal and
+historical avatar updates. The mock does not upload a JPEG or implement the
+Storage HTTP service, MIME/size rejection or CDN behavior; verify those separately
+against the production service before claiming a complete upload acceptance.
 
 From the repository root, use the pinned development dependency:
 
@@ -195,7 +262,7 @@ node tests/database/run-security.mjs
 
 No production credentials or network are used by the test itself. Alternatively,
 in a disposable local PostgreSQL database, run `bootstrap.sql`, all migrations
-in filename order and `security-regression.sql` as a
+in filename order, `security-regression.sql`, and `avatar-regression.sql` as a
 superuser using `psql -v ON_ERROR_STOP=1`.
 Do not use these mock/fixture scripts against the production project.
 

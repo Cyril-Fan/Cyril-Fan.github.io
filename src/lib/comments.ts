@@ -1,5 +1,6 @@
 import { getCommentClient, type CommentAuthChangeDetail } from './comment-auth'
 import { commentError, type CommentRow, type CommentMe } from './comment-utils'
+import { prepareCommentAvatar, commentAvatarUrl, captureAvatarAuthorization, saveCommentAvatar, removeCommentAvatar, commentAvatarMessage } from './comment-avatar'
 
 const guestIdentity = (): CommentMe => ({ nickname:null, can_post:false, is_admin:false, banned:false, moderation_enabled:false })
 
@@ -14,9 +15,15 @@ export class SiteComments extends HTMLElement {
   private loading = false
   private identityReady = false
   private editingProfile = false
+  private avatarEditorOpen = false
+  private avatarDraft: Blob | null = null
+  private avatarPreviewUrl: string | null = null
+  private avatarOperation?: AbortController
+  private avatarWorking: 'prepare' | 'save' | 'remove' | null = null
   private rows: CommentRow[] = []
   private me = guestIdentity()
   private parent: CommentRow | null = null
+  private loginReply: { row: CommentRow; accountId: string | null } | null = null
   private replyUnavailable = false
   private requestId: string | null = null
   private fingerprint = ''
@@ -28,6 +35,9 @@ export class SiteComments extends HTMLElement {
   private signal() { return AbortSignal.any([this.lifetime!.signal, this.accountLifetime.signal, AbortSignal.timeout(20000)]) }
   private current(lifetime:AbortController|undefined, account:number) { return this.isConnected && this.lifetime===lifetime && this.accountVersion===account }
   private name() { return this.me.is_admin ? 'Cyril Fan' : this.me.nickname }
+  private get avatarOrigin() { return String(import.meta.env.PUBLIC_SUPABASE_URL??'').trim() }
+  private canChangeAvatar() { return this.identityReady && this.me.can_post && !this.me.is_admin && !!this.me.nickname && !!this.me.avatar_key && !!this.accountId }
+  private canRemoveAvatar() { return this.identityReady && !this.me.is_admin && (this.me.can_post || this.me.banned) && !!this.me.avatar_key && !!this.me.avatar_path && !!this.accountId }
 
   connectedCallback() {
     if (this.lifetime) return
@@ -40,9 +50,29 @@ export class SiteComments extends HTMLElement {
     this.el('[data-refresh]').addEventListener('click',()=>void this.load(false,true),options)
     this.el('[data-more]').addEventListener('click',()=>void this.load(true),options)
     this.el('[data-cancel-reply]').addEventListener('click',()=>this.setReply(null,true),options)
+    this.el('[data-cancel-login-reply]').addEventListener('click',()=>{
+      this.loginReply=null; this.updateControls()
+      const authOpen=!this.el<HTMLElement>('comment-auth [data-guest]').hidden
+      this.el<HTMLElement>(authOpen ? 'comment-auth [name=email]' : '[data-sign-in]').focus()
+    },options)
     this.el('[data-profile-edit]').addEventListener('click',()=>this.editProfile(true),options)
     this.el('[data-profile-cancel]').addEventListener('click',()=>this.editProfile(false),options)
     this.el('[data-profile-save]').addEventListener('click',()=>void this.saveProfile(),options)
+    this.el('[data-avatar-edit]').addEventListener('click',()=>{
+      if(this.busy || !this.canChangeAvatar()) return
+      this.avatarEditorOpen=true; this.updateControls()
+      this.el<HTMLInputElement>('[data-avatar-file]').focus()
+      this.el<HTMLInputElement>('[data-avatar-file]').click()
+    },options)
+    this.el('[data-avatar-file]').addEventListener('change',()=>void this.chooseAvatar(),options)
+    this.el('[data-avatar-cancel]').addEventListener('click',()=>{
+      if(this.busy && this.avatarWorking!=='prepare') return
+      if(this.avatarWorking==='prepare') this.busy=false
+      this.resetAvatarEditor(); this.updateControls(); this.status('')
+      this.el<HTMLButtonElement>('[data-avatar-edit]').focus()
+    },options)
+    this.el('[data-avatar-save]').addEventListener('click',()=>void this.saveAvatar(),options)
+    this.el('[data-avatar-remove]').addEventListener('click',()=>void this.removeAvatar(),options)
     this.el('[data-sign-in]').addEventListener('click',()=>{
       this.el('comment-auth').dispatchEvent(new CustomEvent('comment-auth-open'))
     },options)
@@ -91,8 +121,9 @@ export class SiteComments extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.resetAvatarEditor()
     this.lifetime?.abort(); this.lifetime=undefined; this.generation++; this.accountVersion++
-    this.busy=false; this.loading=false
+    this.busy=false; this.loading=false; this.loginReply=null
     this.pendingConfirmation?.(false); this.pendingConfirmation=null
     this.el<HTMLDialogElement>('dialog')?.close()
   }
@@ -103,13 +134,20 @@ export class SiteComments extends HTMLElement {
       if(!this.busy && !this.loading) void this.load(false,true)
       return
     }
+    // A guest reply intent may follow the first sign-in, but never an existing
+    // member switching accounts or signing out midway through that sign-in.
+    if(this.loginReply) {
+      if(this.accountId===null && userId && this.loginReply.accountId===null) this.loginReply.accountId=userId
+      else this.loginReply=null
+    }
     this.accountId=userId
+    this.resetAvatarEditor()
     this.accountLifetime.abort(); this.accountLifetime=new AbortController(); this.accountVersion++
     this.busy=false; this.editingProfile=false; this.requestId=null; this.fingerprint=''
     this.el<HTMLInputElement>('[name=nickname]').value=''
     this.pendingConfirmation?.(false); this.pendingConfirmation=null
     this.el<HTMLDialogElement>('dialog').close()
-    this.clearPermissions(); this.setReply(null); void this.load()
+    this.clearPermissions(); this.setReply(null); void this.load(false,!!this.loginReply)
   }
 
   private updateControls() {
@@ -118,11 +156,27 @@ export class SiteComments extends HTMLElement {
     const nickname=this.el<HTMLInputElement>('[name=nickname]')
     this.el<HTMLElement>('[data-compose]').hidden=!this.me.can_post
     this.el('[data-login-prompt]').hidden=!this.identityReady || this.me.can_post || this.me.banned
-    this.el('[data-identity]').hidden=!name
-    this.el('[data-identity-name]').textContent=name??''
-    this.el('[data-identity-avatar]').textContent=this.initials(name??'')
+    this.el('[data-login-reply]').hidden=!this.loginReply
+    this.el('[data-login-reply-label]').textContent=this.loginReply ? this.t(`登录后回复 ${this.loginReply.row.nickname}`,`Sign in to reply to ${this.loginReply.row.nickname}`) : ''
+    const identity=this.el('[data-identity]')
+    const identityHome=this.me.can_post ? this.el('[data-compose]') : this.el('[data-identity-home]')
+    if(identity.parentElement!==identityHome) identityHome.prepend(identity)
+    identity.hidden=!name && !this.me.banned
+    this.el('[data-identity-name]').textContent=name??(this.me.banned ? this.t('当前账户','Current account') : '')
+    this.renderAvatar(this.el('[data-identity-avatar]'),name??'',this.me.is_admin,this.me.avatar_path)
     this.el('[data-owner-badge]').hidden=!this.me.is_admin
-    this.el('[data-profile-edit]').hidden=this.me.is_admin || this.editingProfile
+    this.el('[data-restricted-badge]').hidden=!this.me.banned
+    this.el('[data-profile-edit]').hidden=!this.me.can_post || this.me.is_admin || this.editingProfile
+    this.el('[data-avatar-edit]').hidden=!this.canChangeAvatar() || this.avatarEditorOpen
+    this.el('[data-avatar-edit]').textContent=this.me.avatar_path ? this.t('修改头像','Change avatar') : this.t('设置头像','Set avatar')
+    this.el('[data-avatar-remove]').hidden=!this.canRemoveAvatar() || this.avatarEditorOpen
+    this.el('[data-avatar-editor]').hidden=!this.canChangeAvatar() || !this.avatarEditorOpen
+    this.el('[data-avatar-preview]').hidden=!this.avatarDraft
+    this.el<HTMLButtonElement>('[data-avatar-save]').disabled=this.busy || !this.avatarDraft || !this.canChangeAvatar()
+    this.el<HTMLButtonElement>('[data-avatar-cancel]').disabled=this.busy && this.avatarWorking!=='prepare'
+    this.el<HTMLInputElement>('[data-avatar-file]').disabled=this.busy
+    this.querySelectorAll<HTMLButtonElement>('[data-avatar-edit], [data-avatar-remove]').forEach(button=>{button.disabled=this.busy})
+    this.el('[data-moderation-note]').hidden=!this.me.can_post || !(this.parent?.is_pending || (this.me.moderation_enabled && !this.me.is_admin))
     this.el('[data-profile-editor]').hidden=!showEditor
     this.el('[data-profile-cancel]').hidden=!name
     this.el('[data-profile-hint]').textContent=name
@@ -144,15 +198,16 @@ export class SiteComments extends HTMLElement {
   }
 
   private clearPermissions() {
+    this.resetAvatarEditor()
     this.me=guestIdentity(); this.identityReady=false
     this.rows=this.rows.filter(row=>!row.is_pending).map(row=>({...row,can_delete:false,author_banned:null}))
     this.render(); this.updateControls()
   }
 
-  private async load(more=false,preservePages=false) {
+  private async load(more=false,preservePages=false,minimumPages=1): Promise<boolean> {
     if (!this.client || !this.lifetime) return false
     const generation=++this.generation
-    const targetPages=preservePages ? Math.max(1,Math.ceil(this.rows.length/30)) : 1
+    const targetPages=Math.max(minimumPages,preservePages ? Math.max(1,Math.ceil(this.rows.length/30)) : 1)
     const last=more ? this.rows.at(-1) : null
     this.loading=true; this.updateControls()
     this.el('[data-list]').setAttribute('aria-busy','true')
@@ -165,6 +220,21 @@ export class SiteComments extends HTMLElement {
       if(identity.error) throw identity.error
       if(result.error) throw result.error
       if(session.error) throw session.error
+      const nextMe=(Array.isArray(identity.data) ? identity.data[0] : identity.data) as CommentMe
+      const nextAccountId=session.data.session?.user.id??null
+      if(this.accountId!==undefined && nextAccountId!==this.accountId) {
+        // Session storage can change without an SDK event. Drop private rows and
+        // old-account actions before accepting any page from the next account.
+        this.authChanged(nextAccountId)
+        return false
+      }
+      if(more && (nextMe.is_admin!==this.me.is_admin || nextMe.can_post!==this.me.can_post || nextMe.banned!==this.me.banned)) {
+        const pagesToReload=Math.max(1,Math.ceil(this.rows.length/30))+1
+        // Every displayed row carries server-derived permissions. A role change
+        // requires refreshed earlier pages, not just a new page appended to them.
+        this.clearPermissions()
+        return await this.load(false,true,pagesToReload)
+      }
       let page=(result.data??[]) as CommentRow[]
       const next=[...page]
       for(let index=1; index<targetPages && page.length===30; index++) {
@@ -176,15 +246,20 @@ export class SiteComments extends HTMLElement {
         next.push(...unseen)
         if(!unseen.length) break
       }
-      this.me=(Array.isArray(identity.data) ? identity.data[0] : identity.data) as CommentMe
-      this.accountId=session.data.session?.user.id??null
+      this.me=nextMe
+      this.accountId=nextAccountId
       this.identityReady=true
+      if(!this.canChangeAvatar()) this.resetAvatarEditor()
       this.rows=more ? [...this.rows,...next.filter(row=>!this.rows.some(old=>old.id===row.id))] : next
+      const resumeReply=this.loginReply && this.me.can_post && this.accountId && (this.loginReply.accountId===null || this.loginReply.accountId===this.accountId)
+      if(resumeReply) {this.parent=this.loginReply!.row; this.loginReply=null}
+      if(this.me.banned) this.loginReply=null
       if(!this.editingProfile && this.name()) this.el<HTMLInputElement>('[name=nickname]').value=this.name()!
       this.render()
       this.el('[data-more]').hidden=page.length<30
       this.el('[data-empty]').hidden=this.rows.length>0
       this.status(this.me.banned ? this.t('此账号暂时无法发布新留言，但仍可删除自己的留言。','This account cannot post new comments, but can delete its own comments.') : '')
+      if(resumeReply) {this.updateControls(); this.el('[data-compose]').scrollIntoView?.({block:'nearest'}); this.el<HTMLTextAreaElement>('textarea').focus({preventScroll:true})}
       return true
     } catch(error) {
       if(generation===this.generation && this.isConnected) {this.clearPermissions(); this.status(commentError(error as Error,this.en),true)}
@@ -206,6 +281,17 @@ export class SiteComments extends HTMLElement {
     const words=name.trim().split(/\s+/).filter(Boolean)
     return (words.length>1 ? (Array.from(words[0])[0]??'')+(Array.from(words.at(-1)!)[0]??'') : Array.from(name.trim())[0]??'').toLocaleUpperCase()
   }
+  private renderAvatar(container:HTMLElement,name:string,isOwner:boolean,path?:string|null) {
+    const source=isOwner ? '/avatar/avatar.png' : commentAvatarUrl(this.avatarOrigin,path)
+    if(container.dataset.avatarName===name && container.dataset.avatarSource===(source??'')) return
+    container.dataset.avatarName=name; container.dataset.avatarSource=source??''
+    container.textContent=this.initials(name)
+    if(!source) return
+    const avatar=this.node('img')
+    avatar.alt=''; avatar.width=32; avatar.height=32; avatar.loading='lazy'; avatar.decoding='async'
+    avatar.addEventListener('error',()=>avatar.remove(),{once:true})
+    avatar.referrerPolicy='no-referrer'; avatar.src=source; container.append(avatar)
+  }
   private render() {
     // The single composer must leave the old list before its children are replaced.
     const compose=this.el<HTMLFormElement>('[data-compose]')
@@ -217,7 +303,8 @@ export class SiteComments extends HTMLElement {
     const loadedIds=new Set(this.rows.map(row=>row.id))
     for(const row of this.rows) {
       const item=this.node('li',undefined,`comment-item${row.parent_id ? ' comment-item-reply' : ''}`); item.id=`comment-${row.id}`
-      const avatar=this.node('span',this.initials(row.nickname),'comment-avatar'); avatar.setAttribute('aria-hidden','true')
+      const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
+      this.renderAvatar(avatar,row.nickname,row.is_admin_author,row.avatar_path)
       const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',row.nickname))
       if(row.is_admin_author) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
       if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
@@ -241,10 +328,14 @@ export class SiteComments extends HTMLElement {
         },{signal:this.lifetime!.signal}); container.append(button)
       }
       if(!row.deleted && this.me.can_post) action(actions,this.t('回复','Reply'),()=>this.setReply(row,true))
+      else if(!row.deleted && this.identityReady && !this.me.banned && !this.accountId) action(actions,this.t('登录后回复','Sign in to reply'),()=>{
+        this.loginReply={row,accountId:null}; this.updateControls()
+        this.el('comment-auth').dispatchEvent(new CustomEvent('comment-auth-open'))
+      })
       if(this.me.is_admin && row.is_pending) action(actions,this.t('审核通过','Approve'),()=>void this.mutate('comment_review',{p_id:row.id,p_approve:true}))
       if((!row.deleted && row.can_delete) || this.me.is_admin) {
         const menu=this.node('details',undefined,'comment-menu')
-        const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t('更多留言操作','More comment actions'))
+        const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t(`${row.nickname} 的留言：更多操作`,`More actions for ${row.nickname}’s comment`))
         summary.addEventListener('click',event=>{if(this.busy) event.preventDefault()},{signal:this.lifetime!.signal})
         menu.append(summary)
         const choices=this.node('div',undefined,'comment-menu-choices')
@@ -292,6 +383,95 @@ export class SiteComments extends HTMLElement {
     this.updateControls()
     if(editing) this.el<HTMLInputElement>('[name=nickname]').focus()
     else this.el<HTMLButtonElement>('[data-profile-edit]').focus()
+  }
+  private resetAvatarEditor(keepFileInput=false) {
+    this.avatarOperation?.abort(); this.avatarOperation=undefined
+    if(this.avatarWorking) this.busy=false
+    this.avatarWorking=null; this.avatarEditorOpen=false; this.avatarDraft=null
+    if(this.avatarPreviewUrl) URL.revokeObjectURL(this.avatarPreviewUrl)
+    this.avatarPreviewUrl=null
+    this.el<HTMLImageElement>('[data-avatar-preview-image]')?.removeAttribute('src')
+    const input=this.el<HTMLInputElement>('[data-avatar-file]')
+    if(input && !keepFileInput) input.value=''
+  }
+  private async chooseAvatar() {
+    if(this.busy || !this.canChangeAvatar()) return
+    const file=this.el<HTMLInputElement>('[data-avatar-file]').files?.[0]
+    if(!file) return
+    const lifetime=this.lifetime, account=this.accountVersion
+    this.resetAvatarEditor(true); this.avatarEditorOpen=true
+    const operation=new AbortController(); this.avatarOperation=operation
+    this.avatarWorking='prepare'; this.busy=true; this.updateControls()
+    this.status(this.t('正在处理头像，仅在本机预览…','Preparing your avatar for a local preview…'))
+    try {
+      const jpeg=await prepareCommentAvatar(file,{signal:AbortSignal.any([this.signal(),operation.signal])})
+      if(!this.current(lifetime,account) || this.avatarOperation!==operation) return
+      this.avatarDraft=jpeg; this.avatarPreviewUrl=URL.createObjectURL(jpeg)
+      this.el<HTMLImageElement>('[data-avatar-preview-image]').src=this.avatarPreviewUrl
+      this.status(this.t('预览已准备好。点击“保存头像”后才会上传并公开显示。','Preview ready. Choose “Save avatar” to upload and publish it.'))
+    } catch(error) {
+      if(this.current(lifetime,account) && this.avatarOperation===operation) this.status(commentAvatarMessage(error,this.en),true)
+    } finally {
+      if(this.current(lifetime,account) && this.avatarOperation===operation) {
+        this.avatarOperation=undefined; this.avatarWorking=null; this.busy=false; this.updateControls()
+        if(this.avatarDraft) this.el<HTMLButtonElement>('[data-avatar-save]').focus()
+      }
+    }
+  }
+  private async avatarAuthorization(signal:AbortSignal) {
+    return captureAvatarAuthorization(this.client!,{accountId:this.accountId!,avatarKey:this.me.avatar_key!},this.avatarOrigin,String(import.meta.env.PUBLIC_SUPABASE_ANON_KEY??'').trim(),signal)
+  }
+  private async saveAvatar() {
+    if(this.busy || !this.canChangeAvatar() || !this.avatarDraft) return
+    const lifetime=this.lifetime, account=this.accountVersion, jpeg=this.avatarDraft
+    const operation=new AbortController(); this.avatarOperation=operation
+    this.avatarWorking='save'; this.busy=true; this.updateControls(); this.status(this.t('正在保存头像…','Saving avatar…'))
+    try {
+      const signal=AbortSignal.any([this.signal(),operation.signal])
+      const auth=await this.avatarAuthorization(signal)
+      if(!this.current(lifetime,account) || this.avatarOperation!==operation) return
+      await saveCommentAvatar(auth,jpeg,{signal})
+      if(!this.current(lifetime,account) || this.avatarOperation!==operation) return
+      // The uploaded object is acknowledged. A later list failure must not invite
+      // another upload, and all already loaded pages should show the new avatar.
+      this.resetAvatarEditor(); this.busy=true
+      const loaded=await this.load(false,true)
+      if(!this.current(lifetime,account)) return
+      this.status(loaded ? this.t('头像已更新，之前的留言也会显示新头像。','Avatar updated, including your earlier comments.') : this.t('头像已保存，但留言列表刷新失败。请点击刷新查看。','Your avatar was saved, but comments could not refresh. Please refresh the list.'),!loaded)
+    } catch(error) {
+      if(this.current(lifetime,account) && this.avatarOperation===operation) this.status(commentAvatarMessage(error,this.en),true)
+    } finally {
+      if(this.current(lifetime,account) && (this.avatarOperation===operation || !this.avatarOperation)) {
+        this.avatarOperation=undefined; this.avatarWorking=null; this.busy=false; this.updateControls()
+      }
+    }
+  }
+  private async removeAvatar() {
+    if(this.busy || !this.canRemoveAvatar()) return
+    const lifetime=this.lifetime, account=this.accountVersion
+    const approved=await this.confirm(this.t('移除公开头像？','Remove your public avatar?'),this.t('所有留言将恢复默认头像。浏览器缓存中的旧图可能短暂保留，之后可以重新上传。','All your comments will return to the default avatar. Previously cached images may remain briefly; you can upload another later.'))
+    if(!approved || !this.current(lifetime,account) || !this.canRemoveAvatar()) return
+    const operation=new AbortController(); this.avatarOperation=operation
+    this.avatarWorking='remove'; this.busy=true; this.updateControls(); this.status(this.t('正在移除头像…','Removing avatar…'))
+    try {
+      const signal=AbortSignal.any([this.signal(),operation.signal])
+      const auth=await this.avatarAuthorization(signal)
+      if(!this.current(lifetime,account) || this.avatarOperation!==operation) return
+      await removeCommentAvatar(auth,{signal})
+      if(!this.current(lifetime,account) || this.avatarOperation!==operation) return
+      const loaded=await this.load(false,true)
+      if(!this.current(lifetime,account)) return
+      // Storage DELETE may return 200 with [] if RLS filters the object out.
+      // Never report a deletion while the server profile still exposes that image.
+      const removed=loaded && !this.me.avatar_path
+      this.status(removed ? this.t('头像已移除，留言恢复默认头像。','Avatar removed. Your comments now use the default avatar.') : loaded ? this.t('头像仍未移除，请刷新确认账户权限后重试。','The avatar is still present. Refresh to check account permissions and retry.') : this.t('已请求移除头像，但暂时无法确认结果。请刷新查看。','Avatar removal was requested, but the result could not be confirmed. Please refresh to check.'),!removed)
+    } catch(error) {
+      if(this.current(lifetime,account) && this.avatarOperation===operation) this.status(commentAvatarMessage(error,this.en),true)
+    } finally {
+      if(this.current(lifetime,account) && (this.avatarOperation===operation || !this.avatarOperation)) {
+        this.avatarOperation=undefined; this.avatarWorking=null; this.busy=false; this.updateControls()
+      }
+    }
   }
   private async saveProfile() {
     if(this.busy || !this.client || !this.me.can_post || this.me.is_admin) return

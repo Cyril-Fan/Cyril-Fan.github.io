@@ -40,8 +40,14 @@ try {
   if (!summary || Number(summary.assertions_passed) < 60) {
     throw new Error('Regression suite did not complete its assertions.');
   }
-  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions} real PostgreSQL assertions passed (${upgradeAssertions} on existing 001/002 data).`);
+  stage = 'avatar storage RLS regression';
+  const avatarResults = await db.exec(await readFile(path.join(here, 'avatar-regression.sql'), 'utf8'));
+  const avatarAssertions = Number(avatarResults.flatMap((result) => result.rows ?? [])
+    .find((row) => Object.hasOwn(row, 'avatar_assertions_passed'))?.avatar_assertions_passed ?? 0);
+  if (avatarAssertions < 40) throw new Error('Avatar storage RLS assertions did not complete.');
+  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + avatarAssertions} real PostgreSQL assertions passed (${upgradeAssertions} on existing 001/002 data; ${avatarAssertions} on avatar metadata/RLS).`);
   console.log('PGlite uses one backend. Multi-connection lock contention is not exercised by this suite.');
+  console.log('Avatar tests model Storage metadata only; real JPEG upload, MIME/size enforcement and CDN caching require integration checks.');
 } catch (error) {
   console.error(`FAIL during ${stage}: ${error.message}`);
   if (error.detail) console.error(error.detail);
