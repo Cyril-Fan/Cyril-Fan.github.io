@@ -2,7 +2,7 @@
 
 Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://github.com/Axi404/Axi-Theme) 定制，使用 Astro 生成静态页面。
 
-正式域名配置为 **https://cyril-fan.top**，公开源码仓库为 **Cyril-Fan/Cyril-Fan.github.io**。域名解析、GitHub Pages 部署和 HTTPS 状态应以控制台与实际访问结果为准。
+正式域名配置为 **[cyril-fan.top](https://cyril-fan.top/)**，公开源码仓库为 **[Cyril-Fan/Cyril-Fan.github.io](https://github.com/Cyril-Fan/Cyril-Fan.github.io)**。域名解析、GitHub Pages 部署和 HTTPS 状态应以控制台与实际访问结果为准。
 
 ## 首版内容
 
