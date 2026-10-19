@@ -95,7 +95,7 @@ const collectionUrl = getLocalizedUrl(Astro.currentLocale, `/collection/${id}`)
 
       <div class='flex items-center justify-between p-4 text-sm font-medium text-primary'>
         <span class='text-foreground transition-colors group-hover:text-primary'>
-          View Collection
+          {isEn ? 'View Collection' : '查看合集'}
         </span>
         <Icon
           name='chevron-down'

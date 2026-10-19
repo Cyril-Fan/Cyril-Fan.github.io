@@ -31,12 +31,12 @@ const title = en ? 'Confirm your account' : '确认账户操作'
         <form method='post' data-recovery-form hidden class='mt-5 grid gap-4'>
           <div>
             <label for='recovery-password' class='mb-1 block text-sm font-medium'>{en ? 'New password' : '新密码'}</label>
-            <input id='recovery-password' name='password' type='password' required minlength='12' autocomplete='new-password' aria-describedby='recovery-password-hint' class='confirm-input' />
-            <p id='recovery-password-hint' class='mt-1 text-xs text-muted-foreground'>{en ? 'At least 12 characters. You may paste a password or use a password manager.' : '至少 12 个字符，可粘贴或使用密码管理器。'}</p>
+            <input id='recovery-password' name='password' type='password' required minlength='8' autocomplete='new-password' aria-describedby='recovery-password-hint' class='confirm-input' />
+            <p id='recovery-password-hint' class='mt-1 text-xs text-muted-foreground'>{en ? 'At least 8 characters. You may paste a password or use a password manager.' : '至少 8 个字符，可粘贴或使用密码管理器。'}</p>
           </div>
           <div>
             <label for='recovery-password-repeat' class='mb-1 block text-sm font-medium'>{en ? 'Repeat new password' : '再次输入新密码'}</label>
-            <input id='recovery-password-repeat' name='repeat' type='password' required minlength='12' autocomplete='new-password' class='confirm-input' />
+            <input id='recovery-password-repeat' name='repeat' type='password' required minlength='8' autocomplete='new-password' class='confirm-input' />
           </div>
           <p class='text-sm text-muted-foreground'>{en ? 'After saving, you will be signed out of your comment sessions and asked to sign in with your new password.' : '保存后会退出评论登录会话，请使用新密码重新登录。'}</p>
           <button type='submit' class='confirm-primary justify-self-start'>{en ? 'Save new password and sign out' : '保存新密码并退出'}</button>
@@ -213,7 +213,7 @@ const title = en ? 'Confirm your account' : '确认账户操作'
       const password = this.field<HTMLInputElement>('[name=password]')
       const repeated = this.field<HTMLInputElement>('[name=repeat]')
       if (!validateCommentPassword(password.value)) {
-        this.message(this.say('新密码至少需要 12 个字符。', 'Your new password needs at least 12 characters.'), true)
+        this.message(this.say('新密码至少需要 8 个字符。', 'Your new password needs at least 8 characters.'), true)
         password.focus()
         return
       }

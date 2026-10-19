@@ -107,7 +107,7 @@ const ellipsisClasses = `
 {lastPage > 1 && (
   <nav
     class="mt-8 flex flex-wrap items-center justify-center gap-1"
-    aria-label="Pagination"
+    aria-label={Astro.currentLocale === 'en' ? 'Pagination' : '分页导航'}
   >
     {pageNumbers.map((num) =>
       typeof num === 'number' ? (
@@ -115,7 +115,7 @@ const ellipsisClasses = `
           <span
             class={currentClasses}
             aria-current="page"
-            aria-label={`Page ${num}, Current Page`}
+            aria-label={Astro.currentLocale === 'en' ? `Page ${num}, Current Page` : `第 ${num} 页，当前页`}
           >
             {num}
           </span>
@@ -123,7 +123,7 @@ const ellipsisClasses = `
           <a
             href={replacePageInUrl(url.current, num)}
             class={linkClasses}
-            aria-label={`Go to page ${num}`}
+            aria-label={Astro.currentLocale === 'en' ? `Go to page ${num}` : `前往第 ${num} 页`}
           >
             {num}
           </a>

@@ -12,14 +12,14 @@ export const prerender = true
 
 export const getStaticPaths = (async ({ paginate }) => {
   const categoryMap: Record<string, string> = {
-    'tech': 'Technical',
-    'daily': 'Daily Life',
-    'research': 'Research',
-    'journal': 'Month Journal',
-    'technical': 'Technical',
-    'life': 'Daily Life',
-    'month-journal': 'Month Journal',
-    'all': 'All Posts'
+    'tech': '技术',
+    'daily': '日常',
+    'research': '科研',
+    'journal': '月记',
+    'technical': '技术',
+    'life': '日常',
+    'month-journal': '月记',
+    'all': '全部文章'
   }
   const aliases: Record<string, string> = {
     technical: 'tech',
@@ -80,8 +80,8 @@ const categoryDisplayName = categoryMapProp[category] || category
 const postCollections = await getPostCollections()
 
 const meta = {
-  description: `Posts in category: ${categoryDisplayName}`,
-  title: `${categoryDisplayName} - Blog`
+  description: `浏览“${categoryDisplayName}”分类下的文章`,
+  title: `${categoryDisplayName} - 博客`
 }
 ---
 
@@ -94,16 +94,16 @@ const meta = {
           <a 
             href={`/blog/${prevCategory}`}
             class='flex h-8 w-8 items-center justify-center transition-colors hover:text-primary'
-            title={`Previous: ${categoryMapProp[prevCategory] || prevCategory}`}
-            aria-label={`Go to ${categoryMapProp[prevCategory] || prevCategory}`}
+            title={`上一个分类：${categoryMapProp[prevCategory] || prevCategory}`}
+            aria-label={`前往${categoryMapProp[prevCategory] || prevCategory}分类`}
           >
             <Icon name='up' class='size-5' />
           </a>
           <a 
             href={`/blog/${nextCategory}`}
             class='flex h-8 w-8 items-center justify-center transition-colors hover:text-primary'
-            title={`Next: ${categoryMapProp[nextCategory] || nextCategory}`}
-            aria-label={`Go to ${categoryMapProp[nextCategory] || nextCategory}`}
+            title={`下一个分类：${categoryMapProp[nextCategory] || nextCategory}`}
+            aria-label={`前往${categoryMapProp[nextCategory] || nextCategory}分类`}
           >
             <Icon name='chevron-down' class='size-5' />
           </a>
@@ -119,14 +119,14 @@ const meta = {
         </section>
       ) : (
         <div class='grid gap-y-16 sm:grid-cols-[3fr_1fr] sm:gap-x-8'>
-          <section aria-label='Blog posts list' class='animate' id='content'>
+          <section aria-label='文章列表' class='animate' id='content'>
             {/* header */}
             <div class='mb-3 flex flex-col justify-between text-sm sm:mb-5 sm:flex-row'>
               <span class='text-muted-foreground'>
-                Page {page.currentPage} - Showing {page.data.length} of {collectionsCount} posts
+                第 {page.currentPage} 页 · 本页 {page.data.length} 篇，共 {collectionsCount} 篇文章
               </span>
-              <a aria-label='View all blog by years' href='/archives' data-astro-prefetch>
-                View all posts by years →
+              <a aria-label='按年份浏览全部文章' href='/archives' data-astro-prefetch>
+                按年份浏览全部文章 →
               </a>
             </div>
             {/* posts */}
@@ -145,7 +145,7 @@ const meta = {
                 <div class='mb-8'>
                   <h2 class='mb-4 flex items-center text-lg font-semibold'>
                     <Icon name='package' class='me-2' />
-                    Collections
+                    文章合集
                   </h2>
                   <ul class='flex flex-col gap-2'>
                     {postCollections.slice(0, 5).map((collection) => (
@@ -153,8 +153,8 @@ const meta = {
                     ))}
                   </ul>
                   <span class='mt-4 block sm:text-end'>
-                      <a aria-label='View all collections' href='/collection' data-astro-prefetch>
-                      View all →
+                      <a aria-label='查看全部文章合集' href='/collection' data-astro-prefetch>
+                      查看全部 →
                       </a>
                   </span>
                 </div>
@@ -163,7 +163,7 @@ const meta = {
                 <div>
                   <h2 class='mb-4 flex items-center text-lg font-semibold'>
                     <Icon name='tag-2' class='me-2' />
-                    Tags
+                    标签
                   </h2>
                   <ul class='text-bgColor flex flex-wrap gap-2'>
                     {uniqueTags.map((tag) => (
@@ -173,8 +173,8 @@ const meta = {
                     ))}
                   </ul>
                   <span class='mt-4 block sm:text-end'>
-                    <a aria-label='View all blog categories' href='/tags' data-astro-prefetch>
-                      View all →
+                    <a aria-label='查看全部文章标签' href='/tags' data-astro-prefetch>
+                      查看全部 →
                     </a>
                   </span>
                 </div>

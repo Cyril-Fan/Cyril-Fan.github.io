@@ -77,7 +77,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
       {/* title */}
       <div class='flex justify-between'>
         <div class={detailed ? 'font-medium' : undefined}>
-          {data.draft && <span class='text-red-500'>(Draft) </span>}
+          {data.draft && <span class='text-red-500'>{Astro.currentLocale === 'en' ? '(Draft) ' : '（草稿）'}</span>}
           {data.title}
         </div>
         <svg

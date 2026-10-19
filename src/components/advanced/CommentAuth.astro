@@ -35,7 +35,7 @@ const en = lang === 'en'
           <label for={`${id}-password`} class='mb-1 block text-sm font-medium'>{en ? 'Password' : '密码'}</label>
           <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' required aria-describedby={`${id}-password-hint`} class='auth-input' />
           <p id={`${id}-password-hint`} data-password-hint hidden class='mt-1 text-xs text-muted-foreground'>
-            {en ? 'Use at least 12 characters. Pasting and password managers are supported.' : '新密码至少 12 个字符，可粘贴或使用密码管理器。'}
+            {en ? 'Use at least 8 characters. Pasting and password managers are supported.' : '新密码至少 8 个字符，可粘贴或使用密码管理器。'}
           </p>
         </div>
         <button data-submit type='submit' class='auth-primary justify-self-start'>{en ? 'Sign in' : '登录'}</button>
@@ -56,6 +56,7 @@ const en = lang === 'en'
 <script>
   import {
     COMMENT_AUTH_EVENT,
+    COMMENT_PASSWORD_MIN_LENGTH,
     authMessage,
     emitCommentAuthChange,
     getAuthRedirectUrl,
@@ -125,7 +126,7 @@ const en = lang === 'en'
       password.disabled = !needsPassword
       password.autocomplete = mode === 'signup' ? 'new-password' : 'current-password'
       // Existing accounts may have older passwords. Strength applies to new ones only.
-      if (mode === 'signup') password.minLength = 12
+      if (mode === 'signup') password.minLength = COMMENT_PASSWORD_MIN_LENGTH
       else password.removeAttribute('minlength')
       this.field<HTMLElement>('[data-password-hint]').hidden = mode !== 'signup'
       this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
@@ -187,7 +188,7 @@ const en = lang === 'en'
       const action = this.mode
       const connection = this.controller
       if (action === 'signup' && !validateCommentPassword(password)) {
-        this.message(this.say('新密码至少需要 12 个字符。', 'Your new password needs at least 12 characters.'), true)
+        this.message(this.say('新密码至少需要 8 个字符。', 'Your new password needs at least 8 characters.'), true)
         passwordField.focus()
         return
       }

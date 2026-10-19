@@ -7,19 +7,19 @@ import { CollectionPreview } from '@/components/pages'
 const collections = await getPostCollections()
 
 const meta = {
-  title: 'All Collections',
-  description: 'View all post collections'
+  title: '文章合集',
+  description: '浏览按主题整理的系列文章'
 }
 ---
 
 <PageLayout {meta}>
-  <Button title='Back' href='/' style='back' />
+  <Button title='返回首页' href='/' style='back' />
   
   <main class='mt-6 lg:mt-10'>
     <div id='content-header' class='animate'>
-        <h1 class='text-3xl font-bold mb-6'>Collections</h1>
+        <h1 class='text-3xl font-bold mb-6'>文章合集</h1>
         <p class='text-muted-foreground mb-10 text-lg'>
-            Curated sets of posts on specific topics or themes.
+            按主题整理相关内容，便于连续阅读。
         </p>
     </div>
 

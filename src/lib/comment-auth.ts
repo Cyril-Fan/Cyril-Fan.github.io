@@ -8,7 +8,7 @@ type BrowserStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 type AuthErrorLike = { code?: string; status?: number; name?: string }
 
 export const COMMENT_AUTH_EVENT = 'comment-auth-change'
-export const COMMENT_PASSWORD_MIN_LENGTH = 12
+export const COMMENT_PASSWORD_MIN_LENGTH = 8
 
 let client: SupabaseClient | null = null
 let initialized = false
@@ -238,7 +238,7 @@ export function authMessage(error: unknown, language: CommentAuthLanguage, actio
   if (issue.status && issue.status >= 500) return english ? 'The account service is temporarily unavailable. Please retry later.' : '账户服务暂时不可用，请稍后重试。'
   if (action === 'login') return english ? 'Sign-in failed. Check your email and password, and confirm your email first.' : '登录未成功，请检查邮箱和密码，并先完成邮箱验证。'
   if (action === 'confirm') return english ? 'This link is invalid, expired, or already used. Request a new email and try its latest link.' : '链接无效、已过期或已使用，请重新申请邮件并使用最新链接。'
-  if (action === 'password') return english ? 'The password could not be updated. Use a new password of at least 12 characters, or request a fresh recovery email.' : '密码未能更新。请使用至少 12 个字符的新密码，或重新申请找回邮件。'
+  if (action === 'password') return english ? 'The password could not be updated. Use a new password of at least 8 characters, or request a fresh recovery email.' : '密码未能更新。请使用至少 8 个字符的新密码，或重新申请找回邮件。'
   if (action === 'logout') return english ? 'Sign-out could not be completed. Please retry before leaving a shared device.' : '未能完成退出，请重试；使用共享设备时请确认退出后再离开。'
   return english ? 'The email request could not be completed. Please try again later.' : '邮件请求未能完成，请稍后重试。'
 }

@@ -5,20 +5,20 @@ import PageLayout from '@/layouts/BaseLayout.astro'
 import { integ, terms } from '@/site-config'
 
 const meta = {
-  title: 'Site policy',
-  description: 'Site policy documentation'
+  title: '站点说明',
+  description: '本站的使用、隐私、版权与内容说明'
 }
 ---
 
 <PageLayout {meta}>
-  <Button title='Back' href='/' style='back' />
+  <Button title='返回首页' href='/' style='back' />
   <main class='mt-6 lg:mt-10'>
     <div id='content-header' class='animate'>
-      <h1 class='mb-6 text-3xl font-medium'>Site Policy</h1>
+      <h1 class='mb-6 text-3xl font-medium'>站点说明</h1>
     </div>
 
     <div id='content' class={cn('animate mt-8 max-w-none md:min-w-[45ch]', integ.typography.class)}>
-      <h2 class='text-xl font-medium'>Site policy documentation</h2>
+      <h2 class='text-xl font-medium'>使用与内容说明</h2>
       <CardList {...terms} />
     </div>
   </main>

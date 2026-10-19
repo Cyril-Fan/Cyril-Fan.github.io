@@ -39,7 +39,7 @@ import config from '@/site-config'
               </Label>
             )}
             {config.personal?.email && (
-              <Label title='Email' as='a' href={`mailto:${config.personal.email}`}>
+              <Label title='邮箱' as='a' href={`mailto:${config.personal.email}`}>
                 <Icon name='email' class='size-4' slot='icon' />
               </Label>
             )}
@@ -49,16 +49,16 @@ import config from '@/site-config'
     </section>
 
     <div id='content' class='animate flex w-full flex-col gap-y-10 md:w-4/5 lg:w-5/6'>
-      <Section title='About'>
+      <Section title='关于我'>
         <p class='text-muted-foreground'>
           你好，我是 Cyril Fan，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI Agents，喜欢通过研究和动手实践探索人工智能。
         </p>
         <Button title='更多关于我' class='w-fit self-end' href='/about' style='ahead' />
       </Section>
-      <Section title='Education'>
+      <Section title='教育背景'>
         <Card heading='吉林大学' subheading='软件工程 · 本科生' />
       </Section>
-      <Section title='Statistics'>
+      <Section title='站点统计'>
         <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />
       </Section>
       {config.personal?.githubUsername && (

@@ -16,18 +16,22 @@ Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://git
 安装 Node.js 24 与 npm，在项目目录运行：
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
 浏览器打开终端提示的本地地址。提交前运行：
 
 ```sh
+npm test
+npm run test:database
 npm run build
 npm run preview
 ```
 
-`build` 会执行 Astro 检查并生成 `dist/`；搜索索引在生产构建中生成，因此请通过 `preview` 验证站内搜索。
+`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论界面与主题回归，`npm run test:database` 在本地 PGlite 中验证数据库迁移和权限，不连接正式评论数据库。`build` 会执行 Astro 检查并生成 `dist/`；搜索索引在生产构建中生成，因此请通过 `preview` 验证站内搜索。
+
+GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test:database` 和 `npm run build`，任一步失败都不会进入部署步骤。
 
 ## 写作与维护
 

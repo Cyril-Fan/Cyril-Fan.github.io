@@ -196,10 +196,12 @@ test('blocked storage and later quota failure preserve this-tab auth without thr
 test('email normalization preserves local parts and passwords count Unicode characters', () => {
   const { api } = runtime()
   assert.equal(api.normalizeAuthEmail('  First.Last+tag@EXAMPLE.COM  '), 'First.Last+tag@example.com')
-  assert.equal(api.validateCommentPassword('12345678901'), false)
-  assert.equal(api.validateCommentPassword('123456789012'), true)
-  assert.equal(api.validateCommentPassword('😀'.repeat(6)), false)
-  assert.equal(api.validateCommentPassword('😀'.repeat(12)), true)
+  assert.equal(api.COMMENT_PASSWORD_MIN_LENGTH, 8)
+  assert.equal(api.validateCommentPassword('1234567'), false)
+  assert.equal(api.validateCommentPassword('12345678'), true)
+  assert.equal(api.validateCommentPassword('abcdefgh'), true)
+  assert.equal(api.validateCommentPassword('😀'.repeat(7)), false)
+  assert.equal(api.validateCommentPassword('😀'.repeat(8)), true)
 })
 
 test('confirmation parser rejects duplicate, unsupported and malformed credentials without network activity', () => {
@@ -235,7 +237,7 @@ test('invalid fragment links are erased without creating a session or accepting 
   assert.match(element.querySelector('[data-message]').textContent, /缺少有效验证/)
 })
 
-test('legacy short passwords can sign in; new short passwords cannot register', async () => {
+test('legacy short passwords can sign in; registration rejects 7 and accepts 8 characters without forced combinations', async () => {
   const instance = runtime()
   const element = instance.mount('CommentAuth.astro')
   await tick()
@@ -244,10 +246,19 @@ test('legacy short passwords can sign in; new short passwords cannot register', 
   await element.submit({ preventDefault() {} })
   assert.equal(instance.calls.filter(([name]) => name === 'login').length, 1)
   assert.equal(instance.calls.find(([name]) => name === 'login')[1].email, 'Me@example.com')
-  element.setMode('signup')
-  element.querySelector('[name=password]').value = 'short'
-  await element.submit({ preventDefault() {} })
-  assert.equal(instance.calls.filter(([name]) => name === 'signup').length, 0)
+  const registration = runtime()
+  const signup = registration.mount('CommentAuth.astro')
+  await tick()
+  signup.setMode('signup')
+  signup.querySelector('[name=email]').value = 'person@example.com'
+  signup.querySelector('[name=password]').value = 'abcdefg'
+  await signup.submit({ preventDefault() {} })
+  assert.equal(registration.calls.filter(([name]) => name === 'signup').length, 0)
+  assert.equal(signup.querySelector('[name=password]').minLength, 8)
+  assert.match(signup.querySelector('[data-message]').textContent, /8 个字符/)
+  signup.querySelector('[name=password]').value = 'abcdefgh'
+  await signup.submit({ preventDefault() {} })
+  assert.equal(registration.calls.find(([name]) => name === 'signup')[1].password, 'abcdefgh')
 })
 
 test('sign-in failures keep input and never render provider errors containing private data', async () => {
@@ -343,11 +354,17 @@ test('recovery verifies before allowing a password update, clears inputs, then s
   await element.updatePassword({ preventDefault() {} })
   assert.equal(instance.calls.filter(([name]) => name === 'password').length, 0)
   await element.confirm()
-  element.querySelector('[name=password]').value = 'this-is-a-new-password'
-  element.querySelector('[name=repeat]').value = 'this-is-a-new-password'
+  element.querySelector('[name=password]').value = 'abcdefg'
+  element.querySelector('[name=repeat]').value = 'abcdefg'
+  await element.updatePassword({ preventDefault() {} })
+  assert.equal(instance.calls.filter(([name]) => name === 'password').length, 0)
+  assert.match(element.querySelector('[data-message]').textContent, /8 个字符/)
+  element.querySelector('[name=password]').value = 'abcdefgh'
+  element.querySelector('[name=repeat]').value = 'abcdefgh'
   await element.updatePassword({ preventDefault() {} })
   assert.deepEqual(instance.calls.filter(([name]) => ['verify', 'password', 'logout'].includes(name)).map(([name]) => name), ['verify', 'password', 'logout'])
   assert.deepEqual(instance.calls.find(([name]) => name === 'logout')[1], { scope: 'global' })
+  assert.equal(instance.calls.find(([name]) => name === 'password')[1].password, 'abcdefgh')
   assert.equal(element.querySelector('[name=password]').value, '')
   assert.equal(element.querySelector('[name=repeat]').value, '')
 })
@@ -545,6 +562,9 @@ test('confirmation page has early no-referrer, noindex and no auto-consuming OAu
   assert.ok(page.indexOf("name='referrer' content='no-referrer'") < page.indexOf('<ThemeProvider'))
   assert.match(page, /name='robots' content='noindex, nofollow'/)
   assert.doesNotMatch(page, /exchangeCodeForSession|setSession\(|https?:\/\/[^'"\s]+/)
+  const markup = parse(page)
+  assert.equal(markup.querySelector('#recovery-password').getAttribute('minlength'), '8')
+  assert.equal(markup.querySelector('#recovery-password-repeat').getAttribute('minlength'), '8')
 })
 
 test('email templates target our explicit confirmation page without token pre-consumption or remote assets', () => {
