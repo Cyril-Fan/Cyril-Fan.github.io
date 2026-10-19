@@ -169,5 +169,8 @@ Do not use these mock/fixture scripts against the production project.
 
 PGlite runs one backend: these tests exercise real SQL, privileges and RPC
 behavior but do **not** simulate multiple simultaneous connections, the real
-Supabase Auth server, SMTP delivery, or API gateway/JWT verification. Verify
-those integrations in a staging Supabase project before enabling public signup.
+Supabase Auth server, SMTP delivery, or API gateway/JWT verification. The current
+production deployment and the remaining real-account acceptance checks are
+tracked separately in [COMMENTS-SETUP.md](../COMMENTS-SETUP.md). Public signup
+being enabled does not establish that every integration has been verified;
+use a staging Supabase project for destructive or multi-account integration tests.

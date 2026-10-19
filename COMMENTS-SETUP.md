@@ -4,7 +4,7 @@
 
 按站主要求，注册和找回的新密码最低长度为 **8 个字符**，不强制大小写、数字和符号组合；仍允许更长密码与密码管理器。Supabase 后台已确认并保存为 8，前端提示与校验同步采用此值。
 
-**当前状态：生产数据库、Auth、SMTP 与控制台邮件模板均已配置；评论前端已发布，站主注册、管理员授予和真实收发验收待完成。当前不能将真实账户全流程标记为已验收。**
+**当前状态：生产数据库、Auth、SMTP 与控制台邮件模板均已配置，评论前端已发布；2026-10-19 已核实站主注册邮件 Delivered、账户邮箱确认成功，并为该已验证账户授予管理员权限。真实登录发评/删除、管理界面操作、密码找回及双账号权限验收仍待完成，不能将真实账户全流程标记为已验收。**
 
 | 部署项目 | 已核实进度 |
 | --- | --- |
@@ -14,12 +14,12 @@
 | 网站公有配置 | 已写入被 Git 忽略的 `.env.local` 与 GitHub Actions Variables；不在本文记录密钥值 |
 | Resend 发信子域 | `auth.cyril-fan.top` 的三条相关 DNS 已添加，域名显示 Verified；Enforced TLS 已保存 |
 | SMTP | 已保存；域名限定的 Sending access key 仅存 Supabase SMTP 后台，不在文档或网站构建中记录 |
-| 邮件模板 | 两份 HTML 已应用到 Supabase 并确认预览正确；尚未以真实收件完成端到端验证 |
+| 邮件模板 | 两份 HTML 已应用到 Supabase 并确认预览正确；注册邮件已真实送达并完成邮箱确认，找回密码邮件仍待真实收件验证 |
 | 安全通知与追踪 | Password changed、Email address changed 通知已开启并保存；未配置 tracking 域名，未启用打开/点击追踪 |
 | 邮件限额 | 控制台现有值为 30 封/小时（原值即为 30）；每用户间隔 60 秒，注册/登录请求项及验证码验证项的 30 次/5 分钟/IP 限频保持；其余端点按各自配置核对 |
-| 发布与真实验收 | 评论前端已发布；站主注册验证、手工管理员授予、真实收信/找回及双账号测试待完成 |
+| 发布与真实验收 | 评论前端与 8 字符密码校验已发布；站主注册验证与手工管理员授予已完成；真实登录发评/删除、管理界面操作、密码找回及双账号测试待完成 |
 
-下文保留完整部署方法，已完成项目无需重复创建、重跑首次迁移或重配 SMTP。下一步由站主完成注册、验证与第 9 节验收。本地检查通过、后台保存成功或账户表单已经显示，都不能代替真实收件与权限验收。
+下文保留完整部署方法，已完成项目无需重复创建、重跑首次迁移、重配 SMTP、重复注册站主账户或重复授予管理员权限。下一步由站主登录网站，并完成第 9 节剩余验收。邮箱确认成功不代表当前浏览器已经登录；本地检查通过、后台保存成功或账户表单已经显示，也不能代替真实操作验收。
 
 ## 1. 配置分工
 
@@ -48,11 +48,11 @@
 
 在 Supabase 项目的 Authentication 设置中完成以下配置；界面栏目名称可能随控制台更新。
 
-本次已核实邮箱确认、匿名关闭、Secure password change、Site URL 与两个精确回调地址，邮件与主要 IP 限频见顶部状态表。最低 8 字符的密码策略仍需后台确认保存并与前端同步发布；JWT 有效期与未使用的其他登录提供方仍按实际后台逐项核对，不根据源码推断其线上取值。
+本次已核实邮箱确认、匿名关闭、Secure password change、Site URL 与两个精确回调地址，未使用的其他登录提供方均关闭，邮件与主要 IP 限频见顶部状态表。最低 8 字符的密码策略已经后台保存，匹配的前端提示与校验也已发布；JWT 有效期仍应按实际后台核对，不根据源码推断其线上取值。
 
 - 开启 Email/Password 登录和注册，**开启 Confirm email**。不能为了测试方便关闭邮箱确认；否则 `email_confirmed_at` 无法代表收件人完成了验证。
 - 关闭 Anonymous sign-ins 和所有未使用的 Social/OAuth/Phone 登录方式。
-- 新密码最小长度设为 **8**，不要求额外的大小写、数字或符号组合。网站注册与重置也校验此长度，历史账户登录不强制使用该长度；本次调整需待后台确认保存后再发布匹配前端。
+- 新密码最小长度设为 **8**，不要求额外的大小写、数字或符号组合。网站注册与重置也校验此长度，历史账户登录不强制使用该长度；本次后端保存与前端发布均已完成。
 - 保留 **Secure password change** 开启。密码找回通过新邮件链接建立恢复会话，再设置新密码；若后台要求额外验证，应排查恢复会话，不通过关闭安全选项绕过。
 - Site URL 设为 `https://cyril-fan.top`。
 - Redirect URLs 精确添加 `https://cyril-fan.top/auth/confirm` 与 `https://cyril-fan.top/en/auth/confirm`。生产环境不使用宽泛通配符。
@@ -64,7 +64,7 @@
 
 本次专用发信子域为 `auth.cyril-fan.top`，发件人为 `Cyril Fan <no-reply@auth.cyril-fan.top>`。这是身份验证发信地址，不要求把站主现有 QQ 邮箱迁移到新邮件系统。
 
-本次已添加发信子域相关三条 DNS，Resend 显示 Verified；域名限定发信 key 与 SMTP 已保存，Enforced TLS 已开启。不要重复添加相同 DNS；域名验证与 SMTP 保存成功仍不代表邮件已经实际送达。
+本次已添加发信子域相关三条 DNS，Resend 显示 Verified；域名限定发信 key 与 SMTP 已保存，Enforced TLS 已开启。2026-10-19 的站主注册邮件已显示 Delivered，并由站主完成邮箱确认。不要重复添加相同 DNS；这一结果只验收了本次注册邮件，找回及安全通知仍需分别检验。
 
 1. 在 Resend 添加 `auth.cyril-fan.top`，选择发信所需区域。
 2. 根据 **Resend 当前控制台的实际主机名、类型和记录值**，在阿里云 DNS 添加该子域的 DKIM、SPF 等发信记录。记录可能包含专用于发信退信处理的子域 MX，请按实际完整名称添加。
@@ -79,21 +79,21 @@
 | Port | `465`，SSL/TLS |
 | Username | `resend` |
 | Password | 上一步的 Resend 发信 API key |
-| Sender email | `noreply@auth.cyril-fan.top`，须与已验证域名匹配 |
+| Sender email | `no-reply@auth.cyril-fan.top`，须与已验证域名匹配 |
 | Sender name | `Cyril Fan` |
 
-SMTP 参数参考 [Resend 与 Supabase SMTP 官方集成说明](https://resend.com/docs/send-with-supabase-smtp)。保存配置后，还需通过真实注册和找回操作检验送达；后台保存成功不代表邮件已经送到用户邮箱。
+SMTP 参数参考 [Resend 与 Supabase SMTP 官方集成说明](https://resend.com/docs/send-with-supabase-smtp)。注册送达与邮箱确认已核实；找回密码和安全通知的实际送达仍待检验，不能由后台保存成功或单次注册成功推断。
 
 ## 5. 应用本站邮件模板
 
-两份本地模板现已应用到 Supabase 控制台并确认预览正确。以下内容供核对和以后恢复配置使用；端到端效果仍需实际收件验证，不能只凭模板预览验收。
+两份本地模板现已应用到 Supabase 控制台并确认预览正确。注册邮件已真实送达并完成邮箱确认；找回密码邮件尚未完成真实收件与恢复流程验收。以下内容供核对和以后恢复配置使用。
 
 在 Supabase Email Templates 中分别替换：
 
-| 邮件类型 | 本地模板 | 建议主题 |
+| 邮件类型 | 本地模板 | 已保存主题 |
 | --- | --- | --- |
-| Confirm signup | [confirm-signup.html](./supabase/email-templates/confirm-signup.html) | `确认 Cyril Fan 留言账户 / Confirm your comment account` |
-| Reset password | [recovery.html](./supabase/email-templates/recovery.html) | `重置 Cyril Fan 留言账户密码 / Reset your comment password` |
+| Confirm signup | [confirm-signup.html](./supabase/email-templates/confirm-signup.html) | `验证邮箱 · Cyril Fan / Confirm your email` |
+| Reset password | [recovery.html](./supabase/email-templates/recovery.html) | `重设密码 · Cyril Fan / Reset your password` |
 
 模板中的 `{{ .RedirectTo }}` 取自本站发起请求时指定的确认地址；`{{ .TokenHash }}` 由 Supabase 生成，不能替换成实际用户 token 后提交。
 
@@ -119,7 +119,7 @@ SMTP 参数参考 [Resend 与 Supabase SMTP 官方集成说明](https://resend.c
 
 ## 7. 连接网站与自动发布
 
-本次两个公有变量已写入本地 `.env.local` 与 GitHub Actions Variables，SMTP 和模板也已保存；下列步骤供后续核查和换项目使用。**静态前端仍需发布本轮更新，之后才能进行真实账户验收。**
+本次两个公有变量已写入本地 `.env.local` 与 GitHub Actions Variables，SMTP 和模板也已保存；评论前端及 8 字符密码更新均已由 GitHub Actions 构建并发布。下列步骤供后续核查和换项目使用。
 
 1. 从 Supabase 项目连接设置取得项目 URL 和公有 publishable key（或旧版 `anon` key）。**不要复制 `secret` 或 `service_role` key。**
 2. 在 GitHub 仓库 **Settings → Secrets and variables → Actions → Variables** 新增两个 Repository variables：
@@ -137,17 +137,20 @@ PUBLIC_SUPABASE_ANON_KEY=你的公有publishable或anon密钥
 
 ## 8. 手工指定站主管理员
 
+2026-10-19 已在站主明确批准后执行管理员授予：受控 SQL 同时核对账户 ID、邮箱和邮箱已确认状态，再加入私有管理员表，随后查询确认 `verified_owner_is_admin=true`。实际账户 ID 不记录在公开仓库。下面保留授权方法供恢复部署时参考；数据库授权成功不等同于管理界面操作已经验收。
+
 先通过正式网站注册并完成站主本人邮箱验证。在 Supabase 受控后台核对该账户的 `auth.users.id`、邮箱和 `email_confirmed_at`，再按 [数据库说明中的管理员步骤](./supabase/README.md) 将这一 **已核实的用户 ID** 加入 `comment_private.admins`。
 
 不通过昵称、邮箱字符串相同、用户 metadata 或前端 `isAdmin` 标记自动授权。管理员身份不会因为公开源码中的站主邮箱而自动产生。
 
 管理员可通过界面处理审核、移除不合适留言与封禁账号。普通用户删除本人评论时保留其他人的回复；账户 ID 与归属关系留在私有数据库中，供权限核验使用。具体软删除、审核可见性、封禁和账户清除差异见数据库说明。
 
-## 9. 生产验收（仍待完成）
+## 9. 生产验收（部分完成）
 
-以下项目需在真实 Supabase 项目和 SMTP 配置中逐项验证，不能用本地模拟测试代替。
+以下项目需在真实 Supabase 项目和 SMTP 配置中逐项验证，不能用本地模拟测试代替。已完成项记录于 2026-10-19；其余方框保留为待验收，尤其不把邮箱验证成功等同于登录、管理员权限或密码恢复验收。
 
-- [ ] 用自己控制的邮箱 A 注册，Resend 发信日志与 A 的实际收件箱均有对应邮件；检查垃圾邮件。
+- [x] 站主使用本人邮箱 A 注册，Resend 发信日志显示注册邮件 Delivered，站主报告已完成邮箱验证，Supabase 账户记录也显示邮箱已确认。
+- [x] 经站主批准，将核实为其本人且已确认邮箱的账户加入私有管理员表，数据库查询确认管理员身份。
 - [ ] 未点击验证邮件按钮时，A 即使直接调用写入 API 也不能发评；直接打开确认页不会提前消费链接。
 - [ ] 点击确认后 URL 清理；用相同链接再次确认显示过期/已使用，不能建立新会话。中文和英文回调地址均可用。
 - [ ] A 登录并发评，刷新后能读取；退出成功后旧会话不能继续发评、删除或管理评论。评论 RPC 另查服务端会话状态，其他 Supabase API 的旧 access JWT 仍可能在其 TTL 内有效，不把两者混为一谈。
@@ -162,12 +165,13 @@ PUBLIC_SUPABASE_ANON_KEY=你的公有publishable或anon密钥
 本地验证可先运行：
 
 ```sh
-node --test tests/comment-auth.test.mjs
+npm test
+npm run test:database
 npm run check
 npm run build
 ```
 
-这些检查覆盖前端身份流程与构建；数据库回归说明见 `supabase/README.md`。上线交接时另记真实验收日期、项目身份与结果，不在记录中保留验证码、完整邮件链接或私有账号数据。
+本轮已通过 57 项前端/DOM/Auth/主题测试、106 项 PostgreSQL/PGlite 断言与构建，GitHub Actions 发布也成功。数据库回归的范围及单后端并发限制见 `supabase/README.md`；这些检查不能替代上面尚未完成的真实账户验收。上线交接时另记真实验收日期、项目身份与结果，不在记录中保留验证码、完整邮件链接或私有账号数据。
 
 ## 10. 运行、停用与备份
 
