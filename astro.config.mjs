@@ -74,7 +74,7 @@ export default defineConfig({
   prefetch: true,
   // Server Options
   server: {
-    host: true
+    host: '127.0.0.1'
   },
   // Markdown Options
   markdown: {

@@ -16,7 +16,7 @@ const toc = generateToc(headings)
 ---
 
 <toc-heading class={className} {...props}>
-  <h2 class='font-semibold'>TABLE OF CONTENTS</h2>
+  <h2 class='font-semibold'>{Astro.currentLocale === 'en' ? 'CONTENTS' : '目录'}</h2>
   <ul class='mt-4 text-card-foreground'>
     {toc.map((heading) => <TOCHeading heading={heading} />)}
   </ul>
@@ -113,7 +113,11 @@ const toc = generateToc(headings)
               directHeading.textContent || '',
               link.element.getAttribute('href')
             )
-            directHeading.scrollIntoView({ behavior: 'smooth' })
+            directHeading.scrollIntoView({
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                ? 'auto'
+                : 'smooth'
+            })
           } else {
             console.warn(`No heading found for slug: ${link.slug}`)
           }

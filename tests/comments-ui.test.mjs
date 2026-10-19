@@ -1,0 +1,360 @@
+/**
+ * Real DOM regression tests for the nested Comment / CommentAuth templates.
+ * Run with npm test after npm ci. COMMENTS_UI_JSDOM can override the jsdom module
+ * for isolated tooling. The Supabase transport is the mocked boundary.
+ */
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import test from 'node:test'
+import { parse } from '@astrojs/compiler'
+import ts from 'typescript'
+
+const { JSDOM } = await import(process.env.COMMENTS_UI_JSDOM
+  ? pathToFileURL(path.resolve(process.env.COMMENTS_UI_JSDOM)).href
+  : 'jsdom')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
+const commentSource = read('src/components/advanced/Comment.astro')
+const authSource = read('src/components/advanced/CommentAuth.astro')
+const commentAst = (await parse(commentSource)).ast.children.find((node) => node.name === 'site-comments')
+const authAst = (await parse(authSource)).ast.children.find((node) => node.name === 'comment-auth')
+assert.ok(commentAst && authAst, 'Both real component templates must be present')
+
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[char])
+const evaluate = (expression, context) => Function(...Object.keys(context), `return (${expression})`)(...Object.values(context))
+const voidElements = new Set(['input', 'br', 'hr', 'img', 'meta', 'link', 'source', 'wbr', 'area', 'base', 'col', 'embed', 'param', 'track'])
+
+// Render actual compiler AST nodes, preserving every selector, disabled fieldset,
+// and nested component. This is not a handwritten approximation of the UI.
+function renderTemplate(node, context) {
+  if (node.type === 'text') return node.value
+  if (node.type === 'comment') return ''
+  if (node.type === 'expression') {
+    assert.ok(node.children.every((child) => child.type === 'text'), 'Update renderer for new non-text template expressions')
+    return escapeHtml(evaluate(node.children.map((child) => child.value).join(''), context))
+  }
+  if (node.name === 'CommentAuth') return renderTemplate(authAst, context)
+  assert.ok(node.type === 'element' || node.type === 'custom-element', `Unsupported template node: ${node.type}`)
+  const attrs = node.attributes.map((attr) => {
+    assert.equal(attr.type, 'attribute')
+    if (attr.kind === 'empty') return ` ${attr.name}`
+    let value = attr.kind === 'expression' ? evaluate(attr.value, context) : attr.value
+    let name = attr.name
+    if (name === 'class:list') { name = 'class'; value = value.filter(Boolean).join(' ') }
+    if (value == null || value === false) return ''
+    return ` ${name}="${escapeHtml(value)}"`
+  }).join('')
+  const opening = `<${node.name}${attrs}>`
+  return voidElements.has(node.name) ? opening : `${opening}${node.children.map((child) => renderTemplate(child, context)).join('')}</${node.name}>`
+}
+
+const guest = () => ({ nickname: null, can_post: false, is_admin: false, banned: false, moderation_enabled: false })
+const member = (extra = {}) => ({ ...guest(), nickname: 'Reader', can_post: true, ...extra })
+const row = (number, extra = {}) => ({
+  id: `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`,
+  parent_id: null, nickname: `Reader ${number}`, body: `Comment ${number}`,
+  created_at: new Date(Date.UTC(2026, 9, 19, 12) - number * 1000).toISOString(),
+  deleted: false, can_delete: false, is_admin_author: false, is_pending: false,
+  parent_nickname: null, parent_deleted: false, author_banned: null, ...extra
+})
+const ok = (data) => ({ data, error: null })
+const deferred = () => {
+  let resolve
+  const promise = new Promise((done) => { resolve = done })
+  return { promise, resolve }
+}
+const flush = async () => {
+  for (let index = 0; index < 8; index++) await Promise.resolve()
+  await new Promise(setImmediate)
+}
+async function until(condition, description) {
+  for (let index = 0; index < 100; index++) {
+    if (condition()) return
+    await flush()
+  }
+  assert.fail(`Timed out: ${description}`)
+}
+
+async function setup(context, language, { identity = guest(), rows = [], configured = true } = {}) {
+  const scope = { en: language === 'en', lang: language, id: 'comment-auth', thread: '/blog/dom-regression', Astro: { props: {} } }
+  const dom = new JSDOM(`<!doctype html><html lang="${language}"><body>${renderTemplate(commentAst, scope)}</body></html>`, {
+    url: `https://cyril-fan.top/${language === 'en' ? 'en/' : ''}blog/dom-regression`, runScripts: 'outside-only'
+  })
+  context.after(() => dom.window.close())
+  const { window } = dom
+  // jsdom lacks these browser APIs. Keep the platform semantics; application
+  // event handlers, selectors, lifecycle, and DOM nodes remain real.
+  window.AbortSignal.any ??= (signals) => {
+    const controller = new window.AbortController()
+    for (const signal of signals) {
+      if (signal.aborted) { controller.abort(signal.reason); break }
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+    }
+    return controller.signal
+  }
+  window.AbortSignal.timeout ??= (milliseconds) => {
+    const controller = new window.AbortController()
+    window.setTimeout(() => controller.abort(new window.DOMException('Timeout', 'TimeoutError')), milliseconds)
+    return controller.signal
+  }
+  window.HTMLDialogElement.prototype.showModal ??= function () { this.open = true }
+  window.HTMLDialogElement.prototype.close ??= function (value) {
+    if (value !== undefined) this.returnValue = value
+    this.open = false
+    this.dispatchEvent(new window.Event('close'))
+  }
+
+  const fixture = { window, identity, rows, calls: [], handlers: {}, signals: [] }
+  const client = {
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      getSession: async () => ok({ session: fixture.identity.can_post || fixture.identity.is_admin || fixture.identity.banned
+        ? { user: { id: 'account-id', email_confirmed_at: '2026-10-19T00:00:00Z' } }
+        : null })
+    },
+    rpc(name, args) {
+      fixture.calls.push({ name, args: args ? structuredClone(args) : undefined })
+      return {
+        abortSignal(signal) {
+          fixture.signals.push(signal)
+          if (fixture.handlers[name]) return Promise.resolve().then(() => fixture.handlers[name](args, signal))
+          if (name === 'comment_me') return Promise.resolve(ok({ ...fixture.identity }))
+          if (name === 'comment_list') return Promise.resolve(ok(fixture.rows))
+          if (name === 'comment_create') return Promise.resolve(ok({ id: row(999).id, is_pending: false }))
+          return Promise.resolve(ok(null))
+        }
+      }
+    }
+  }
+  const modules = new Map()
+  const loadModule = (name) => {
+    if (modules.has(name)) return modules.get(name).exports
+    const module = { exports: {} }
+    modules.set(name, module)
+    let source = read(`src/lib/${name}.ts`)
+    if (name === 'comment-auth') source = source
+      .replaceAll('import.meta.env.PUBLIC_SUPABASE_URL', JSON.stringify(configured ? 'https://example.supabase.co' : ''))
+      .replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY', JSON.stringify(configured ? 'sb_publishable_dom_regression' : ''))
+    const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+    const require = (id) => {
+      if (id === '@supabase/supabase-js') return { createClient: () => client }
+      if (id === './comment-auth' || id === './comment-utils') return loadModule(id.slice(2))
+      throw new Error(`Unexpected module at test boundary: ${id}`)
+    }
+    window.Function('require', 'module', 'exports', code)(require, module, module.exports)
+    return module.exports
+  }
+  const authModule = loadModule('comment-auth')
+  const authScript = authSource.match(/<script>([\s\S]*?)<\/script>/)?.[1]
+  assert.ok(authScript, 'The real CommentAuth behavior script must be present')
+  const authCode = ts.transpileModule(authScript, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+  const authExports = {}
+  window.Function('require', 'module', 'exports', authCode)(() => authModule, { exports: authExports }, authExports)
+  loadModule('comments')
+  const panel = window.document.querySelector('site-comments')
+  const select = (selector) => { const found = panel.querySelector(selector); assert.ok(found, selector); return found }
+  Object.assign(fixture, {
+    panel, select,
+    compose: select('[data-compose]'), textarea: select('textarea'), nickname: select('[name=nickname]'),
+    post: select('[data-compose] [data-submit]'), authSubmit: select('[data-auth-form] [data-submit]'),
+    status: select('[data-status]'), list: select('[data-list]'),
+    submit() { fixture.post.click() },
+    draft(body, nickname = 'Reader') {
+      fixture.nickname.value = nickname
+      fixture.textarea.value = body
+      fixture.textarea.dispatchEvent(new window.Event('input', { bubbles: true }))
+    },
+    changeIdentity(next) { fixture.identity = next; authModule.emitCommentAuthChange() }
+  })
+  if (configured) await until(() => select('[data-list]').getAttribute('aria-busy') === 'false', 'initial comment load')
+  await flush()
+  return fixture
+}
+
+for (const language of ['zh', 'en']) {
+  test(`${language}: anonymous auth submit stays enabled while comment submit is disabled`, async (context) => {
+    const ui = await setup(context, language)
+    assert.equal(ui.panel.querySelector('[data-submit]'), ui.authSubmit, 'The test must retain the real nested selector collision')
+    assert.equal(ui.authSubmit.disabled, false)
+    assert.equal(ui.authSubmit.matches(':disabled'), false, 'The real Auth script must enable its disabled fieldset')
+    assert.equal(ui.post.disabled, true)
+    ui.changeIdentity(member())
+    await until(() => !ui.post.disabled, 'posting permission after authentication')
+    assert.equal(ui.authSubmit.disabled, false)
+  })
+
+  test(`${language}: server text, nickname and reply context cannot create HTML`, async (context) => {
+    const attack = '<img src=x onerror="window.commentXss=true"><script>window.commentXss=true</script>'
+    const ui = await setup(context, language, { rows: [row(1, { nickname: attack, body: attack, parent_id: row(2).id, parent_nickname: attack })] })
+    assert.equal(ui.list.querySelectorAll('img,script,svg,iframe').length, 0)
+    assert.ok(ui.list.querySelector('strong').textContent.includes(attack))
+    assert.equal(ui.list.querySelector('.comment-body').textContent, attack)
+    assert.ok(ui.list.querySelector('.comment-context').textContent.includes(attack))
+    assert.equal(ui.window.commentXss, undefined)
+  })
+
+  test(`${language}: deleted comment content is replaced by a deletion notice`, async (context) => {
+    const ui = await setup(context, language, { rows: [row(1, { deleted: true, body: 'Previously private text' })] })
+    assert.equal(ui.list.textContent.includes('Previously private text'), false)
+    assert.match(ui.list.querySelector('.comment-body').textContent, language === 'en' ? /deleted/i : /已删除/)
+    assert.equal(ui.list.querySelectorAll('button').length, 0)
+  })
+
+  test(`${language}: network failure preserves draft and retry reuses the same request ID`, async (context) => {
+    const ui = await setup(context, language, { identity: member() })
+    ui.handlers.comment_create = () => ({ data: null, error: { message: 'Network request failed' } })
+    ui.draft('Draft survives a lost response', 'Visible nickname')
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.status.dataset.error === 'true', 'first failed write')
+    assert.equal(ui.textarea.value, 'Draft survives a lost response')
+    assert.equal(ui.nickname.value, 'Visible nickname')
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.calls.filter((call) => call.name === 'comment_create').length === 2, 'retry completion')
+    const writes = ui.calls.filter((call) => call.name === 'comment_create')
+    assert.match(writes[0].args.p_request_id, /^[0-9a-f-]{36}$/)
+    assert.equal(writes[1].args.p_request_id, writes[0].args.p_request_id)
+    assert.equal(ui.textarea.value, 'Draft survives a lost response')
+    ui.draft('Edited draft needs a new idempotency key')
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.calls.filter((call) => call.name === 'comment_create').length === 3, 'edited write completion')
+    assert.notEqual(ui.calls.filter((call) => call.name === 'comment_create')[2].args.p_request_id, writes[0].args.p_request_id)
+  })
+
+  test(`${language}: auth change immediately removes pending rows and old action permissions`, async (context) => {
+    const ui = await setup(context, language, { identity: member({ is_admin: true }), rows: [row(1, { can_delete: true }), row(2, { can_delete: true, is_pending: true, body: 'Pending private comment' })] })
+    assert.ok(ui.list.querySelectorAll('button').length > 0)
+    ui.draft('Keep my draft across logout')
+    const response = deferred()
+    ui.handlers.comment_list = () => response.promise
+    ui.changeIdentity(guest())
+    assert.equal(ui.post.disabled, true)
+    assert.equal(ui.list.querySelectorAll('button').length, 0)
+    assert.equal(ui.list.textContent.includes('Pending private comment'), false)
+    assert.equal(ui.select('[data-admin]').hidden, true)
+    assert.equal(ui.textarea.value, 'Keep my draft across logout')
+    response.resolve({ data: null, error: { message: 'Offline' } })
+    await until(() => ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'failed logout refresh')
+    assert.equal(ui.list.querySelectorAll('button').length, 0)
+    assert.equal(ui.textarea.value, 'Keep my draft across logout')
+  })
+
+  test(`${language}: acknowledged write and failed refresh get a distinct status`, async (context) => {
+    const ui = await setup(context, language, { identity: member() })
+    ui.handlers.comment_list = () => ({ data: null, error: { message: 'Offline after write' } })
+    ui.draft('Already accepted by the server')
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.status.dataset.error === 'true', 'write with failed list refresh')
+    assert.equal(ui.textarea.value, '', 'An acknowledged write must not be offered as an unchanged draft retry')
+    assert.match(ui.status.textContent, language === 'en' ? /submitted.*could not refresh/i : /已提交.*刷新失败/)
+    assert.match(ui.status.textContent, language === 'en' ? /do not need to post again/i : /无需重复提交/)
+  })
+
+  test(`${language}: delete confirmation can cancel; an accepted delete reports a failed refresh`, async (context) => {
+    const ui = await setup(context, language, { identity: member(), rows: [row(1, { can_delete: true })] })
+    const findDelete = () => [...ui.list.querySelectorAll('button')].find((button) => button.textContent === (language === 'en' ? 'Delete' : '删除'))
+    findDelete().click()
+    const dialog = ui.select('dialog')
+    assert.equal(dialog.open, true)
+    dialog.close('cancel')
+    await flush()
+    assert.equal(ui.calls.some((call) => call.name === 'comment_delete'), false)
+    findDelete().click()
+    ui.handlers.comment_list = () => ({ data: null, error: { message: 'Offline after deletion' } })
+    dialog.close('confirm')
+    await until(() => ui.calls.some((call) => call.name === 'comment_delete') && !ui.textarea.disabled, 'confirmed delete completion')
+    const deletion = ui.calls.find((call) => call.name === 'comment_delete')
+    assert.equal(deletion.args.p_id, row(1).id)
+    assert.equal(deletion.args.p_branch, false)
+    assert.equal(ui.status.dataset.error, 'true')
+    assert.match(ui.status.textContent, language === 'en' ? /action succeeded.*could not refresh/i : /操作已完成.*刷新失败/)
+  })
+
+  test(`${language}: a banned account sees its own delete action but cannot reply or post`, async (context) => {
+    const ui = await setup(context, language, { identity: member({ can_post: false, banned: true }), rows: [row(1, { can_delete: true })] })
+    assert.equal(ui.post.disabled, true)
+    const actions = [...ui.list.querySelectorAll('button')]
+    assert.equal(actions.length, 1)
+    assert.equal(actions[0].textContent, language === 'en' ? 'Delete' : '删除')
+    assert.equal(actions[0].disabled, false)
+    assert.match(ui.status.textContent, language === 'en' ? /can delete.*own comments/i : /仍可删除自己的留言/)
+  })
+
+  test(`${language}: content validation errors explain how to correct the preserved draft`, async (context) => {
+    const ui = await setup(context, language, { identity: member() })
+    ui.handlers.comment_create = () => ({ data: null, error: { code: 'P0001', message: 'too_many_links' } })
+    const draft = 'https://one.test https://two.test https://three.test https://four.test https://five.test https://six.test'
+    ui.draft(draft)
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.status.dataset.error === 'true', 'server content validation')
+    assert.equal(ui.textarea.value, draft)
+    assert.match(ui.status.textContent, language === 'en' ? /at most five web links/i : /最多包含 5 个网址/)
+  })
+
+  test(`${language}: pending status comes from the individual write result, including admin replies`, async (context) => {
+    const ui = await setup(context, language, { identity: member({ is_admin: true, moderation_enabled: false }) })
+    ui.handlers.comment_create = () => ok({ id: row(99).id, is_pending: true })
+    ui.draft('Reply remains pending with its parent')
+    ui.submit()
+    await until(() => !ui.textarea.disabled && ui.textarea.value === '', 'pending write result')
+    assert.match(ui.status.textContent, language === 'en' ? /submitted for review/i : /审核通过后公开/)
+    assert.equal(ui.status.dataset.error, 'false')
+  })
+
+  test(`${language}: reconnect ignores an old write response and its finally block`, async (context) => {
+    const ui = await setup(context, language, { identity: member() })
+    const oldWrite = deferred()
+    const newWrite = deferred()
+    let writes = 0
+    ui.handlers.comment_create = () => (++writes === 1 ? oldWrite.promise : newWrite.promise)
+    ui.draft('Old draft')
+    ui.submit()
+    await until(() => writes === 1, 'old write started')
+    const oldSignal = ui.signals.at(-1)
+    ui.panel.remove() // Use the native HTMLElement.remove(), exercising the previous name collision.
+    assert.equal(oldSignal.aborted, true)
+    ui.window.document.body.append(ui.panel)
+    await until(() => !ui.textarea.disabled && ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'reconnected component ready')
+    ui.draft('New draft after reconnect')
+    ui.submit()
+    await until(() => writes === 2, 'new write started exactly once')
+    const newStatus = ui.status.textContent
+    // Transport intentionally delivers an already-completed response despite
+    // abort, modeling the queued response microtask rather than mock-cancelling it.
+    oldWrite.resolve(ok({ id: row(90).id, is_pending: false }))
+    await flush()
+    assert.equal(ui.textarea.value, 'New draft after reconnect')
+    assert.equal(ui.textarea.disabled, true, 'Old finally must not release the new write lock')
+    assert.equal(ui.status.textContent, newStatus)
+    assert.equal(writes, 2, 'Reconnect must not duplicate submit handlers')
+    newWrite.resolve({ data: null, error: { message: 'New request offline' } })
+    await until(() => !ui.textarea.disabled, 'new write completed')
+    assert.equal(ui.textarea.value, 'New draft after reconnect')
+  })
+
+  test(`${language}: earlier-page loading uses the cursor and deduplicates overlapping rows`, async (context) => {
+    const firstPage = Array.from({ length: 30 }, (_, index) => row(index + 1))
+    const ui = await setup(context, language, { rows: firstPage })
+    assert.equal(ui.list.children.length, 30)
+    assert.equal(ui.select('[data-more]').hidden, false)
+    ui.handlers.comment_list = () => ok([firstPage.at(-1), row(31), row(32)])
+    ui.select('[data-more]').click()
+    await until(() => ui.list.children.length === 32, 'deduplicated second page')
+    const request = ui.calls.filter((call) => call.name === 'comment_list').at(-1).args
+    assert.equal(request.p_before, firstPage.at(-1).created_at)
+    assert.equal(request.p_before_id, firstPage.at(-1).id)
+    assert.equal(new Set([...ui.list.children].map((item) => item.id)).size, 32)
+    assert.equal(ui.select('[data-more]').hidden, true)
+  })
+
+  test(`${language}: unconfigured service shows its email fallback without RPC requests`, async (context) => {
+    const ui = await setup(context, language, { configured: false })
+    assert.equal(ui.select('[data-unconfigured]').hidden, false)
+    assert.equal(ui.select('[data-configured]').hidden, true)
+    assert.equal(ui.calls.length, 0)
+    assert.match(ui.select('[data-unconfigured] a').href, /^mailto:/)
+  })
+}

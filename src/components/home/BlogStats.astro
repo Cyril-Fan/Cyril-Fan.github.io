@@ -14,7 +14,22 @@ const allPosts = await getBlogCollection()
 const sortedPosts = sortMDByDate(allPosts)
 
 const today = new Date()
-const daysDiff = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+const calendarDateFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+})
+
+function getShanghaiCalendarDay(date: Date): number {
+  const parts = calendarDateFormatter.formatToParts(date)
+  const year = Number(parts.find((part) => part.type === 'year')?.value)
+  const month = Number(parts.find((part) => part.type === 'month')?.value)
+  const day = Number(parts.find((part) => part.type === 'day')?.value)
+  return Date.UTC(year, month - 1, day) / (1000 * 60 * 60 * 24)
+}
+
+const daysDiff = Math.max(0, getShanghaiCalendarDay(today) - getShanghaiCalendarDay(startDate))
 const english = Astro.currentLocale === 'en'
 
 const lastUpdated = sortedPosts.length > 0 ? 
@@ -44,7 +59,8 @@ const formatNumber = (num: number) => {
 }
 
 const formatDate = (date: Date) => {
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', {
+    timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: 'short',
     day: 'numeric'

@@ -8,11 +8,12 @@ Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://git
 
 - 中文默认页面与英文基础页面：首页、研究、项目、关于、友链。
 - 站内搜索、明暗主题、手机适配、分类、标签、RSS 和 GitHub 贡献日历。
-- 暂无公开文章、论文、项目或友链时显示空状态。评论与访客统计关闭。
+- 暂无公开文章、论文、项目或友链时显示空状态；独立访客统计关闭。
+- 关于页与文章留言支持已验证邮箱的密码账户，中英文共用讨论。配置与验收见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)；未配置后台时显示准备中，不开放提交。
 
 ## 本地开发
 
-安装 Node.js 22 与 npm，在项目目录运行：
+安装 Node.js 24 与 npm，在项目目录运行：
 
 ```sh
 npm install
@@ -31,6 +32,8 @@ npm run preview
 ## 写作与维护
 
 日常新增文章、草稿、图片与英文译文的方法见 [CONTENT-GUIDE.md](./CONTENT-GUIDE.md)。
+
+评论数据库迁移位于 `supabase/migrations/`，前端只接收两个公开项目变量，私钥不能提交到仓库。构建依赖的安全范围与后续迁移见 [SECURITY-NOTES.md](./SECURITY-NOTES.md)。
 
 | 内容 | 维护位置 |
 | --- | --- |

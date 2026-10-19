@@ -2,6 +2,7 @@
 import PageLayout from '@/layouts/CommonPage.astro'
 import { Button, Icon } from '@/components/user'
 import config from '@/site-config'
+import Comment from '@/components/advanced/Comment.astro'
 
 const headings = [
   { depth: 2, slug: 'about-me', text: 'About Me' },
@@ -42,4 +43,5 @@ const headings = [
       </Button>
     )}
   </div>
+  <Comment slot='bottom' thread='/about' class='mt-6' />
 </PageLayout>

@@ -1,0 +1,289 @@
+---
+interface Props {
+  lang?: 'zh' | 'en'
+  id?: string
+}
+
+const { lang = 'zh', id = 'comment-auth' } = Astro.props
+const en = lang === 'en'
+---
+
+<comment-auth data-lang={lang} class='not-prose block rounded-xl border border-border p-4 sm:p-5'>
+  <h3 class='text-base font-medium'>{en ? 'Comment account' : '评论账户'}</h3>
+  <p data-account class='mt-2 text-sm text-muted-foreground' aria-live='polite'>
+    {en ? 'Checking account service…' : '正在检查账户服务…'}
+  </p>
+  <p data-storage hidden class='mt-2 text-sm text-muted-foreground'>
+    {en
+      ? 'Browser storage is unavailable. This sign-in lasts until this page is refreshed or closed.'
+      : '浏览器存储不可用，本次登录仅在当前页面保留；刷新或关闭后需重新登录。'}
+  </p>
+  <div data-guest hidden>
+    <div class='mt-4 flex flex-wrap gap-2' aria-label={en ? 'Account actions' : '账户操作'}>
+      <button type='button' data-mode='login' aria-pressed='true' class='auth-action'>{en ? 'Sign in' : '登录'}</button>
+      <button type='button' data-mode='signup' aria-pressed='false' class='auth-action'>{en ? 'Create account' : '注册'}</button>
+      <button type='button' data-mode='recover' aria-pressed='false' class='auth-action'>{en ? 'Forgot password' : '找回密码'}</button>
+      <button type='button' data-mode='resend' aria-pressed='false' class='auth-action'>{en ? 'Resend verification' : '重发验证邮件'}</button>
+    </div>
+    <form method='post' class='mt-4 grid gap-3' data-auth-form>
+      <fieldset class='grid gap-3' disabled>
+        <div>
+          <label for={`${id}-email`} class='mb-1 block text-sm font-medium'>{en ? 'Email (private)' : '邮箱（不公开）'}</label>
+          <input id={`${id}-email`} name='email' type='email' autocomplete='email' inputmode='email' required maxlength='254' class='auth-input' />
+        </div>
+        <div data-password-row>
+          <label for={`${id}-password`} class='mb-1 block text-sm font-medium'>{en ? 'Password' : '密码'}</label>
+          <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' required aria-describedby={`${id}-password-hint`} class='auth-input' />
+          <p id={`${id}-password-hint`} data-password-hint hidden class='mt-1 text-xs text-muted-foreground'>
+            {en ? 'Use at least 12 characters. Pasting and password managers are supported.' : '新密码至少 12 个字符，可粘贴或使用密码管理器。'}
+          </p>
+        </div>
+        <button data-submit type='submit' class='auth-primary justify-self-start'>{en ? 'Sign in' : '登录'}</button>
+      </fieldset>
+    </form>
+    <p class='mt-3 text-xs leading-relaxed text-muted-foreground'>
+      {en ? 'Reading is open to everyone. Posting requires a verified email. Your email is used for your account and is not shown with comments.' : '阅读评论无需登录，发布评论需验证邮箱。邮箱用于账户验证，不随评论公开。'}
+      <a class='underline underline-offset-4' href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a>
+    </p>
+  </div>
+  <div data-member hidden class='mt-3'>
+    <button type='button' data-signout class='auth-action'>{en ? 'Sign out on this device' : '退出当前设备'}</button>
+  </div>
+  <p data-message role='status' aria-live='polite' aria-atomic='true' class='mt-3 min-h-5 text-sm'></p>
+  <noscript><p class='mt-2 text-sm'>{en ? 'JavaScript is required to sign in or post a comment.' : '登录与发布评论需要启用 JavaScript。'}</p></noscript>
+</comment-auth>
+
+<script>
+  import {
+    COMMENT_AUTH_EVENT,
+    authMessage,
+    emitCommentAuthChange,
+    getAuthRedirectUrl,
+    getCommentAuthStatus,
+    getCommentClient,
+    isPrivateMailResponse,
+    normalizeAuthEmail,
+    validateCommentPassword,
+    type CommentAuthLanguage
+  } from '../../lib/comment-auth'
+
+  type Mode = 'login' | 'signup' | 'recover' | 'resend'
+
+  class CommentAuth extends HTMLElement {
+    private controller?: AbortController
+    private mode: Mode = 'login'
+    private busy = false
+    private stateVersion = 0
+    private mailCooldownUntil = 0
+
+    connectedCallback() {
+      if (this.controller) return
+      this.controller = new AbortController()
+      const { signal } = this.controller
+      this.querySelector<HTMLFormElement>('[data-auth-form]')?.addEventListener('submit', this.submit, { signal })
+      this.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', this.signOut, { signal })
+      this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
+        button.addEventListener('click', () => this.setMode(button.dataset.mode as Mode), { signal })
+      })
+      window.addEventListener(COMMENT_AUTH_EVENT, this.refresh, { signal })
+      void this.refresh()
+    }
+
+    disconnectedCallback() {
+      this.controller?.abort()
+      this.controller = undefined
+      this.stateVersion++
+      this.field<HTMLInputElement>('[name=password]').value = ''
+      this.setBusy(false)
+    }
+
+    private get language(): CommentAuthLanguage { return this.dataset.lang === 'en' ? 'en' : 'zh' }
+    private say(zh: string, en: string) { return this.language === 'en' ? en : zh }
+    private field<T extends HTMLElement>(selector: string) { return this.querySelector<T>(selector)! }
+
+    private message(value: string, error = false) {
+      if (!this.isConnected) return
+      const message = this.field<HTMLElement>('[data-message]')
+      message.textContent = value
+      message.setAttribute('role', error ? 'alert' : 'status')
+    }
+
+    private setBusy(value: boolean) {
+      this.busy = value
+      this.field<HTMLFieldSetElement>('fieldset').disabled = value
+      this.querySelectorAll<HTMLButtonElement>('[data-mode], [data-signout]').forEach((button) => { button.disabled = value })
+      this.setAttribute('aria-busy', String(value))
+    }
+
+    private setMode(mode: Mode) {
+      if (this.busy) return
+      this.mode = mode
+      const password = this.field<HTMLInputElement>('[name=password]')
+      const needsPassword = mode === 'login' || mode === 'signup'
+      this.field<HTMLElement>('[data-password-row]').hidden = !needsPassword
+      password.required = needsPassword
+      password.disabled = !needsPassword
+      password.autocomplete = mode === 'signup' ? 'new-password' : 'current-password'
+      // Existing accounts may have older passwords. Strength applies to new ones only.
+      if (mode === 'signup') password.minLength = 12
+      else password.removeAttribute('minlength')
+      this.field<HTMLElement>('[data-password-hint]').hidden = mode !== 'signup'
+      this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
+      })
+      const labels: Record<Mode, string> = {
+        login: this.say('登录', 'Sign in'),
+        signup: this.say('注册并发送验证邮件', 'Create account and send verification'),
+        recover: this.say('发送找回邮件', 'Send recovery email'),
+        resend: this.say('重发验证邮件', 'Resend verification')
+      }
+      this.field<HTMLButtonElement>('[data-submit]').textContent = labels[mode]
+      this.message('')
+    }
+
+    private refresh = async () => {
+      const version = ++this.stateVersion
+      const client = getCommentClient()
+      const configuration = getCommentAuthStatus()
+      this.field<HTMLElement>('[data-storage]').hidden = !configuration.configured || configuration.persistent
+      if (!client) {
+        this.field<HTMLElement>('[data-account]').textContent = this.say('评论账户暂未开放，欢迎通过邮箱联系。', 'Comment accounts are not available yet. You can contact the author by email.')
+        this.field<HTMLElement>('[data-guest]').hidden = true
+        this.field<HTMLElement>('[data-member]').hidden = true
+        return
+      }
+      try {
+        const { data: { session }, error } = await client.auth.getSession()
+        if (!this.isConnected || version !== this.stateVersion) return
+        if (error) throw error
+        const user = session?.user
+        this.field<HTMLElement>('[data-member]').hidden = !user
+        this.field<HTMLElement>('[data-guest]').hidden = Boolean(user)
+        this.field<HTMLFieldSetElement>('fieldset').disabled = this.busy
+        this.field<HTMLElement>('[data-account]').textContent = user
+          ? user.email_confirmed_at
+            ? this.say('已登录，邮箱已验证。你可以发布和管理自己的评论。', 'Signed in with a verified email. You can post and manage your comments.')
+            : this.say('已登录，但邮箱尚未验证。请先完成邮件验证，或退出后重发验证邮件。', 'Signed in, but your email is not verified. Confirm your email, or sign out to resend verification.')
+          : this.say('登录后可以发布、回复和管理自己的评论。', 'Sign in to post, reply, and manage your comments.')
+      } catch (error) {
+        if (!this.isConnected || version !== this.stateVersion) return
+        this.field<HTMLElement>('[data-account]').textContent = this.say('暂时无法检查登录状态，填写内容已保留。', 'Your sign-in status could not be checked. Your input is preserved.')
+        this.field<HTMLElement>('[data-guest]').hidden = false
+        this.field<HTMLFieldSetElement>('fieldset').disabled = this.busy
+        this.message(authMessage(error, this.language, 'login'), true)
+      }
+    }
+
+    private submit = async (event: SubmitEvent) => {
+      event.preventDefault()
+      if (this.busy) return
+      const client = getCommentClient()
+      if (!client) return
+      const form = this.field<HTMLFormElement>('[data-auth-form]')
+      if (!form.reportValidity()) return
+      const email = normalizeAuthEmail(this.field<HTMLInputElement>('[name=email]').value)
+      const passwordField = this.field<HTMLInputElement>('[name=password]')
+      const password = passwordField.value
+      const action = this.mode
+      const connection = this.controller
+      if (action === 'signup' && !validateCommentPassword(password)) {
+        this.message(this.say('新密码至少需要 12 个字符。', 'Your new password needs at least 12 characters.'), true)
+        passwordField.focus()
+        return
+      }
+      if (action !== 'login' && Date.now() < this.mailCooldownUntil) {
+        const seconds = Math.ceil((this.mailCooldownUntil - Date.now()) / 1000)
+        this.message(this.say(`请等待 ${seconds} 秒后再申请邮件。`, `Please wait ${seconds} seconds before requesting another email.`), true)
+        return
+      }
+
+      this.setBusy(true)
+      this.message(this.say('正在处理…', 'Working…'))
+      try {
+        if (action === 'login') {
+          const { data, error } = await client.auth.signInWithPassword({ email, password })
+          if (!this.isConnected || connection !== this.controller) return
+          if (error) throw error
+          if (!data.session || !data.user?.email_confirmed_at) {
+            await client.auth.signOut({ scope: 'local' })
+            this.message(this.say('请先完成邮箱验证，再返回登录。', 'Confirm your email first, then return to sign in.'), true)
+            return
+          }
+          passwordField.value = ''
+          this.message(this.say('登录成功。评论草稿已保留。', 'Signed in. Your comment draft is preserved.'))
+          emitCommentAuthChange()
+        } else {
+          this.mailCooldownUntil = Date.now() + 60_000
+          const redirect = getAuthRedirectUrl(this.language)
+          const result = action === 'signup'
+            ? await client.auth.signUp({ email, password, options: { emailRedirectTo: redirect } })
+            : action === 'recover'
+              ? await client.auth.resetPasswordForEmail(email, { redirectTo: redirect })
+              : await client.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirect } })
+          if (!this.isConnected || connection !== this.controller) return
+          if (result.error && !isPrivateMailResponse(result.error)) throw result.error
+          // A project with email confirmation accidentally disabled must not grant comment access here.
+          if (action === 'signup' && 'data' in result && result.data && 'session' in result.data && result.data.session) {
+            await client.auth.signOut({ scope: 'local' })
+          }
+          if (action === 'signup') passwordField.value = ''
+          this.message(this.say('若该邮箱符合本次请求条件，将收到邮件。请检查收件箱和垃圾邮件，60 秒后可重试。', 'If this email is eligible for this request, a message will arrive. Check your inbox and spam folder; you may retry after 60 seconds.'))
+        }
+      } catch (error) {
+        if (connection === this.controller) this.message(authMessage(error, this.language, action === 'login' ? 'login' : 'mail'), true)
+      } finally {
+        if (this.isConnected && connection === this.controller) {
+          this.setBusy(false)
+          void this.refresh()
+        }
+      }
+    }
+
+    private signOut = async () => {
+      if (this.busy) return
+      const client = getCommentClient()
+      if (!client) return
+      const connection = this.controller
+      this.setBusy(true)
+      try {
+        const { error } = await client.auth.signOut({ scope: 'local' })
+        if (!this.isConnected || connection !== this.controller) return
+        if (error) throw error
+        this.message(this.say('已退出当前设备。评论草稿已保留。', 'Signed out on this device. Your comment draft is preserved.'))
+        emitCommentAuthChange()
+      } catch (error) {
+        if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)
+      } finally {
+        if (this.isConnected && connection === this.controller) {
+          this.setBusy(false)
+          void this.refresh()
+        }
+      }
+    }
+  }
+
+  if (!customElements.get('comment-auth')) customElements.define('comment-auth', CommentAuth)
+</script>
+
+<style>
+  .auth-input {
+    width: 100%;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background: hsl(var(--background));
+    padding: 0.55rem 0.75rem;
+    color: hsl(var(--foreground));
+  }
+  .auth-action, .auth-primary {
+    min-height: 2.5rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.875rem;
+  }
+  .auth-action[aria-pressed='true'] { border-color: hsl(var(--foreground)); }
+  .auth-primary { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+  button:disabled { cursor: wait; opacity: 0.6; }
+  input:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+</style>

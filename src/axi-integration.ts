@@ -32,7 +32,7 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
         // config or by a plugin.
         const allIntegrations = [...config.integrations, ...integrations]
         if (!allIntegrations.find(({ name }) => name === '@astrojs/sitemap')) {
-          integrations.push(sitemap())
+          integrations.push(sitemap({ filter: (page) => !new URL(page).pathname.includes('/auth/') }))
         }
         if (!allIntegrations.find(({ name }) => name === '@astrojs/mdx')) {
           integrations.push(mdx({ optimize: true }))

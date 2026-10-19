@@ -13,12 +13,12 @@ interface Props {
   highlightColor?: string
 }
 
+const currentLocale = Astro.currentLocale || 'zh'
 const {
-  meta: { articleDate, description = config.description, ogImage, title },
+  meta: { articleDate, description = currentLocale === 'en' ? (config.description_en || config.description) : config.description, ogImage, title },
   highlightColor
 } = Astro.props
 
-const currentLocale = Astro.currentLocale || 'zh'
 const langAttr = currentLocale === 'en' ? 'en' : 'zh'
 ---
 
@@ -419,7 +419,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
           history.pushState(null, '', href)
 
           targetElement.scrollIntoView({
-            behavior: 'smooth',
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
             block: 'start'
           })
         })
@@ -447,6 +447,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
 
     <script>
       document.addEventListener('DOMContentLoaded', () => {
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
         function createParticle(
           x: number,
           y: number,
@@ -454,6 +455,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
           distance: number,
           colorIndex: number
         ) {
+          if (reducedMotion.matches) return
           const particle = document.createElement('div')
           particle.className = `click-particle color-${colorIndex}`
           const dx = Math.cos(angle) * distance
@@ -473,6 +475,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
           }, 1100)
         }
         document.addEventListener('click', (e) => {
+          if (reducedMotion.matches || e.detail === 0) return
           const particleCount = 10
           const baseDistance = 18
           for (let i = 0; i < particleCount; i++) {

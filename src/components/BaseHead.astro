@@ -20,8 +20,11 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 <title>{siteTitle}</title>
 
 {/* Icons / Favicon */}
-<link rel='apple-touch-icon' href='/avatar/avatar.png' />
-<link rel='icon' type='image/svg+xml' href='/favicon.svg' />
+<link rel='apple-touch-icon' sizes='180x180' href='/favicon/apple-touch-icon.png' />
+<link rel='icon' type='image/svg+xml' href='/favicon.svg?v=star-orbit-1' />
+<link rel='icon' type='image/png' sizes='32x32' href='/favicon/icon-32.png' />
+<link rel='icon' type='image/png' sizes='16x16' href='/favicon/icon-16.png' />
+<link rel='shortcut icon' href='/favicon.ico?v=star-orbit-1' />
 <link rel='manifest' href='/favicon/site.webmanifest' />
 
 {/* Font preloads */}
@@ -51,7 +54,7 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 <meta content={description} property='og:description' />
 <meta content={canonicalURL} property='og:url' />
 <meta content={config.title} property='og:site_name' />
-<meta content={config.locale.attrs} property='og:locale' />
+<meta content={Astro.currentLocale === 'en' ? 'en_US' : 'zh_CN'} property='og:locale' />
 <meta content={socialImageURL} property='og:image' />
 {
   articleDate && (

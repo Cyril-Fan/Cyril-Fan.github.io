@@ -5,15 +5,18 @@
 {/* Use inline mode to quick load color, which can avoid splash */}
 <script is:inline>
   function simpleSetTheme() {
-    let theme = localStorage.getItem('theme')
-    // If undefined or 'system', get from system
-    if (!theme || theme === 'system') {
-      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    }
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    let theme = 'system'
+    try {
+      const savedTheme = localStorage.getItem('theme')
+      if (savedTheme === 'dark' || savedTheme === 'light') theme = savedTheme
+    } catch {}
+    const dark = theme === 'dark' ||
+      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    document.documentElement.classList.toggle('dark', dark)
+    document.documentElement.dataset.theme = theme
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', theme === 'dark' ? '#0B0B10' : '#FCFCFD')
+      ?.setAttribute('content', dark ? '#0B0B10' : '#FCFCFD')
   }
   simpleSetTheme()
   document.addEventListener('astro:page-load', () => simpleSetTheme())
@@ -21,17 +24,30 @@
 
 <script>
   import { Icons } from '@/libs/icons'
-  import { listenThemeChange } from '@/utils'
+  import { listenThemeChange, setTheme } from '@/utils'
 
   // Listen for theme change event
   listenThemeChange()
+  setTheme()
   // Listen for toast event
   document.addEventListener('toast', (e) => {
     const { message } = (e as CustomEvent).detail
     const toast = document.createElement('div')
     toast.className =
       'animate fixed bottom-8 z-20 px-4 py-2 bg-muted text-foreground rounded-lg border border-border shadow-lg flex items-center gap-2'
-    toast.innerHTML = `<svg width='22' height='22' viewBox='0 0 24 24' fill='currentColor'>${Icons.info}</svg> <span>${message}</span>`
+    toast.setAttribute('role', 'status')
+    toast.setAttribute('aria-live', 'polite')
+    toast.setAttribute('aria-atomic', 'true')
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    icon.setAttribute('width', '22')
+    icon.setAttribute('height', '22')
+    icon.setAttribute('viewBox', '0 0 24 24')
+    icon.setAttribute('fill', 'currentColor')
+    icon.setAttribute('aria-hidden', 'true')
+    icon.innerHTML = Icons.info
+    const text = document.createElement('span')
+    text.textContent = String(message)
+    toast.append(icon, text)
     document.body.appendChild(toast)
     setTimeout(() => {
       toast.remove()

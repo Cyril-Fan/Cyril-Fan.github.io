@@ -1,0 +1,308 @@
+---
+import '@/assets/styles/app.css'
+import ThemeProvider from '@/components/basic/ThemeProvider.astro'
+
+interface Props { lang?: 'zh' | 'en' }
+const { lang = 'zh' } = Astro.props
+const en = lang === 'en'
+const title = en ? 'Confirm your account' : '确认账户操作'
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='referrer' content='no-referrer' />
+    <meta name='robots' content='noindex, nofollow' />
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <title>{title} · Cyril Fan</title>
+    <link rel='icon' type='image/svg+xml' href='/favicon.svg' />
+    <ThemeProvider />
+  </head>
+  <body class='bg-background text-foreground' data-pagefind-ignore='all'>
+    <main class='mx-auto max-w-xl px-5 py-12 sm:py-20'>
+      <a href={en ? '/en' : '/'} class='text-sm underline underline-offset-4'>Cyril Fan</a>
+      <h1 class='mb-4 mt-8 text-2xl font-medium'>{title}</h1>
+      <auth-confirm data-lang={lang} class='block rounded-xl border border-border p-5'>
+        <p data-intro class='text-sm leading-relaxed text-muted-foreground'>
+          {en ? 'Only continue if you requested this email. Opening this page does not use the link; the button below confirms the action.' : '仅在这封邮件由你本人申请时继续。打开本页不会使用验证链接，点击下方按钮后才会确认操作。'}
+        </p>
+        <button data-confirm type='button' disabled class='confirm-primary mt-5'>{en ? 'Confirm email' : '确认邮箱'}</button>
+        <form method='post' data-recovery-form hidden class='mt-5 grid gap-4'>
+          <div>
+            <label for='recovery-password' class='mb-1 block text-sm font-medium'>{en ? 'New password' : '新密码'}</label>
+            <input id='recovery-password' name='password' type='password' required minlength='12' autocomplete='new-password' aria-describedby='recovery-password-hint' class='confirm-input' />
+            <p id='recovery-password-hint' class='mt-1 text-xs text-muted-foreground'>{en ? 'At least 12 characters. You may paste a password or use a password manager.' : '至少 12 个字符，可粘贴或使用密码管理器。'}</p>
+          </div>
+          <div>
+            <label for='recovery-password-repeat' class='mb-1 block text-sm font-medium'>{en ? 'Repeat new password' : '再次输入新密码'}</label>
+            <input id='recovery-password-repeat' name='repeat' type='password' required minlength='12' autocomplete='new-password' class='confirm-input' />
+          </div>
+          <p class='text-sm text-muted-foreground'>{en ? 'After saving, you will be signed out of your comment sessions and asked to sign in with your new password.' : '保存后会退出评论登录会话，请使用新密码重新登录。'}</p>
+          <button type='submit' class='confirm-primary justify-self-start'>{en ? 'Save new password and sign out' : '保存新密码并退出'}</button>
+        </form>
+        <button data-signout-retry type='button' hidden class='confirm-primary mt-4'>{en ? 'Retry sign-out' : '重试退出'}</button>
+        <p data-message role='status' aria-live='polite' aria-atomic='true' class='mt-4 min-h-6 text-sm'></p>
+        <a data-return href={en ? '/en/about#comments' : '/about#comments'} class='mt-4 inline-block text-sm underline underline-offset-4'>{en ? 'Return to comments' : '返回留言区'}</a>
+        <p class='mt-3 text-xs text-muted-foreground'>{en ? 'If the link is expired or invalid, request a new verification or recovery email from a comment account form.' : '链接过期或无效时，请在评论账户表单重新申请验证或找回邮件。'}</p>
+        <noscript><p class='mt-4 text-sm'>{en ? 'JavaScript is required to complete this action. The link has not been used.' : '完成此操作需要启用 JavaScript。验证链接尚未使用。'}</p></noscript>
+      </auth-confirm>
+    </main>
+  </body>
+</html>
+
+<script>
+  import type { SupabaseClient } from '@supabase/supabase-js'
+  import {
+    authMessage,
+    clearAuthUrl,
+    createCommentRecoveryClient,
+    emitCommentAuthChange,
+    getCommentAuthStatus,
+    getCommentClient,
+    parseEmailConfirmation,
+    validateCommentPassword,
+    type CommentAuthLanguage,
+    type EmailConfirmation
+  } from '../../lib/comment-auth'
+
+  type RecoveryContext = {
+    client: SupabaseClient
+    userId: string | null
+    finalizing: boolean
+    passwordSaved: boolean
+    closed: boolean
+    disposed: boolean
+  }
+
+  class AuthConfirm extends HTMLElement {
+    private controller?: AbortController
+    private confirmation: EmailConfirmation | null = null
+    private busy = false
+    private recovery: RecoveryContext | null = null
+
+    connectedCallback() {
+      if (this.controller) return
+      this.controller = new AbortController()
+      const { signal } = this.controller
+      this.confirmation = parseEmailConfirmation(window.location.href)
+      this.field<HTMLButtonElement>('[data-confirm]').addEventListener('click', this.confirm, { signal })
+      this.field<HTMLFormElement>('[data-recovery-form]').addEventListener('submit', this.updatePassword, { signal })
+      this.field<HTMLButtonElement>('[data-signout-retry]').addEventListener('click', this.finishSignOut, { signal })
+      if (!getCommentClient()) {
+        this.message(this.say('账户服务暂未配置，请稍后重新打开邮件链接。', 'The account service is not configured. Please reopen the email link later.'), true)
+        return
+      }
+      if (!this.confirmation) {
+        // Also erase unsupported fragment/session-token links without consuming them.
+        clearAuthUrl()
+        this.message(this.say('本页缺少有效验证链接。请使用最新邮件中的链接，或重新申请邮件。', 'A valid confirmation link is missing. Open the latest email link or request a new email.'), true)
+        return
+      }
+      this.field<HTMLButtonElement>('[data-confirm]').disabled = false
+      if (this.confirmation.type === 'recovery') {
+        this.field<HTMLButtonElement>('[data-confirm]').textContent = this.say('确认找回密码', 'Confirm password recovery')
+        this.message(this.say('密码恢复使用本页独立会话。请在本页完成操作；刷新或关闭后需重新申请链接。', 'Password recovery uses an isolated session on this page. Finish here; refreshing or closing requires a new link.'))
+      }
+      if (this.confirmation.type !== 'recovery' && !getCommentAuthStatus().persistent) {
+        this.message(this.say('浏览器存储不可用，请在本页完成操作，刷新后需重新申请链接。', 'Browser storage is unavailable. Complete the action on this page; refreshing may require a new link.'))
+      }
+    }
+
+    disconnectedCallback() {
+      this.controller?.abort()
+      this.controller = undefined
+      this.confirmation = null
+      const recovery = this.recovery
+      this.recovery = null
+      // Once a save starts, its closure owns the session and must finish sign-out
+      // even if this element is removed. An idle recovery session can be discarded.
+      if (recovery && !recovery.finalizing) void this.discardRecovery(recovery)
+      this.field<HTMLInputElement>('[name=password]').value = ''
+      this.field<HTMLInputElement>('[name=repeat]').value = ''
+      this.busy = false
+    }
+
+    private get language(): CommentAuthLanguage { return this.dataset.lang === 'en' ? 'en' : 'zh' }
+    private say(zh: string, en: string) { return this.language === 'en' ? en : zh }
+    private field<T extends HTMLElement>(selector: string) { return this.querySelector<T>(selector)! }
+
+    private message(text: string, error = false) {
+      if (!this.isConnected) return
+      const message = this.field<HTMLElement>('[data-message]')
+      message.textContent = text
+      message.setAttribute('role', error ? 'alert' : 'status')
+    }
+
+    private setBusy(value: boolean) {
+      this.busy = value
+      this.setAttribute('aria-busy', String(value))
+      this.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input').forEach((element) => { element.disabled = value })
+    }
+
+    private confirm = async () => {
+      if (this.busy || !this.confirmation) return
+      const pending = this.confirmation
+      const client = pending.type === 'recovery' ? createCommentRecoveryClient() : getCommentClient()
+      if (!client) return
+      const recovery: RecoveryContext | null = pending.type === 'recovery'
+        ? { client, userId: null, finalizing: true, passwordSaved: false, closed: false, disposed: false }
+        : null
+      if (recovery) this.recovery = recovery
+      const connection = this.controller
+      this.setBusy(true)
+      this.message(this.say('正在确认…', 'Confirming…'))
+      try {
+        const { data, error } = await client.auth.verifyOtp({ token_hash: pending.tokenHash, type: pending.type })
+        if (!this.isConnected || connection !== this.controller) {
+          if (recovery) await this.discardRecovery(recovery)
+          return
+        }
+        if (error) throw error
+        // Clear credentials from the address bar before any success UI or navigation.
+        clearAuthUrl()
+        this.confirmation = null
+        if (!this.isConnected) return
+        this.field<HTMLElement>('[data-confirm]').hidden = true
+        if (recovery) {
+          if (!data.session || !data.user) throw new Error('Missing recovery session')
+          recovery.userId = data.user.id
+          recovery.finalizing = false
+          this.field<HTMLFormElement>('[data-recovery-form]').hidden = false
+          this.message(this.say('找回链接已确认，请设置新密码。不要刷新或关闭本页。', 'Recovery confirmed. Set your new password without refreshing or closing this page.'))
+        } else {
+          this.message(this.say('邮箱验证完成，可以返回网站登录并发表评论。', 'Your email is verified. Return to the website to sign in and comment.'))
+          emitCommentAuthChange()
+        }
+      } catch (error) {
+        if (recovery) {
+          await this.discardRecovery(recovery)
+          if (this.recovery === recovery) this.recovery = null
+        }
+        if (connection === this.controller) this.message(authMessage(error, this.language, 'confirm'), true)
+      } finally {
+        if (this.isConnected && connection === this.controller) {
+          this.setBusy(false)
+          if (this.recovery?.userId) this.field<HTMLInputElement>('[name=password]').focus()
+        }
+      }
+    }
+
+    private async discardRecovery(recovery: RecoveryContext) {
+      if (!recovery.closed) {
+        recovery.closed = true
+        try {
+          await recovery.client.auth.signOut({ scope: 'local' })
+        } catch {
+          // The isolated session is never persisted. Do not log auth details.
+        }
+      }
+      if (!recovery.disposed) {
+        recovery.disposed = true
+        try { await recovery.client.auth.dispose() } catch { /* No UI or tokens escape cleanup. */ }
+      }
+    }
+
+    private updatePassword = async (event: SubmitEvent) => {
+      event.preventDefault()
+      const recovery = this.recovery
+      if (this.busy || !recovery?.userId || recovery.passwordSaved) return
+      const form = this.field<HTMLFormElement>('[data-recovery-form]')
+      const connection = this.controller
+      if (!form.reportValidity()) return
+      const password = this.field<HTMLInputElement>('[name=password]')
+      const repeated = this.field<HTMLInputElement>('[name=repeat]')
+      if (!validateCommentPassword(password.value)) {
+        this.message(this.say('新密码至少需要 12 个字符。', 'Your new password needs at least 12 characters.'), true)
+        password.focus()
+        return
+      }
+      if (password.value !== repeated.value) {
+        this.message(this.say('两次输入的密码不一致，请重新检查。', 'The two passwords do not match. Please check them.'), true)
+        repeated.focus()
+        return
+      }
+      // Snapshot before asynchronous work: disconnect clears password fields.
+      const nextPassword = password.value
+      recovery.finalizing = true
+      this.setBusy(true)
+      this.message(this.say('正在保存新密码…', 'Saving your new password…'))
+      try {
+        const { data: { user }, error: userError } = await recovery.client.auth.getUser()
+        if (userError || user?.id !== recovery.userId) throw userError ?? new Error('Recovery session changed')
+        const { error } = await recovery.client.auth.updateUser({ password: nextPassword })
+        if (error) throw error
+        recovery.passwordSaved = true
+        // No DOM/lifetime guard may skip this authorized security action. The
+        // isolated client always targets the recovered account, never another tab.
+        const { error: signOutError } = await recovery.client.auth.signOut({ scope: 'global' })
+        if (!signOutError) recovery.closed = true
+        emitCommentAuthChange()
+        if (!this.isConnected || connection !== this.controller || this.recovery !== recovery) return
+        password.value = ''
+        repeated.value = ''
+        this.field<HTMLFormElement>('[data-recovery-form]').hidden = true
+        if (signOutError) {
+          this.field<HTMLButtonElement>('[data-signout-retry]').hidden = false
+          this.message(this.say('密码已保存，但退出尚未完成。请点击“重试退出”，然后使用新密码重新登录。', 'Your password was saved, but sign-out did not finish. Retry sign-out, then sign in with your new password.'), true)
+        } else {
+          this.recovery = null
+          this.message(this.say('新密码已保存，评论登录会话已退出。请返回网站使用新密码登录。', 'Your new password was saved and comment sessions signed out. Return to the website and sign in with your new password.'))
+        }
+      } catch (error) {
+        if (connection === this.controller && this.recovery === recovery) {
+          if (recovery.passwordSaved) {
+            password.value = ''
+            repeated.value = ''
+            this.field<HTMLFormElement>('[data-recovery-form]').hidden = true
+            this.field<HTMLButtonElement>('[data-signout-retry]').hidden = false
+            this.message(this.say('密码已保存，但退出尚未完成。请点击“重试退出”，然后使用新密码重新登录。', 'Your password was saved, but sign-out did not finish. Retry sign-out, then sign in with your new password.'), true)
+          } else this.message(authMessage(error, this.language, 'password'), true)
+        }
+      } finally {
+        recovery.finalizing = false
+        if (!this.isConnected || connection !== this.controller || this.recovery !== recovery) {
+          await this.discardRecovery(recovery)
+        }
+        if (this.isConnected && connection === this.controller) this.setBusy(false)
+      }
+    }
+
+    private finishSignOut = async () => {
+      if (this.busy) return
+      const recovery = this.recovery
+      if (!recovery?.passwordSaved) return
+      const connection = this.controller
+      this.setBusy(true)
+      recovery.finalizing = true
+      try {
+        const { error } = await recovery.client.auth.signOut({ scope: 'global' })
+        emitCommentAuthChange()
+        if (error) throw error
+        recovery.closed = true
+        if (!this.isConnected || connection !== this.controller || this.recovery !== recovery) return
+        this.recovery = null
+        this.field<HTMLButtonElement>('[data-signout-retry]').hidden = true
+        this.message(this.say('已完成退出。请返回网站使用新密码登录。', 'Signed out. Return to the website and sign in with your new password.'))
+      } catch (error) {
+        if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)
+      } finally {
+        recovery.finalizing = false
+        if (!this.isConnected || connection !== this.controller || this.recovery !== recovery) {
+          await this.discardRecovery(recovery)
+        }
+        if (this.isConnected && connection === this.controller) this.setBusy(false)
+      }
+    }
+  }
+
+  if (!customElements.get('auth-confirm')) customElements.define('auth-confirm', AuthConfirm)
+</script>
+
+<style>
+  .confirm-input { width: 100%; border: 1px solid hsl(var(--border)); border-radius: 0.5rem; background: hsl(var(--background)); padding: 0.55rem 0.75rem; }
+  .confirm-primary { min-height: 2.75rem; border-radius: 0.5rem; background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0.6rem 1rem; font-size: 0.875rem; }
+  button:disabled { cursor: wait; opacity: 0.6; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+</style>

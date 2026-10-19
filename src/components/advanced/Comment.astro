@@ -1,154 +1,79 @@
 ---
-import config from '@/site-config'
-
-import '@waline/client/style'
-
-import { cn } from '@/utils'
-
-const { class: className } = Astro.props
+import CommentAuth from './CommentAuth.astro'
+import { commentThread } from '../../lib/comment-utils'
+interface Props { thread?: string; class?: string }
+const lang = Astro.currentLocale === 'en' ? 'en' : 'zh'
+const en = lang === 'en'
+const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
 ---
-
-{
-  config.integ.waline.enable && (
-    <comment-component>
-      <div id='waline' class={cn('not-prose', className)}>
-        Comment seems to stuck. Try to refresh?✨
-      </div>
-    </comment-component>
-  )
-}
-
+<site-comments id='comments' data-thread={thread} data-lang={lang} class:list={['not-prose comment-panel', Astro.props.class]} data-pagefind-ignore>
+  <header class='comment-heading'>
+    <h2>{en ? 'Conversation' : '留言与交流'}</h2>
+    <p>{en ? 'Thoughts, questions, and friendly conversations are welcome.' : '欢迎分享想法、提出问题，也欢迎来打个招呼。'}</p>
+  </header>
+  <div data-unconfigured>
+    <p>{en ? 'The comment service is being prepared. You can reach me by email in the meantime.' : '留言服务正在准备中，暂时欢迎通过邮箱与我交流。'}</p>
+    <a href='mailto:1943480241@qq.com'>1943480241@qq.com</a>
+  </div>
+  <div data-configured hidden>
+    <CommentAuth lang={lang} />
+    <form data-compose>
+      <p data-reply hidden><span></span> <button type='button' data-cancel-reply>{en ? 'Cancel reply' : '取消回复'}</button></p>
+      <label>{en ? 'Public nickname' : '公开昵称'}<input name='nickname' maxlength='40' required autocomplete='nickname' /></label>
+      <label>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='4' maxlength='2000' required aria-describedby='comment-guide'></textarea></label>
+      <div class='comment-compose-foot'><span data-counter aria-live='off'>0 / 2000</span><button type='submit' data-submit disabled>{en ? 'Post comment' : '发布留言'}</button></div>
+      <p id='comment-guide' class='comment-note'>{en ? 'Verify your email and sign in to post. Plain text only, up to 2,000 characters. Your email stays private. Deleting a comment preserves other people’s replies.' : '验证邮箱并登录后即可发布。支持纯文本，最多 2000 字；邮箱不会公开。删除自己的留言会保留其他人的回复。'}</p>
+      <p class='comment-note'><a href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy and data use' : '隐私与数据使用说明'}</a></p>
+    </form>
+    <div data-admin hidden class='comment-admin'><label><input type='checkbox' data-moderation /> {en ? 'Review new comments before publishing' : '新评论先审核再公开'}</label></div>
+    <p data-status role='status' aria-live='polite'></p>
+    <div class='comment-list-heading'><h3>{en ? 'Recent comments' : '最近留言'}</h3><button type='button' data-refresh>{en ? 'Refresh' : '刷新'}</button></div>
+    <ol data-list class='comment-list'></ol>
+    <button type='button' data-more hidden>{en ? 'Load earlier comments' : '加载更早的留言'}</button>
+  </div>
+  <noscript>{en ? 'JavaScript is needed to load comments. You can also contact me by email.' : '留言功能需要启用 JavaScript，也可通过邮箱联系我。'}</noscript>
+  <dialog aria-labelledby='comment-confirm-title'><form method='dialog'>
+    <h3 id='comment-confirm-title'></h3><p data-confirm-description></p>
+    <div class='comment-dialog-actions'><button value='cancel'>{en ? 'Cancel' : '取消'}</button><button value='confirm' data-confirm-button>{en ? 'Confirm' : '确认'}</button></div>
+  </form></dialog>
+</site-comments>
 <script>
-  import { init as walineInit } from '@waline/client'
-  import type { WalineEmojiPresets } from '@waline/client'
-  import config from '@/site-config'
-
-  const walineConfig = config.integ.waline
-
-  class Comment extends HTMLElement {
-    constructor() {
-      super()
-    }
-
-    connectedCallback() {
-      // Prevent Vue log errors
-      ;(globalThis as unknown as { __VUE_OPTIONS_API__: boolean }).__VUE_OPTIONS_API__ = true
-      ;(globalThis as unknown as { __VUE_PROD_DEVTOOLS__: boolean }).__VUE_PROD_DEVTOOLS__ = false
-      ;(
-        globalThis as unknown as { __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: boolean }
-      ).__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false
-
-      const emoji = walineConfig.emoji?.map(
-        (preset: any) => `${config.npmCDN}/@waline/emojis@1.2.0/${preset}` as WalineEmojiPresets
-      )
-
-      const normalizePath = (path: string) => {
-        if (path === '/') return path
-        return path.endsWith('/') ? path.slice(0, -1) : path
-      }
-
-      walineInit({
-        el: '#waline',
-        serverURL: walineConfig.server || '',
-        emoji,
-        reaction: ['/icons/heart-item.svg'],
-        path: normalizePath(window.location.pathname),
-        ...walineConfig.additionalConfigs
-      })
-    }
-  }
-
-  if (walineConfig.enable) customElements.define('comment-component', Comment)
+  import '../../lib/comments'
 </script>
-
-<style>
-  /* Basic theme */
-  #waline {
-    /* Font size */
-    --waline-font-size: 16px;
-    /* Basic color */
-    --waline-white: hsl(var(--background) / var(--tw-bg-opacity, 1));
-    --waline-light-grey: #999;
-    --waline-dark-grey: #666;
-    /* Theme color */
-    --waline-theme-color: hsl(var(--foreground) / var(--tw-text-opacity, 1));
-    --waline-active-color: hsl(var(--primary) / var(--tw-text-opacity, 1));
-    /* Layout */
-    --waline-color: hsl(var(--muted-foreground) / var(--tw-text-opacity, 1));
-    --waline-bg-color: hsl(var(--muted) / var(--tw-bg-opacity, 1));
-    --waline-bg-color-light: hsl(var(--input) / var(--tw-text-opacity, 1));
-    --waline-bg-color-hover: #f0f0f0;
-    --waline-border-color: hsl(var(--border) / var(--tw-border-opacity, 1));
-    --waline-disable-bg-color: #f8f8f8;
-    --waline-disable-color: #bbb;
-    --waline-code-bg-color: #282c34;
-    /* Special */
-    --waline-bq-color: #f0f0f0;
-    /* Avatar */
-    --waline-avatar-size: 3.25rem;
-    --waline-m-avatar-size: calc(var(--waline-avatar-size) * 9 / 13);
-    /* Badge */
-    --waline-badge-color: hsl(var(--border) / var(--tw-border-opacity, 1));
-    --waline-badge-font-size: 0.775em;
-    /* Info */
-    --waline-info-bg-color: var(--waline-bg-color-light);
-    --waline-info-color: var(--waline-color);
-    --waline-info-font-size: 0.625em;
-    /* Render selection */
-    --waline-border: 1px solid var(--waline-border-color);
-    --waline-avatar-radius: 50%;
-    --waline-box-shadow: none;
-  }
-
-  /* Reaction buttons */
-  #waline :global(.wl-reaction-title, .wl-reaction-text) {
-    display: none;
-  }
-  #waline :global(.wl-reaction) {
-    overflow: visible;
-    margin-bottom: 0.5em;
-  }
-  #waline :global(.wl-reaction-img) {
-    width: auto;
-    display: flex;
-    height: 35px;
-    align-items: center;
-    column-gap: 0.4rem;
-  }
-  #waline :global(.wl-reaction-votes) {
-    position: inherit;
-    top: inherit;
-    min-width: inherit;
-    inset-inline-end: inherit;
-    display: flex;
-    font-weight: normal;
-    border: none;
-    background: none;
-    color: inherit;
-    padding: 0.2rem 0.4rem;
-    border-radius: 6px;
-  }
-  #waline :global(.wl-reaction-loading) {
-    position: inherit;
-    top: inherit;
-    min-width: inherit;
-  }
-  #waline :global(.wl-reaction-item.active .wl-reaction-votes) {
-    background: var(--waline-theme-color);
-    color: var(--waline-bg-color);
-  }
-
-  #waline :global(.wl-reaction-votes:after) {
-    margin-left: 0.25em;
-    content: 'Like(s)';
-    display: inline-block;
-    clear: both;
-    border: 0;
-  }
-  #waline :global(.wl-reaction img) {
-    filter: invert(25%);
-  }
-  :global(.dark) #waline :global(.wl-reaction img) {
-    filter: invert(75%);
-  }
+<style is:global>
+  site-comments { display:block; padding:clamp(1.2rem,3vw,2rem); border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); }
+  site-comments [hidden] { display:none !important; }
+  site-comments h2 { font-size:1.35rem; font-weight:600; margin:0 0 .5rem; }
+  site-comments h3 { font-weight:600; }
+  site-comments p { margin:.65rem 0; }
+  site-comments .comment-heading > p, site-comments .comment-note, site-comments [data-counter], site-comments time { color:hsl(var(--muted-foreground)); font-size:.875rem; }
+  site-comments label { display:block; font-size:.9rem; margin:.85rem 0; }
+  site-comments input:not([type=checkbox]), site-comments textarea { display:block; width:100%; margin-top:.4rem; padding:.7rem .85rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--background)); color:hsl(var(--foreground)); font:inherit; }
+  site-comments textarea { resize:vertical; min-height:7rem; }
+  site-comments button { padding:.5rem .8rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font:inherit; font-size:.875rem; cursor:pointer; }
+  site-comments button:hover:not(:disabled) { background:hsl(var(--muted)); }
+  site-comments button:disabled { opacity:.55; cursor:not-allowed; }
+  site-comments :is(button,a,input,textarea):focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
+  site-comments [data-submit], site-comments [data-confirm-button] { background:hsl(var(--foreground)); color:hsl(var(--background)); }
+  site-comments [data-submit]:hover:not(:disabled), site-comments [data-confirm-button]:hover { background:hsl(var(--foreground) / .85); }
+  site-comments a { text-decoration:underline; text-underline-offset:3px; }
+  site-comments .comment-compose-foot, site-comments .comment-list-heading, site-comments .comment-dialog-actions { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+  site-comments .comment-list-heading { margin:1.5rem 0 .5rem; }
+  site-comments .comment-list { padding:0; list-style:none; }
+  site-comments .comment-item { border-top:1px solid hsl(var(--border)); padding:1.15rem 0; overflow-wrap:anywhere; }
+  site-comments .comment-item-header { display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap; }
+  site-comments .comment-item-header strong { font-weight:600; }
+  site-comments .comment-body { white-space:pre-wrap; line-height:1.8; }
+  site-comments .comment-context { border-left:2px solid hsl(var(--border)); padding-left:.7rem; font-size:.85rem; color:hsl(var(--muted-foreground)); }
+  site-comments .comment-item-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem; }
+  site-comments .comment-item-actions button { border-color:transparent; padding:.25rem .5rem; color:hsl(var(--muted-foreground)); }
+  site-comments .comment-badge { font-size:.75rem; border:1px solid hsl(var(--border)); border-radius:.3rem; padding:.1rem .35rem; }
+  site-comments [data-status]:empty { display:none; }
+  site-comments [data-status] { background:hsl(var(--muted)); border-radius:.5rem; padding:.7rem .9rem; font-size:.9rem; }
+  site-comments [data-status][data-error=true] { border-left:3px solid #c35757; }
+  site-comments [data-reply] { padding:.6rem; border-radius:.5rem; background:hsl(var(--muted)); }
+  site-comments .comment-admin { border-block:1px solid hsl(var(--border)); margin:1rem 0; }
+  site-comments dialog { width:min(90vw,28rem); padding:1.5rem; border:1px solid hsl(var(--border)); border-radius:1rem; color:hsl(var(--foreground)); background:hsl(var(--background)); }
+  site-comments dialog::backdrop { background:rgb(0 0 0 / .45); }
+  site-comments .comment-dialog-actions { justify-content:flex-end; margin-top:1.25rem; }
 </style>

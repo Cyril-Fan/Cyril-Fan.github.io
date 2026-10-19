@@ -42,17 +42,6 @@ export const IntegrationConfigSchema = () =>
       options: z.record(z.string(), z.any()).default({ className: 'zoomable' })
     }),
 
-    /** The Waline comment system */
-    waline: z.object({
-      /** Enable the Waline comment system. */
-      enable: z.boolean().default(false),
-      /** The server to use for the Waline comment system. */
-      server: z.string().optional(),
-      /** The emoji to use for the Waline comment system. */
-      emoji: z.array(z.string()).optional(),
-      /** Additional configurations for the Waline comment system. */
-      additionalConfigs: z.record(z.string(), z.any()).default({})
-    })
   })
 
 export type IntegrationConfig = z.infer<ReturnType<typeof IntegrationConfigSchema>>

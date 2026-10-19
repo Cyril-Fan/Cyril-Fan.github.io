@@ -4,6 +4,7 @@ import { Icon } from '@/components/user'
 import LanguageSwitch from '@/components/user/LanguageSwitch.astro'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 const english = Astro.currentLocale === 'en'
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/'
 const menuTitles: Record<string, string> = {
   '/blog/all': english ? 'Blog' : '博客',
   '/academic': english ? 'Research' : '研究',
@@ -36,9 +37,17 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
   }
   return url
 }
+
+function getAriaCurrent(link: string): 'page' | 'location' | undefined {
+  const target = getLocalizedUrl(Astro.currentLocale, link)
+  if (currentPath === target) return 'page'
+  const section = link === '/blog/all' ? getLocalizedUrl(Astro.currentLocale, '/blog') : target
+  return currentPath.startsWith(`${section}/`) ? 'location' : undefined
+}
 ---
 
 <header-component
+  data-locale={english ? 'en' : 'zh'}
   class='group sticky top-4 z-30 mb-12 flex items-center justify-between rounded-xl border border-transparent max-sm:py-1 sm:rounded-2xl [&.not-top]:border-border [&.not-top]:bg-background/60 [&.not-top]:px-1.5 [&.not-top]:backdrop-blur-md dark:[&.not-top]:bg-muted/60'
 >
   <!-- <div
@@ -49,13 +58,15 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
     class='z-30 text-xl font-semibold group-[.not-top]:ms-2 sm:group-[.not-top]:ms-3'
     style='transition:margin-inline 0.3s'
     href={getLocalizedUrl(Astro.currentLocale, '/')}
-    aria-label='Brand'>{config.title}</a
+    aria-label={english ? `${config.title} home` : `${config.title}，返回首页`}>{config.title}</a
   >
 
   <div class='flex items-center gap-x-2'>
     {/* Menu links */}
     <div
       id='headerExpandConetent'
+      role='navigation'
+      aria-label={english ? 'Main navigation' : '主导航'}
       class='end-0 start-0 top-12 grid border border-transparent group-[.not-top]:rounded-xl group-[.expanded]:opacity-100 dark:group-[.expanded.not-top]:bg-muted/60 max-md:absolute max-md:invisible max-md:group-[.expanded]:visible max-md:opacity-0 max-md:pointer-events-none max-md:group-[.expanded]:pointer-events-auto max-md:group-[.not-top]:border-border max-md:group-[.expanded.not-top]:bg-background/60 max-md:group-[.expanded.not-top]:backdrop-blur-md max-md:group-[.not-top]:px-4 max-md:group-[.not-top]:py-2 md:grid-rows-1'
     >
       <div class='flex flex-col items-center justify-center md:flex-row'>
@@ -68,7 +79,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
                   <a
                     href={getLocalizedUrl(Astro.currentLocale, item.link)}
                     class='blog-menu-link flex w-full flex-none items-center justify-end py-2 font-medium transition-none hover:text-primary md:px-3 md:justify-center'
-                    aria-label='Nav menu item'
+                    aria-current={getAriaCurrent(item.link)}
                   >
                     {menuTitles[item.link] || item.title}
                     <Icon name='chevron-down' class='chevron-icon ml-1 size-4 transition-transform' />
@@ -79,6 +90,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
                       {categories.map((category) => (
                         <a
                           href={getLocalizedUrl(Astro.currentLocale, `/blog/${category.slug}`)}
+                          aria-current={getAriaCurrent(`/blog/${category.slug}`)}
                           class='category-link block px-4 py-2 text-sm transition-colors hover:bg-background/60 hover:text-primary dark:hover:bg-muted/60'
                         >
                           {category.name}
@@ -94,7 +106,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
               <a
                 href={getLocalizedUrl(Astro.currentLocale, item.link)}
                 class='w-full flex-none grow py-2 text-right font-medium transition-none hover:text-primary md:w-fit md:px-3'
-                aria-label='Nav menu item'
+                aria-current={getAriaCurrent(item.link)}
               >
                 {menuTitles[item.link] || item.title}
               </a>
@@ -102,8 +114,8 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
           })
         }
         <div class='flex w-full grow flex-row justify-end gap-x-3 md:w-fit md:gap-x-5'>
-          <a class='px-1 py-2 transition-none md:px-2' href={getLocalizedUrl(Astro.currentLocale, '/search')} title='Search'>
-            <span class='sr-only'>Search</span>
+          <a class='px-1 py-2 transition-none md:px-2' href={getLocalizedUrl(Astro.currentLocale, '/search')} title={english ? 'Search' : '站内搜索'} aria-current={getAriaCurrent('/search')}>
+            <span class='sr-only'>{english ? 'Search' : '站内搜索'}</span>
             <Icon name='search' class='size-5' />
           </a>
         </div>
@@ -115,20 +127,24 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
       <LanguageSwitch />
       <button
         id='toggleDarkMode'
+        type='button'
+        title={english ? 'Change color theme' : '切换明暗主题'}
         class='group/dark box-content size-5 rounded-md border p-1.5 transition-colors hover:bg-border md:group-[.not-top]:rounded-xl'
       >
-        <span class='sr-only'>Dark Theme</span>
+        <span class='sr-only' data-theme-label>{english ? 'Change color theme' : '切换明暗主题'}</span>
         <Icon class='system size-5 group-hover/dark:text-primary' name='computer' />
         <Icon class='light hidden size-5 group-hover/dark:text-primary' name='sun' />
         <Icon class='dark hidden size-5 group-hover/dark:text-primary' name='moon' />
       </button>
       <button
         id='toggleMenu'
+        type='button'
+        title={english ? 'Open navigation' : '展开导航'}
         aria-controls='headerExpandConetent'
         aria-expanded='false'
         class='rounded-md border p-1.5 transition-colors hover:bg-border md:hidden md:group-[.not-top]:rounded-xl'
       >
-        <span class='sr-only'>Menu</span>
+        <span class='sr-only' data-menu-label>{english ? 'Open navigation' : '展开导航'}</span>
         <Icon class='size-5' name='menu' />
       </button>
     </div>
@@ -139,18 +155,21 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
 <script is:inline>
   const toggleDarkModeElement = document.getElementById('toggleDarkMode')
   if (toggleDarkModeElement) {
-    toggleDarkModeElement.dataset.theme = localStorage.getItem('theme') || 'system'
+    toggleDarkModeElement.dataset.theme = document.documentElement.dataset.theme || 'system'
   }
 </script>
 <script>
-  import { setTheme, showToast } from '@/utils'
+  import { getTheme, setTheme, showToast } from '@/utils'
 
   class Header extends HTMLElement {
-    constructor() {
-      super()
-    }
+    private eventController?: AbortController
 
     connectedCallback() {
+      this.eventController?.abort()
+      this.eventController = new AbortController()
+      const { signal } = this.eventController
+      const english = this.dataset.locale === 'en'
+
       // Header
       let preScrollY = window.scrollY
       this.classList.toggle('not-top', preScrollY > 20)
@@ -158,30 +177,75 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
         this.classList.toggle('not-top', window.scrollY > 20)
         this.dataset.show = (window.scrollY < 600 || window.scrollY < preScrollY).toString()
         preScrollY = window.scrollY
-      })
+      }, { passive: true, signal })
 
       // Dark Mode
-      const darkModeBtn = this.querySelector('#toggleDarkMode') as HTMLElement
-      darkModeBtn.addEventListener('click', () => {
-        // Old way: dispatch event
-        // const toggleDarkModeEvent = new CustomEvent('theme-change', {
-        //   detail: { theme: localStorage.getItem('theme') === 'light' ? 'dark' : 'light' }
-        // })
-        // document.dispatchEvent(toggleDarkModeEvent)
+      const darkModeBtn = this.querySelector<HTMLButtonElement>('#toggleDarkMode')
+      const themes = ['system', 'dark', 'light']
+      const themeNames: Record<string, string> = english
+        ? { system: 'system', dark: 'dark', light: 'light' }
+        : { system: '跟随系统', dark: '深色', light: '浅色' }
+      const updateThemeLabel = (theme: string) => {
+        if (!darkModeBtn) return
+        darkModeBtn.dataset.theme = theme
+        const next = themes[(themes.indexOf(theme) + 1) % themes.length]
+        const label = english
+          ? `Color theme: ${themeNames[theme]}. Switch to ${themeNames[next]}.`
+          : `当前配色：${themeNames[theme]}。切换到${themeNames[next]}。`
+        darkModeBtn.setAttribute('title', label)
+        const labelElement = darkModeBtn.querySelector('[data-theme-label]')
+        if (labelElement) labelElement.textContent = label
+      }
+      updateThemeLabel(getTheme())
+      darkModeBtn?.addEventListener('click', () => {
         const newTheme = setTheme(undefined, true)
-        darkModeBtn.dataset.theme = newTheme
-        showToast({ message: `Set theme to ${newTheme}` })
-      })
+        if (!newTheme) return
+        updateThemeLabel(newTheme)
+        showToast({ message: english ? `Theme: ${themeNames[newTheme]}.` : `已切换为${themeNames[newTheme]}。` })
+      }, { signal })
 
       // Menu
-      this.querySelector('#toggleMenu')?.addEventListener('click', () => {
-        const expanded = this.classList.toggle('expanded')
-        this.querySelector('#toggleMenu')?.setAttribute('aria-expanded', String(expanded))
-      })
+      const menuButton = this.querySelector<HTMLButtonElement>('#toggleMenu')
+      const setMenu = (expanded: boolean, restoreFocus = false) => {
+        this.classList.toggle('expanded', expanded)
+        menuButton?.setAttribute('aria-expanded', String(expanded))
+        const label = english
+          ? (expanded ? 'Close navigation' : 'Open navigation')
+          : (expanded ? '收起导航' : '展开导航')
+        menuButton?.setAttribute('title', label)
+        const labelElement = menuButton?.querySelector('[data-menu-label]')
+        if (labelElement) labelElement.textContent = label
+        if (restoreFocus) menuButton?.focus()
+      }
+      setMenu(false)
+      menuButton?.addEventListener('click', () => setMenu(!this.classList.contains('expanded')), { signal })
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && this.classList.contains('expanded')) {
+          event.preventDefault()
+          setMenu(false, true)
+        }
+      }, { signal })
+      document.addEventListener('pointerdown', (event) => {
+        if (event.target instanceof Node && !this.contains(event.target)) setMenu(false)
+      }, { signal })
+      this.addEventListener('click', (event) => {
+        if (event.target instanceof Element && event.target.closest('a[href]')) setMenu(false)
+      }, { signal })
+      this.addEventListener('focusout', (event) => {
+        if (event.relatedTarget instanceof Node && !this.contains(event.relatedTarget)) setMenu(false)
+      }, { signal })
+      window.matchMedia('(min-width: 768px)').addEventListener('change', (event) => {
+        if (event.matches) setMenu(false)
+      }, { signal })
+    }
+
+    disconnectedCallback() {
+      this.eventController?.abort()
+      this.eventController = undefined
     }
   }
 
-  customElements.define('header-component', Header)
+  if (!customElements.get('header-component')) customElements.define('header-component', Header)
 </script>
 
 <style>
@@ -201,9 +265,21 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
         rgba(39, 39, 42, 0.08) 0px 10px 15px -3px,
         rgba(39, 39, 42, 0.08) 0px 4px 6px -4px;
     }
-    &[data-show='false']:not(.expanded) {
+    &[data-show='false']:not(.expanded):not(:focus-within) {
       transform: translateY(-5rem);
     }
+  }
+
+  header-component :is(a, button):focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 3px;
+    border-radius: 0.375rem;
+  }
+
+  header-component a[aria-current] {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    text-underline-offset: 0.3em;
   }
 
   @media (min-width: 800px) {

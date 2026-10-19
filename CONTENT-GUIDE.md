@@ -77,11 +77,12 @@ heroImage:
 4. 在 GitHub **Actions** 查看 `.github/workflows/deploy.yml` 的运行结果；失败时先读日志再修复。
 5. 部署完成后实际打开正式域名检查。GitHub 贡献日历反映构建时取得的数据，后续更新可重新运行部署。
 
-文章发布后会进入分类、标签、搜索索引与 RSS；无需手工维护文章列表。当前全站评论关闭，单篇的 `comment: true` 也不会开启评论服务。
+文章发布后会进入分类、标签、搜索索引与 RSS；无需手工维护文章列表。配置 Supabase 后，非草稿文章默认显示留言区，`comment: false` 可关闭单篇留言入口。中英文对应文章按同一个目录 ID 共用讨论；发布后不要随意改文章目录名，否则会变成新的讨论地址。评论服务配置见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)。
 
 ## 修改个人信息
 
-- `src/site.config.ts`：站点名称、简介元信息、邮箱、GitHub、域名、头像路径、导航、评论和搜索等开关。
+- `src/site.config.ts`：站点名称、简介元信息、邮箱、GitHub、域名、头像路径、导航和搜索等开关。
+- GitHub Actions repository variables `PUBLIC_SUPABASE_URL` 与 `PUBLIC_SUPABASE_ANON_KEY`：评论服务的公开连接配置；本地开发放到不提交的 `.env.local`。
 - `src/pages/index.astro` 与 `src/pages/en/index.astro`：首页介绍。
 - `src/pages/about/index.astro` 与 `src/pages/en/about/index.astro`：详细个人介绍。
 - `src/pages/academic/` 与 `src/pages/en/academic/`：研究与论文展示。

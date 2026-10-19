@@ -70,7 +70,11 @@ function getPageNumbers(current: number, last: number): (number | '...')[] {
 const pageNumbers = getPageNumbers(currentPage, lastPage)
 
 function replacePageInUrl(currentUrl: string, page: number): string {
-  const base = currentUrl.replace(/\/\d+\/?$/, '') // Remove trailing /number or /number/
+  const normalizedUrl = currentUrl.replace(/\/$/, '')
+  // The first-page route may itself end in a number, such as /tags/2026.
+  const base = currentPage > 1
+    ? normalizedUrl.replace(new RegExp(`/${currentPage}$`), '')
+    : normalizedUrl
   if (page === 1) {
     return base || '/'
   }

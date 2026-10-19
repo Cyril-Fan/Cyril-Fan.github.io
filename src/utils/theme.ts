@@ -1,40 +1,61 @@
-export function getTheme() {
-  return localStorage.getItem('theme')
+type Theme = 'system' | 'dark' | 'light'
+
+const themes: Theme[] = ['system', 'dark', 'light']
+let fallbackTheme: Theme = 'system'
+let themeStorageFailed = false
+let systemThemeQuery: MediaQueryList | undefined
+let listeningForSystemTheme = false
+
+function isTheme(value: string | null | undefined): value is Theme {
+  return themes.includes(value as Theme)
 }
 
-export function listenThemeChange(theme?: string) {
-  if (theme && theme !== 'system') return // if theme is specified, no need to listen window theme change
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    setTheme(e.matches ? 'dark' : 'light')
+function getSystemThemeQuery() {
+  return systemThemeQuery ??= window.matchMedia('(prefers-color-scheme: dark)')
+}
+
+export function getTheme(): Theme {
+  if (themeStorageFailed) return fallbackTheme
+  try {
+    const storedTheme = localStorage.getItem('theme')
+    fallbackTheme = isTheme(storedTheme) ? storedTheme : 'system'
+    return fallbackTheme
+  } catch {
+    themeStorageFailed = true
+    return fallbackTheme
+  }
+}
+
+export function listenThemeChange() {
+  if (listeningForSystemTheme) return
+  getSystemThemeQuery().addEventListener('change', () => {
+    if (getTheme() === 'system') setTheme('system')
   })
+  listeningForSystemTheme = true
 }
 
-export function setTheme(theme?: string, save = false) {
-  const themes = ['system', 'dark', 'light']
-  if (theme) {
-    if (!themes.includes(theme)) return
-    if (save) localStorage.setItem('theme', theme)
-  } else {
-    theme = getTheme() ?? undefined
-    if (save) {
-      // Set theme equals undefined, switch cycle in ['system', 'dark', 'light']
-      const currentIndex = themes.indexOf(theme ?? 'system')
-      theme = themes[(currentIndex + 1) % themes.length]
-      localStorage.setItem('theme', theme) // save theme
+export function setTheme(theme?: string, save = false): Theme | undefined {
+  if (theme !== undefined && !isTheme(theme)) return
+  let selectedTheme: Theme = isTheme(theme) ? theme : getTheme()
+  if (save) {
+    if (theme === undefined) {
+      selectedTheme = themes[(themes.indexOf(selectedTheme) + 1) % themes.length]
+    }
+    fallbackTheme = selectedTheme
+    try {
+      localStorage.setItem('theme', selectedTheme)
+    } catch {
+      // Retain the selected mode for this document when storage is unavailable.
+      themeStorageFailed = true
     }
   }
-  let targetTheme = theme
-  if (theme === 'system') {
-    targetTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    // Listen theme change
-    listenThemeChange(theme)
-  }
 
-  // Set theme
-  document.documentElement.classList.toggle('dark', targetTheme === 'dark')
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', targetTheme === 'dark' ? '#0B0B10' : '#FCFCFD')
+  const dark = selectedTheme === 'dark' ||
+    (selectedTheme === 'system' && getSystemThemeQuery().matches)
+  document.documentElement.classList.toggle('dark', dark)
+  document.documentElement.dataset.theme = selectedTheme
+  document.querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', dark ? '#0B0B10' : '#FCFCFD')
 
-  return theme
+  return selectedTheme
 }
