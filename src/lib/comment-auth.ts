@@ -90,8 +90,11 @@ export function createCommentAuthStorage(storage?: BrowserStorage) {
 
 let storageState: ReturnType<typeof createCommentAuthStorage> | undefined
 
-export function emitCommentAuthChange(): void {
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(COMMENT_AUTH_EVENT))
+export type CommentAuthChangeDetail = { userId?: string | null }
+
+/** Opaque identity stays in this in-memory event; it is never rendered or sent to public RPCs. */
+export function emitCommentAuthChange(userId?: string | null): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<CommentAuthChangeDetail>(COMMENT_AUTH_EVENT, { detail: { userId } }))
 }
 
 /** Bound individual network attempts so account controls can recover from stalled connections. */
@@ -144,9 +147,9 @@ export function getCommentClient(): SupabaseClient | null {
         flowType: 'pkce'
       }
     })
-    client.auth.onAuthStateChange(() => {
+    client.auth.onAuthStateChange((_event, session) => {
       // Dispatch outside the SDK callback lock: consumers may call getUser().
-      window.setTimeout(emitCommentAuthChange, 0)
+      window.setTimeout(() => emitCommentAuthChange(session?.user.id ?? null), 0)
     })
   } catch {
     invalidConfiguration = true

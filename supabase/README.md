@@ -3,8 +3,10 @@
 The files in `migrations/` are the database boundary for the static site's
 comments. Apply them in filename order as the Supabase migration owner (`postgres`)
 using the SQL editor or Supabase migrations. An existing deployment of `001`
-only needs `202610190002_comment_parent_author_guard.sql`, which makes the
-pending-parent ownership check fail closed when an Auth account was removed.
+needs `202610190002_comment_parent_author_guard.sql`, which makes the
+pending-parent ownership check fail closed when an Auth account was removed,
+then `202610190003_current_profile_names.sql`. A deployment already on `002`
+only needs `003`, which adds current profile names and an authenticated rename RPC.
 Do not rerun or edit an already-applied migration. The migrations expect the real Supabase Auth
 schemas; **never apply `tests/database/bootstrap.sql` to Supabase**.
 
@@ -47,9 +49,10 @@ token validation failures can also be rejected before an RPC executes.
 
 | RPC | Return and behavior |
 | --- | --- |
-| `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false`. |
-| `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned}`. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
-| `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized payload. |
+| `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false`. Administrator names are always `Cyril Fan`, including before their first post. |
+| `comment_profile_update(p_nickname)` | Same JSON as `comment_me`. Requires the caller's verified, active, unbanned session. Updates only that caller's profile; a user ID cannot be supplied. Admin input is ignored in favor of `Cyril Fan`. |
+| `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned}`. Comment and parent names use current profiles, including historical comments and deletion placeholders. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
+| `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized thread, body, and parent. Nickname is mutable metadata and does not affect retries. An existing profile wins over a stale form; the supplied name initializes a missing profile. Admins may omit the nickname value (`null`) and always publish as `Cyril Fan`. |
 | `comment_delete(p_id,p_branch=false)` | Void. Author clears only their own body; banned authors retain this right. Admin can clear any one body or set `p_branch=true` to erase and hide that comment and all descendants in the same thread. |
 | `comment_ban(p_comment_id,p_banned)` | Void, admin only. Resolves the author privately from a comment ID. Ban blocks posting using existing tokens; unban restores it. Cannot ban an admin. Existing published comments remain visible. |
 | `comment_moderation(p_enabled)` | Void, admin only. Controls whether future non-admin submissions require approval. |
@@ -58,6 +61,27 @@ token validation failures can also be rejected before an RPC executes.
 The frontend must display `body` and `nickname` as **plain text**. Do not put them
 into `innerHTML`. A deleted row's body is the empty string and should render a
 localized deletion placeholder. There is no edit/restore RPC.
+
+## Display names
+
+A visitor chooses a nickname once, either through `comment_profile_update` or
+their first `comment_create`. Subsequent name edits use `comment_profile_update`;
+posting from an old tab cannot overwrite a more recent rename. The next list
+read shows the new name on that account's comments across all threads and on
+other people's reply labels, even if the parent is outside the loaded page.
+Clients should refresh the already-loaded comments after saving a name.
+
+The administrator's display name is enforced as `Cyril Fan` by the database,
+regardless of any earlier saved profile. Nicknames are not unique. Another
+visitor using the same text never acquires `is_admin_author` or any permission;
+only the server-provided badge establishes administrator identity.
+
+Comment rows retain their original nickname snapshot. It is used only when the
+profile/account no longer exists and for validating retries of pre-`003`
+requests. A renamed profile is not a comment content edit, does not restore
+erased bodies, and cannot reset posting limits. After account deletion, the
+original name snapshot remains with the discussion; it is not anonymized by
+this implementation.
 
 ## Threads, paging, and replies
 
@@ -101,8 +125,8 @@ malicious content:
 - Body length 1–2000 characters after CRLF/CR normalization and outer ASCII-space
   trimming; whitespace-only text is rejected. Tabs/newlines are allowed inside
   body text; other POSIX control characters are rejected.
-- Nicknames contain 1–40 characters after outer ASCII-space trimming and no
-  POSIX control characters. A nickname is display text, not proof of identity;
+- Nicknames contain 1–40 characters after outer ASCII-space trimming, contain a
+  non-whitespace character, and contain no POSIX control characters. A nickname is display text, not proof of identity;
   only the server-provided `is_admin_author` flag identifies the admin.
 - At most five occurrences of an HTTP(S) or `www.` link, matched by
   `(https?://|www[.])[^[:space:]]+` case-insensitively. This is a link-count rule,
@@ -111,11 +135,15 @@ malicious content:
   account, across all threads, including admins. Identical normalized bodies by
   the same account in the same thread within ten minutes are rejected.
   Deleting/hiding does not reset these counters.
-- A UUID request ID is unique per account. Same-payload retries return the same
-  comment, including after deletion; different payloads fail. Raw bodies are
-  never recovered from the retained SHA-256 hashes.
+- A UUID request ID is unique per account. Retries with the same normalized
+  thread/body/parent return the same comment, including after deletion and name
+  changes; a changed thread/body/parent fails. New hashes use version `2`, which
+  excludes nickname. Existing version `1` hashes are validated with the row's
+  original nickname snapshot, so pre-upgrade erased bodies still support safe
+  retries. Retrying never changes a profile. Raw bodies are never recovered
+  from the retained SHA-256 hashes.
 
-Transaction-scoped advisory locks serialize each account's create/ban operations
+Transaction-scoped advisory locks serialize each account's create/rename/ban operations
 before idempotency and rate checks. A session is rechecked after a lock wait.
 Per-thread advisory locks serialize create/delete/review tree changes, so a
 concurrent reply cannot escape recursive admin removal. The settings row's share
@@ -141,8 +169,12 @@ The test creates a fresh in-memory PostgreSQL backend through PGlite. Auth mocks
 exist only there. It applies all production migrations in order, changes to actual `anon`
 and `authenticated` roles, and runs SQL assertions for grants, private storage,
 verified email/session revocation, ownership, banned deletion, recursive removal,
-moderation visibility, stable paging, spam limits, and idempotency. Fixtures and
-test helpers are rolled back.
+moderation visibility, stable paging, spam limits, profile ownership, fixed admin
+names, renamed historical comments/reply labels, and idempotency across renames.
+The runner also creates real data using `001`/`002` before applying `003` to
+verify existing nickname snapshots and erased-body request hashes survive the
+upgrade. These upgrade fixtures are removed before the main suite; the remaining
+fixtures and test helpers are rolled back.
 
 From the repository root, use the pinned development dependency:
 

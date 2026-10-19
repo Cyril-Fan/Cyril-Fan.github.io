@@ -8,22 +8,27 @@ const { lang = 'zh', id = 'comment-auth' } = Astro.props
 const en = lang === 'en'
 ---
 
-<comment-auth data-lang={lang} class='not-prose block rounded-xl border border-border p-4 sm:p-5'>
-  <h3 class='text-base font-medium'>{en ? 'Comment account' : '评论账户'}</h3>
-  <p data-account class='mt-2 text-sm text-muted-foreground' aria-live='polite'>
+<comment-auth data-lang={lang} class='not-prose block'>
+  <div class='auth-session-row'>
+  <p data-account class='text-sm text-muted-foreground' aria-live='polite'>
     {en ? 'Checking account service…' : '正在检查账户服务…'}
   </p>
+  <div data-member hidden>
+    <button type='button' data-signout class='auth-action'>{en ? 'Sign out' : '退出登录'}</button>
+  </div>
+  </div>
   <p data-storage hidden class='mt-2 text-sm text-muted-foreground'>
     {en
       ? 'Browser storage is unavailable. This sign-in lasts until this page is refreshed or closed.'
       : '浏览器存储不可用，本次登录仅在当前页面保留；刷新或关闭后需重新登录。'}
   </p>
-  <div data-guest hidden>
+  <div data-guest hidden class='auth-guest-panel'>
     <div class='mt-4 flex flex-wrap gap-2' aria-label={en ? 'Account actions' : '账户操作'}>
       <button type='button' data-mode='login' aria-pressed='true' class='auth-action'>{en ? 'Sign in' : '登录'}</button>
       <button type='button' data-mode='signup' aria-pressed='false' class='auth-action'>{en ? 'Create account' : '注册'}</button>
       <button type='button' data-mode='recover' aria-pressed='false' class='auth-action'>{en ? 'Forgot password' : '找回密码'}</button>
       <button type='button' data-mode='resend' aria-pressed='false' class='auth-action'>{en ? 'Resend verification' : '重发验证邮件'}</button>
+      <button type='button' data-auth-close class='auth-action'>{en ? 'Close' : '收起'}</button>
     </div>
     <form method='post' class='mt-4 grid gap-3' data-auth-form>
       <fieldset class='grid gap-3' disabled>
@@ -46,10 +51,7 @@ const en = lang === 'en'
       <a class='underline underline-offset-4' href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a>
     </p>
   </div>
-  <div data-member hidden class='mt-3'>
-    <button type='button' data-signout class='auth-action'>{en ? 'Sign out on this device' : '退出当前设备'}</button>
-  </div>
-  <p data-message role='status' aria-live='polite' aria-atomic='true' class='mt-3 min-h-5 text-sm'></p>
+  <p data-message role='status' aria-live='polite' aria-atomic='true' class='mt-3 text-sm'></p>
   <noscript><p class='mt-2 text-sm'>{en ? 'JavaScript is required to sign in or post a comment.' : '登录与发布评论需要启用 JavaScript。'}</p></noscript>
 </comment-auth>
 
@@ -76,6 +78,7 @@ const en = lang === 'en'
     private busy = false
     private stateVersion = 0
     private mailCooldownUntil = 0
+    private guestExpanded = false
 
     connectedCallback() {
       if (this.controller) return
@@ -83,6 +86,23 @@ const en = lang === 'en'
       const { signal } = this.controller
       this.querySelector<HTMLFormElement>('[data-auth-form]')?.addEventListener('submit', this.submit, { signal })
       this.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', this.signOut, { signal })
+      this.addEventListener('comment-auth-open', () => {
+        if (this.busy) return
+        this.guestExpanded = true
+        this.setMode('login')
+        this.field<HTMLElement>('[data-guest]').hidden = false
+        this.field<HTMLElement>('[data-account]').hidden = false
+        this.scrollIntoView?.({ block: 'nearest' })
+        this.field<HTMLInputElement>('[name=email]').focus({ preventScroll: true })
+      }, { signal })
+      this.querySelector<HTMLButtonElement>('[data-auth-close]')?.addEventListener('click', () => {
+        if (this.busy) return
+        this.guestExpanded = false
+        this.field<HTMLElement>('[data-guest]').hidden = true
+        this.field<HTMLElement>('[data-account]').hidden = true
+        this.field<HTMLInputElement>('[name=password]').value = ''
+        this.closest('site-comments')?.querySelector<HTMLButtonElement>('[data-sign-in]')?.focus()
+      }, { signal })
       this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
         button.addEventListener('click', () => this.setMode(button.dataset.mode as Mode), { signal })
       })
@@ -112,7 +132,7 @@ const en = lang === 'en'
     private setBusy(value: boolean) {
       this.busy = value
       this.field<HTMLFieldSetElement>('fieldset').disabled = value
-      this.querySelectorAll<HTMLButtonElement>('[data-mode], [data-signout]').forEach((button) => { button.disabled = value })
+      this.querySelectorAll<HTMLButtonElement>('[data-mode], [data-signout], [data-auth-close]').forEach((button) => { button.disabled = value })
       this.setAttribute('aria-busy', String(value))
     }
 
@@ -159,17 +179,19 @@ const en = lang === 'en'
         if (error) throw error
         const user = session?.user
         this.field<HTMLElement>('[data-member]').hidden = !user
-        this.field<HTMLElement>('[data-guest]').hidden = Boolean(user)
+        this.field<HTMLElement>('[data-guest]').hidden = Boolean(user) || !this.guestExpanded
+        this.field<HTMLElement>('[data-account]').hidden = !user && !this.guestExpanded
         this.field<HTMLFieldSetElement>('fieldset').disabled = this.busy
         this.field<HTMLElement>('[data-account]').textContent = user
           ? user.email_confirmed_at
-            ? this.say('已登录，邮箱已验证。你可以发布和管理自己的评论。', 'Signed in with a verified email. You can post and manage your comments.')
+            ? this.say('已登录 · 邮箱已验证', 'Signed in · Email verified')
             : this.say('已登录，但邮箱尚未验证。请先完成邮件验证，或退出后重发验证邮件。', 'Signed in, but your email is not verified. Confirm your email, or sign out to resend verification.')
           : this.say('登录后可以发布、回复和管理自己的评论。', 'Sign in to post, reply, and manage your comments.')
       } catch (error) {
         if (!this.isConnected || version !== this.stateVersion) return
         this.field<HTMLElement>('[data-account]').textContent = this.say('暂时无法检查登录状态，填写内容已保留。', 'Your sign-in status could not be checked. Your input is preserved.')
-        this.field<HTMLElement>('[data-guest]').hidden = false
+        this.field<HTMLElement>('[data-guest]').hidden = !this.guestExpanded
+        this.field<HTMLElement>('[data-account]').hidden = false
         this.field<HTMLFieldSetElement>('fieldset').disabled = this.busy
         this.message(authMessage(error, this.language, 'login'), true)
       }
@@ -212,7 +234,7 @@ const en = lang === 'en'
           }
           passwordField.value = ''
           this.message(this.say('登录成功。评论草稿已保留。', 'Signed in. Your comment draft is preserved.'))
-          emitCommentAuthChange()
+          emitCommentAuthChange(data.user.id)
         } else {
           this.mailCooldownUntil = Date.now() + 60_000
           const redirect = getAuthRedirectUrl(this.language)
@@ -251,7 +273,7 @@ const en = lang === 'en'
         if (!this.isConnected || connection !== this.controller) return
         if (error) throw error
         this.message(this.say('已退出当前设备。评论草稿已保留。', 'Signed out on this device. Your comment draft is preserved.'))
-        emitCommentAuthChange()
+        emitCommentAuthChange(null)
       } catch (error) {
         if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)
       } finally {
@@ -267,6 +289,11 @@ const en = lang === 'en'
 </script>
 
 <style>
+  .auth-session-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+  .auth-session-row [data-account] { margin:.5rem 0; }
+  .auth-session-row [data-signout] { min-height:2rem; padding:.25rem .5rem; border-color:transparent; color:hsl(var(--muted-foreground)); }
+  .auth-guest-panel { border:1px solid hsl(var(--border)); border-radius:.75rem; padding:0 1rem 1rem; margin:.5rem 0 1rem; }
+  [data-message]:empty { display:none; }
   .auth-input {
     width: 100%;
     border: 1px solid hsl(var(--border));

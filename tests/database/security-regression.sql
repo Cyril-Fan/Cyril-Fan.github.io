@@ -338,6 +338,123 @@ set local role authenticated;
 select comment_test.claims(2);
 select comment_test.assert((select can_delete=false from public.comment_list('/blog/中文.v2') where id=comment_test.id('other-thread')), 'orphaned author never produces null delete permission');
 reset role;
+
+-- Profiles are shared identity metadata, not a per-comment name snapshot.
+insert into auth.users (id,email,email_confirmed_at)
+select ('10000000-0000-0000-0000-' || lpad(n::text,12,'0'))::uuid,
+  'test' || n || '@example.invalid', now() from generate_series(9,10) n;
+insert into auth.sessions (id,user_id)
+select ('20000000-0000-0000-0000-' || lpad(n::text,12,'0'))::uuid,
+  ('10000000-0000-0000-0000-' || lpad(n::text,12,'0'))::uuid from generate_series(9,10) n;
+update auth.users set banned_until=null where id='10000000-0000-0000-0000-000000000001';
+update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
+select comment_test.assert(not has_function_privilege('anon','public.comment_profile_update(text)','EXECUTE')
+  and has_function_privilege('authenticated','public.comment_profile_update(text)','EXECUTE'), 'profile RPC has authenticated-only grant');
+set local role anon;
+select set_config('request.jwt.claims','{}',true);
+select comment_test.expect_error($q$select public.comment_profile_update('Anonymous')$q$, null, 'anonymous cannot update profile', '42501');
+set local role authenticated;
+select comment_test.expect_error($q$select public.comment_profile_update('Anonymous')$q$, 'authentication_required', 'profile requires actual authenticated actor');
+select comment_test.claims(4);
+select comment_test.expect_error($q$select public.comment_profile_update('Unverified')$q$, 'email_verification_required', 'unverified cannot update profile');
+select comment_test.claims(5);
+select comment_test.expect_error($q$select public.comment_profile_update('Banned')$q$, 'user_banned', 'native banned cannot update profile');
+select comment_test.claims(6);
+select comment_test.expect_error($q$select public.comment_profile_update('Expired')$q$, 'session_expired', 'expired session cannot update profile');
+select comment_test.claims(9,10);
+select comment_test.expect_error($q$select public.comment_profile_update('Wrong session')$q$, 'session_expired', 'profile cannot use another account session');
+select comment_test.claims(9);
+select comment_test.expect_error($q$select public.comment_profile_update(null)$q$, 'invalid_nickname', 'profile null nickname rejected');
+select comment_test.expect_error($q$select public.comment_profile_update('   ')$q$, 'invalid_nickname', 'profile blank nickname rejected');
+select comment_test.expect_error($q$select public.comment_profile_update(repeat('x',41))$q$, 'invalid_nickname', 'profile name length cap');
+select comment_test.expect_error($q$select public.comment_profile_update('Name'||chr(10))$q$, 'invalid_nickname', 'profile name controls rejected');
+select comment_test.assert(public.comment_profile_update(repeat('星',40))->>'nickname'=repeat('星',40), 'profile allows forty Unicode characters');
+select comment_test.assert(public.comment_profile_update('  Alice Nine  ') =
+  '{"nickname":"Alice Nine","can_post":true,"is_admin":false,"banned":false,"moderation_enabled":false}'::jsonb,
+  'profile update returns sanitized own public status only');
+select comment_test.create_comment('profile-root','/blog/profile','Profile root','Stale first form');
+select comment_test.assert((select nickname='Alice Nine' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'create preserves an explicitly saved profile');
+select comment_test.claims(10);
+select comment_test.create_comment('profile-child','/blog/profile','Profile reply','Bob Ten',comment_test.id('profile-root'));
+select comment_test.assert(public.comment_me()->>'nickname'='Bob Ten', 'legacy create still initializes missing profile');
+reset role;
+update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
+set local role authenticated;
+select comment_test.claims(9);
+select comment_test.create_comment('profile-other','/blog/profile-other','Elsewhere','Stale nickname');
+select public.comment_profile_update('Alice Renamed');
+select comment_test.assert((select nickname='Bob Ten' from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'profile update does not rename another account');
+select comment_test.assert((select (public.comment_create('/blog/profile','Profile root','Alice Nine',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-root'), 'old-name retry returns existing new-version comment');
+select comment_test.assert((select (public.comment_create('/blog/profile','Profile root','Alice Renamed',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-root'), 'current-name retry returns same comment');
+select comment_test.assert(public.comment_me()->>'nickname'='Alice Renamed', 'retries cannot undo a rename');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile-other','Different body','Alice Nine',null,gen_random_uuid())$q$, 'rate_limited', 'profile rename cannot reset comment cooldown');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile-other','Elsewhere','Alice Nine',null,gen_random_uuid())$q$, 'duplicate_comment', 'profile rename cannot bypass duplicate detection');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile','Changed body','Alice Renamed',null,(select request_id from comment_test.ids where label='profile-root'))$q$, 'idempotency_conflict', 'rename retry still rejects changed body');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile-other','Profile root','Alice Renamed',null,(select request_id from comment_test.ids where label='profile-root'))$q$, 'idempotency_conflict', 'rename retry still rejects changed thread');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile','Profile root','Alice Renamed',comment_test.id('profile-child'),(select request_id from comment_test.ids where label='profile-root'))$q$, 'idempotency_conflict', 'rename retry still rejects changed parent');
+set local role anon;
+select set_config('request.jwt.claims','{}',true);
+select comment_test.assert((select nickname='Alice Renamed' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'public reader sees current name on historical root');
+select comment_test.assert((select nickname='Alice Renamed' from public.comment_list('/blog/profile-other') where id=comment_test.id('profile-other')), 'profile rename applies across threads');
+select comment_test.assert((select parent_nickname='Alice Renamed' from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'reply label follows parent author profile');
+set local role authenticated;
+select comment_test.claims(9);
+select public.comment_delete(comment_test.id('profile-root'));
+select public.comment_profile_update('Alice Final');
+select comment_test.assert((select nickname='Alice Final' and deleted and body='' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'deleted tombstone follows current profile without restoring body');
+select comment_test.assert((select parent_nickname='Alice Final' and parent_deleted from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'deleted parent reply label follows current profile');
+select comment_test.assert((select (public.comment_create('/blog/profile','Profile root','Old forgotten nickname',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-root'), 'deleted new-version comment retries independently of nickname');
+reset role;
+select comment_test.assert((select nickname='Alice Nine' and request_hash_version=2 from comment_private.comments where id=comment_test.id('profile-root')), 'profile rename preserves original snapshot and new hash version');
+update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
+set local role authenticated;
+select comment_test.claims(9);
+select comment_test.create_comment('profile-legacy','/blog/profile-legacy','Legacy body','Stale first name');
+reset role;
+-- Model an existing 001/002 row, including its original nickname in the hash.
+update comment_private.comments set request_hash_version=1,
+  request_hash=encode(sha256(convert_to(jsonb_build_object(
+    'thread',thread,'body',body,'nickname',nickname,'parent_id',parent_id
+  )::text,'UTF8')),'hex') where id=comment_test.id('profile-legacy');
+set local role authenticated;
+select comment_test.claims(9);
+select public.comment_profile_update('Alice After Upgrade');
+select public.comment_delete(comment_test.id('profile-legacy'));
+select comment_test.assert((select (public.comment_create('/blog/profile-legacy','Legacy body','Alice After Upgrade',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-legacy'), 'legacy deleted comment retries after profile rename');
+select comment_test.assert(public.comment_me()->>'nickname'='Alice After Upgrade', 'legacy retry does not restore old profile');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile-legacy','Changed legacy body','Alice After Upgrade',null,(select request_id from comment_test.ids where label='profile-legacy'))$q$, 'idempotency_conflict', 'legacy request still protects immutable payload');
+select comment_test.claims(1);
+select comment_test.assert(public.comment_me()->>'nickname'='Cyril Fan', 'admin nickname exists before profile initialization');
+select comment_test.assert((select nickname='Cyril Fan' and is_admin_author from public.comment_list('/about') where id=comment_test.id('admin-root')), 'old admin comments use fixed display name');
+select comment_test.assert(public.comment_profile_update('Attempted other admin name')->>'nickname'='Cyril Fan', 'admin profile update cannot change fixed name');
+select comment_test.create_comment('profile-admin','/blog/profile-admin','Owner post without nickname',null);
+select comment_test.assert((select nickname='Cyril Fan' and is_admin_author from public.comment_list('/blog/profile-admin') where id=comment_test.id('profile-admin')), 'admin creates without entering nickname');
+select comment_test.claims(10);
+select comment_test.create_comment('profile-admin-reply','/blog/profile-admin','Reply to owner','Bob Ten',comment_test.id('profile-admin'));
+select comment_test.assert((select parent_nickname='Cyril Fan' from public.comment_list('/blog/profile-admin') where id=comment_test.id('profile-admin-reply')), 'parent label uses fixed admin nickname');
+select comment_test.claims(9);
+select public.comment_profile_update('Cyril Fan');
+select comment_test.assert(not (public.comment_me()->>'is_admin')::boolean, 'copying admin text does not grant admin role');
+select comment_test.assert((select nickname='Cyril Fan' and not is_admin_author from public.comment_list('/blog/profile-other') where id=comment_test.id('profile-other')), 'copying admin text never grants owner badge');
+select public.comment_profile_update('Alice Public');
+select comment_test.claims(1);
+select public.comment_ban(comment_test.id('profile-root'),true);
+select comment_test.claims(9);
+select comment_test.expect_error($q$select public.comment_profile_update('Banned rename')$q$, 'user_banned', 'comment banned cannot update profile');
+select comment_test.assert(public.comment_me()->>'nickname'='Alice Public', 'denied rename leaves profile unchanged');
+select comment_test.claims(10);
+select public.comment_profile_update('Bob Final');
+select comment_test.assert((select nickname='Bob Final' from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'reply author rename updates their historical replies');
+select comment_test.assert((select nickname='Alice Public' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'another profile update preserves first user identity');
+reset role;
+delete from auth.users where id='10000000-0000-0000-0000-000000000010';
+set local role authenticated;
+select comment_test.claims(10);
+select comment_test.expect_error($q$select public.comment_profile_update('Deleted account')$q$, 'authentication_required', 'removed account cannot update a profile');
+set local role anon;
+select set_config('request.jwt.claims','{}',true);
+select comment_test.assert((select nickname='Bob Ten' and not is_admin_author and not can_delete from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'orphaned comment safely falls back to stored name');
+reset role;
 select comment_test.assert((select bool_and(proconfig @> array['search_path=""']) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where (n.nspname='comment_private' or (n.nspname='public' and p.proname like 'comment_%')) and p.prosecdef), 'all definer functions pin empty search path');
 select comment_test.assert(not has_schema_privilege('anon','comment_private','USAGE') and not has_schema_privilege('authenticated','comment_private','USAGE'), 'private schema usage remains denied');
 select count(*)::integer as assertions_passed from comment_test.results;
