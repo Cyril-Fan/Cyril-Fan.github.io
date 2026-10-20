@@ -1,5 +1,5 @@
 ---
-import { getBlogCollection, sortMDByDate } from '@/utils/server'
+import { getBlogCollection } from '@/utils/server'
 import { getReadingTime } from '@/utils/reading-time'
 import { Icon } from '@/components/user'
 
@@ -11,7 +11,6 @@ const { blogStartDate } = Astro.props as BlogStatsProps
 const startDate = blogStartDate
 
 const allPosts = await getBlogCollection()
-const sortedPosts = sortMDByDate(allPosts)
 
 const today = new Date()
 const calendarDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -32,9 +31,9 @@ function getShanghaiCalendarDay(date: Date): number {
 const daysDiff = Math.max(0, getShanghaiCalendarDay(today) - getShanghaiCalendarDay(startDate))
 const english = Astro.currentLocale === 'en'
 
-const lastUpdated = sortedPosts.length > 0 ? 
-  new Date(sortedPosts[0].data.updatedDate || sortedPosts[0].data.publishDate) : 
-  null
+const articleDates = allPosts.flatMap(post => [post.data.publishDate, post.data.updatedDate])
+  .filter((value): value is Date => value instanceof Date && Number.isFinite(value.getTime()))
+const lastUpdated = articleDates.length ? new Date(Math.max(...articleDates.map(date => date.getTime()))) : null
 
 let totalWords = 0
 for (const post of allPosts) {
@@ -49,14 +48,10 @@ for (const post of allPosts) {
   }
 }
 
-const formatNumber = (num: number) => {
-  if (num >= 10000) {
-    return Math.round(num / 1000) / 10 + 'w'
-  } else if (num >= 1000) {
-    return Math.round(num / 100) / 10 + 'k'
-  }
-  return num.toString()
-}
+const formatNumber = (num: number) => new Intl.NumberFormat(english ? 'en-US' : 'zh-CN', {
+  notation: 'compact',
+  maximumFractionDigits: 1
+}).format(num)
 
 const formatDate = (date: Date) => {
   return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', {
@@ -82,7 +77,7 @@ const formatDate = (date: Date) => {
       <Icon name="calendar" class="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
       <div class="text-center">
         <div class="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{lastUpdated ? formatDate(lastUpdated) : (english ? 'No posts yet' : '暂无文章')}</div>
-        <div class="text-sm text-muted-foreground">{english ? 'Latest Post' : '最近文章'}</div>
+        <div class="text-sm text-muted-foreground">{english ? 'Latest Update' : '最近更新'}</div>
       </div>
     </div>
     
@@ -100,3 +95,7 @@ const formatDate = (date: Date) => {
     <span class="font-medium text-foreground">{allPosts.length}</span>
   </div>
 </div>
+
+<style>
+  .group { min-width: 0; overflow-wrap: anywhere; }
+</style>

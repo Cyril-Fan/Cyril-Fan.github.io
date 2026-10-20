@@ -5,20 +5,19 @@ import { Icon } from '@/components/user'
 const headings = [
   { depth: 2, slug: 'about-me', text: '学术背景' },
   { depth: 2, slug: 'research-interests', text: '研究兴趣' },
-  { depth: 2, slug: 'publications', text: '论文' },
-  { depth: 2, slug: 'open-source-projects', text: '开源项目' }
+  { depth: 2, slug: 'publications', text: '成果与项目' }
 ]
 
 const interests = [
   { title: '深度学习', subtitle: 'Deep Learning', icon: 'cpu' as const },
   { title: '多模态大语言模型', subtitle: 'Multimodal Large Language Models', icon: 'image' as const },
-  { title: 'AI 智能体', subtitle: 'AI Agents', icon: 'robot' as const }
+  { title: '智能体', subtitle: '', icon: 'robot' as const }
 ]
 ---
 
-<PageLayout title='研究' {headings}>
+<PageLayout title='学术' {headings}>
   <h2 id='about-me'>学术背景<a class='anchor' href='#about-me'>#</a></h2>
-  <p>我是 Cyril Fan，吉林大学软件工程本科生，喜欢通过研究与动手实践探索人工智能。</p>
+  <p>范星宇，吉林大学软件工程本科生，2024 年 8 月入学。研究兴趣主要围绕深度学习、多模态大语言模型与智能体。</p>
 
   <h2 id='research-interests'>研究兴趣<a class='anchor' href='#research-interests'>#</a></h2>
   <div class='not-prose grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
@@ -30,16 +29,14 @@ const interests = [
           </div>
           <div class='min-w-0 flex-1'>
             <p class='text-lg font-medium leading-tight text-foreground'>{interest.title}</p>
-            <p class='mt-2 text-sm leading-relaxed text-muted-foreground'>{interest.subtitle}</p>
+            {interest.subtitle && <p class='mt-2 text-sm leading-relaxed text-muted-foreground'>{interest.subtitle}</p>}
           </div>
         </div>
       </div>
     ))}
   </div>
 
-  <h2 id='publications'>论文<a class='anchor' href='#publications'>#</a></h2>
-  <p class='text-muted-foreground'>暂无公开展示的论文。</p>
-
-  <h2 id='open-source-projects'>开源项目<a class='anchor' href='#open-source-projects'>#</a></h2>
-  <p class='text-muted-foreground'>暂无公开展示的项目。</p>
+  <span id='open-source-projects' aria-hidden='true'></span>
+  <h2 id='publications'>成果与项目<a class='anchor' href='#publications'>#</a></h2>
+  <p class='text-muted-foreground'>目前暂无公开展示的论文或项目，后续工作将在这里更新。</p>
 </PageLayout>

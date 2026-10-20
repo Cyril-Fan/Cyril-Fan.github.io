@@ -3,12 +3,12 @@ import type { CardListData, Config, IntegrationUserConfig, ThemeUserConfig } fro
 export const theme: ThemeUserConfig = {
   // === Basic configuration ===
   /** Title for your website. Will be used in metadata and as browser tab title. */
-  title: "Cyril Fan",
+  title: '范星宇',
   /** Will be used in index page & copyright declaration */
-  author: 'Cyril Fan',
+  author: '范星宇',
   author_en: 'Cyril Fan',
   /** Description metadata for your website. Can be used in page metadata. */
-  description: 'Cyril Fan 的个人主页与博客。吉林大学软件工程本科生，关注深度学习、多模态大语言模型与 AI Agents。',
+  description: '范星宇的个人主页与博客。吉林大学软件工程本科生，关注深度学习、多模态大语言模型与智能体。',
   description_en: 'Cyril Fan — Software Engineering undergraduate at Jilin University, interested in deep learning, multimodal large language models, and AI agents.',
   /** The default favicon for your site which should be a path to an image in the `public/` directory. */
   favicon: '/favicon.svg',
@@ -41,7 +41,7 @@ export const theme: ThemeUserConfig = {
 
   /** Configure the header of your site. */
   header: {
-    title: "Cyril Fan's Blog",
+    title: '范星宇',
     menu: [
       { title: '博客', link: '/blog/all' },
       { title: '研究', link: '/academic' },

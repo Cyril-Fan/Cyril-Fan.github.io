@@ -6,22 +6,17 @@ import Comment from '@/components/advanced/Comment.astro'
 
 const headings = [
   { depth: 2, slug: 'about-me', text: 'About Me' },
-  { depth: 2, slug: 'interests', text: 'Research Interests' },
+  { depth: 2, slug: 'on-this-site', text: 'On this site' },
   { depth: 2, slug: 'contact', text: 'Contact' }
 ]
 ---
 
 <PageLayout title='About' {headings}>
   <h2 id='about-me'>About Me<a class='anchor' href='#about-me'>#</a></h2>
-  <p>Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. Welcome to my personal website.</p>
-  <p>I enjoy exploring artificial intelligence through research and hands-on projects. This is where I share what I learn and think about.</p>
+  <p>Hello, I’m Cyril Fan, studying Software Engineering at Jilin University. I enjoy exploring artificial intelligence through research and hands-on projects, and this is where I keep a record of what I learn.</p>
 
-  <h2 id='interests'>Research Interests<a class='anchor' href='#interests'>#</a></h2>
-  <ul>
-    <li>Deep Learning</li>
-    <li>Multimodal Large Language Models</li>
-    <li>AI Agents</li>
-  </ul>
+  <h2 id='on-this-site'>On this site<a class='anchor' href='#on-this-site'>#</a></h2>
+  <p>The blog brings together learning notes, technical projects, and everyday reflections. My academic page keeps track of research interests and work I can share publicly. Posts may evolve as I learn; corrections and conversations are welcome below.</p>
   <Button title='Visit my academic page' class='w-fit' href='/en/academic' style='ahead' />
 
   <h2 id='contact'>Contact<a class='anchor' href='#contact'>#</a></h2>

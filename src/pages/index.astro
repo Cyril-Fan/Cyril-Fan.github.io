@@ -15,7 +15,7 @@ import config from '@/site-config'
       <div class='flex flex-row items-center gap-x-6'>
         <Image
           src={avatar}
-          alt='Cyril Fan 的头像'
+          alt='范星宇的头像'
           class='h-28 w-auto rounded-lg border p-1 sm:h-36'
           loading='eager'
         />
@@ -23,7 +23,7 @@ import config from '@/site-config'
           <h1 class='text-3xl font-bold'>{config.author}</h1>
           <div class='flex flex-wrap gap-x-1 gap-y-1'>
             {config.personal?.location && (
-              <Label title={config.personal.location}>
+              <Label title='中国'>
                 <Icon name='location' class='size-4' slot='icon' />
               </Label>
             )}
@@ -48,15 +48,15 @@ import config from '@/site-config'
       </div>
     </section>
 
-    <div id='content' class='animate flex w-full flex-col gap-y-10 md:w-4/5 lg:w-5/6'>
+    <div id='content' class='animate flex w-full min-w-0 flex-col gap-y-10'>
       <Section title='关于我'>
         <p class='text-muted-foreground'>
-          你好，我是 Cyril Fan，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI Agents，喜欢通过研究和动手实践探索人工智能。
+          你好，我是范星宇，吉林大学软件工程本科生，关注深度学习、多模态大语言模型与智能体。在这里记录学习笔记、技术实践和日常思考。
         </p>
         <Button title='更多关于我' class='w-fit self-end' href='/about' style='ahead' />
       </Section>
       <Section title='教育背景'>
-        <Card heading='吉林大学' subheading='软件工程 · 本科生' />
+        <Card as='a' href='https://www.jlu.edu.cn/' heading='吉林大学 · JLU' subheading='软件工程' date='2024 年 8 月 — 至今' />
       </Section>
       <Section title='站点统计'>
         <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />

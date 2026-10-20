@@ -1,6 +1,16 @@
 # 依赖安全记录
 
-核对日期：2026-10-19。本文记录当前 Astro 5 / Tailwind 3 网站的已知风险、最小处理范围及后续迁移要求，不是“静态网站没有漏洞”的保证。
+核对日期：2026-10-20。本文记录当前 Astro 5 / Tailwind 3 网站的已知风险、处理范围及后续迁移要求，不是“静态网站没有漏洞”的保证。
+
+## 2026-10-20 评论 Markdown 更新
+
+评论现在会在访客浏览器中解析不可信 Markdown，已将 KaTeX 更新至 **0.18.10**，并用 `overrides.katex` 统一数学插件的嵌套版本。渲染采用 CommonMark/GFM 解析、HTML 白名单清理及受限公式渲染；原始 HTML 作为文字显示。KaTeX 禁用信任命令，并限制宏展开次数和尺寸。外链拒绝危险协议，附加 `noopener noreferrer nofollow ugc`；脚注 ID 按每条评论隔离。外部图片默认不请求，访客点击带来源说明的按钮后才加载，并使用 `no-referrer`。这不是远程图片代理，图片服务仍会收到必要的网络信息。
+
+所有普通页面与账户确认页增加 `object-src 'none'; base-uri 'self'; form-action 'self'` 策略。该策略限制插件对象、基础 URL 和表单目的地，**不是完整的脚本 CSP，也不能替代清理和服务端权限**。确认页仍使用 `no-referrer`，不自动消费邮件凭据；其余页面使用 `strict-origin-when-cross-origin`。
+
+文章图片缩放由锁定版本的 `medium-zoom 1.1.0` 随本站打包，不再加载浮动版本的第三方 CDN 脚本。产物检查会拒绝页面中的外部可执行脚本链接。退出或确认切换账户会清理前一账户的草稿与预览；暂时无法确认会话时只撤销界面权限并保留草稿，后续确认账号变化仍会执行清理。异常公式生成超大负尺寸、Infinity 等布局值时退回原始 TeX 文字，避免拖垮评论布局。
+
+2026-10-20 再次执行 `npm audit --omit=dev --json`，当前仍有 **11 个受影响包：1 critical、5 high、4 moderate、1 low**。KaTeX 及其数学插件链已不在报告中。剩余项为 Astro/MDX 与 Tailwind 3 的构建依赖链，具体攻击面见下表；未将跨主版本框架迁移混入本轮界面修改，也未把 Sharp 覆盖误报为 Astro 全部漏洞已修复。此次新增 Markdown 的渲染、协议、脚注隔离及图片行为有独立回归测试；登录、资料修改和数据库权限保留已有回归覆盖。浏览器工具在本轮初始化阶段报临时资源目录错误，未完成本轮真实浏览器与手机视口验收。
 
 ## 部署与输入边界
 
@@ -37,7 +47,7 @@ RSS 4.0.19 修复字段 XML 注入。静态构建同样可能把恶意字段写�
 | Astro AVIF RCE：[GHSA-26w7-cxv4-gfx2](https://github.com/advisories/GHSA-26w7-cxv4-gfx2) | 官方框架修复为 Astro 7.2.8（要求 Sharp 0.35.4）。当前全部 Sharp 为 0.35.5，已针对该公告的底层图片依赖做版本缓解；Astro 5 的受影响版本范围仍被审计标记。不得把覆盖依赖描述成官方 Astro 5 安全补丁。图片解析是构建时攻击面，不能只考察线上 SSR；后续更换图片服务或依赖树需重新评估。 |
 | Tailwind 3 → chokidar / fast-glob / micromatch → braces 栈耗尽：[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | 官方当前没有 patched braces 版本；更新至 3.0.3 不能修复。现有 glob 来自固定仓库配置，访客不能提交 glob。风险主要为不可信构建配置/开发输入造成 Node 进程拒绝服务。 |
 | Tailwind / Typography → PostCSS selector parser CPU 耗尽：[GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) | 修复阈值为 7.1.6。当前对可信源码做构建处理，没有在线解析访客 CSS 的服务。官方亦将可信源码的普通构建排除在可利用情形外。跨主版本强制覆盖前需验证插件兼容。 |
-| KaTeX 与数学插件链：[GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7) | 修复阈值为 0.18.2。该缺陷需要已有原型污染或攻击者影响渲染选项原型，再结合不可信数学表达式；KaTeX 本身不会造成该原型污染。当前数学来自仓库文章并在构建时渲染。升级需覆盖 rehype-katex / micromark-extension-math 的嵌套实例并检查公式与 CSS。 |
+| KaTeX 与数学插件链：[GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7) | **本轮已修复版本范围问题**：全部实例统一为 0.18.10，高于修复阈值 0.18.2。该公告需要已有原型污染再结合不可信表达式。评论新增访客端数学解析，因此同时设置独立渲染选项、`trust:false`、`maxExpand:100`、`maxSize:10`，并测试恶意命令和公式。 |
 
 `@astrojs/mdx`、`@astrojs/tailwind`、`@tailwindcss/typography`、`rehype-katex`、`remark-math` 等可能因上述依赖继续出现在审计结果中。不要使用 `npm audit fix --force` 按建议盲目降级旧集成/数学插件，或未经回归直接改变框架与样式主版本。
 

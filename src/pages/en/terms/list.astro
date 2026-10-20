@@ -11,6 +11,7 @@ const meta = {
 
 const englishTerms = {
   ...terms,
+  title: 'Documents',
   list: terms.list.map((item) => ({
     ...item,
     link: item.link?.startsWith('/terms/') ? `/en${item.link}` : item.link
@@ -25,8 +26,7 @@ const englishTerms = {
       <h1 class='mb-6 text-3xl font-medium'>Site Policy</h1>
     </div>
 
-    <div id='content' class={cn('animate mt-8 max-w-none md:min-w-[45ch]', integ.typography.class)}>
-      <h2 class='text-xl font-medium'>Site policy documentation</h2>
+    <div id='content' class={cn('animate mt-8 min-w-0 max-w-none', integ.typography.class)}>
       <CardList {...englishTerms} />
     </div>
   </main>

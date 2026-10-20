@@ -13,11 +13,25 @@ const { selector = config.integ.mediumZoom.selector, background = 'hsl(var(--bac
   Astro.props
 ---
 
-<script is:inline src="https://cdn.jsdelivr.net/npm/medium-zoom@1/dist/medium-zoom.min.js"></script>
-<script is:inline define:vars={{ selector, background }}>
-  if (typeof mediumZoom !== 'undefined') {
-    mediumZoom(selector, { background })
+<site-image-zoom hidden data-selector={selector} data-background={background}></site-image-zoom>
+<script>
+  import mediumZoom from 'medium-zoom'
+
+  class SiteImageZoom extends HTMLElement {
+    private zoom?: ReturnType<typeof mediumZoom>
+    connectedCallback() {
+      if (this.zoom) return
+      const selector = this.dataset.selector
+      if (!selector) return
+      this.zoom = mediumZoom(selector, { background: this.dataset.background })
+    }
+    disconnectedCallback() {
+      const zoom = this.zoom
+      this.zoom = undefined
+      if (zoom) void zoom.close().then(() => zoom.detach())
+    }
   }
+  if (!customElements.get('site-image-zoom')) customElements.define('site-image-zoom', SiteImageZoom)
 </script>
 <style is:global>
   .medium-zoom-overlay {
@@ -50,5 +64,8 @@ const { selector = config.integ.mediumZoom.selector, background = 'hsl(var(--bac
     cursor: zoom-out;
     will-change: transform;
     z-index: 999;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .medium-zoom-overlay, .medium-zoom-image { transition: none !important; }
   }
 </style>
