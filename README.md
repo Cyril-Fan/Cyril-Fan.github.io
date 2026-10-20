@@ -7,9 +7,9 @@ Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://git
 ## 首版内容
 
 - 中文默认页面与英文基础页面：首页、研究、项目、关于、友链。
-- 站内搜索、明暗主题、手机适配、分类、标签、RSS 和 GitHub 贡献日历。
+- 站内搜索、明暗主题、手机适配、分类、标签、RSS，以及与 GitHub 主页同步的浅／深色贡献蛇动画。
 - 暂无公开文章、论文、项目或友链时显示空状态；独立访客统计关闭。
-- 关于页与文章留言支持已验证邮箱的密码账户，中英文共用讨论。配置与验收见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)；未配置后台时显示准备中，不开放提交。
+- 关于页与文章留言支持已验证邮箱的密码账户，中英文共用讨论，支持 CommonMark、GFM、公式与发布前预览。原始 HTML 按文本显示，外部图片经点击后加载。配置与验收见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)。
 
 ## 本地开发
 
@@ -29,7 +29,7 @@ npm run build
 npm run preview
 ```
 
-`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论界面与主题回归，`npm run test:database` 在本地 PGlite 中验证数据库迁移和权限，不连接正式评论数据库。`build` 会执行 Astro 检查并生成 `dist/`；搜索索引在生产构建中生成，因此请通过 `preview` 验证站内搜索。
+`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标与动画回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 同步贡献动画、执行 Astro 检查、生成统一图标并生成 `dist/`，逐页检查图标引用后生成搜索索引。GitHub 暂时无法访问时保留随仓库提交的已验证动画；请通过 `preview` 验证站内搜索。
 
 GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test:database` 和 `npm run build`，任一步失败都不会进入部署步骤。
 
@@ -42,10 +42,12 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 内容 | 维护位置 |
 | --- | --- |
 | 站点名、邮箱、GitHub、域名、导航、集成开关 | `src/site.config.ts` |
-| 首页与关于 | `src/pages/index.astro`、`src/pages/about/index.astro` 及 `src/pages/en/` 对应文件 |
+| 双语首页与关于 | `src/components/home/HomePage.astro`、`src/pages/about/index.astro` 与英文对应文件 |
 | 研究与项目 | `src/pages/academic/`、`src/pages/projects/index.astro` 及英文对应文件 |
 | 博客文章 | `src/content/blogs/每篇文章目录/index.mdx` |
-| 头像与网站图标 | `src/assets/` 与 `public/` 中配置所引用的资源 |
+| 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
+| 统一网站图标 | 只编辑 `src/assets/brand/star-orbit.svg`，开发和构建时自动生成 PNG、ICO、manifest 与版本地址 |
+| 贡献动画 | `scripts/sync-contribution-snake.mjs` 从公开主页仓库同步，`ContributionSnake.astro` 控制主题与播放状态 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
 | 正式地址、语言、静态构建 | `astro.config.mjs` |
 | 自动发布 | `.github/workflows/deploy.yml` |

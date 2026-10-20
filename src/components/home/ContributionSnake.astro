@@ -1,0 +1,74 @@
+---
+import assets from '../../assets/contributions.json'
+const en = Astro.currentLocale === 'en'
+---
+
+<section class='min-w-0 w-full' aria-labelledby='contribution-heading'>
+  <div class='mb-3 flex flex-wrap items-baseline justify-between gap-2'>
+    <h2 id='contribution-heading' class='text-base font-medium'>{en ? 'GitHub contributions' : 'GitHub 贡献记录'}</h2>
+    <a href={assets.source} target='_blank' rel='noopener noreferrer' class='text-xs text-muted-foreground underline-offset-4 hover:underline'>GitHub ↗</a>
+  </div>
+  <contribution-snake data-lang={en ? 'en' : 'zh'} class='block min-w-0'>
+    <div id='contribution-animation' class='snake-frame'>
+      <div class='snake-animated'>
+        <img class='snake-light' src={assets.light} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating the contribution squares from Cyril Fan’s GitHub profile' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
+        <img class='snake-dark' src={assets.dark} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating the contribution squares from Cyril Fan’s GitHub profile' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
+      </div>
+      <div class='snake-static'>
+        <img class='snake-light' src={assets.lightStatic} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'Still view of Cyril Fan’s GitHub contribution squares' : 'Cyril Fan 的 GitHub 贡献方块静态图'} />
+        <img class='snake-dark' src={assets.darkStatic} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'Still view of Cyril Fan’s GitHub contribution squares' : 'Cyril Fan 的 GitHub 贡献方块静态图'} />
+      </div>
+    </div>
+    <div class='snake-caption text-xs text-muted-foreground'>
+      <span>{en ? 'Synced from my GitHub profile each day.' : '每天同步 GitHub 主页上的贡献动画。'}</span>
+      <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Play animation' : '播放动画'}</button>
+    </div>
+  </contribution-snake>
+</section>
+
+<style>
+  .snake-frame { width:100%; min-width:0; overflow:hidden; border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.5rem; }
+  .snake-frame img { width:100%; height:auto; display:block; }
+  .snake-frame .snake-dark, .snake-static { display:none; }
+  :global(.dark) .snake-frame .snake-light { display:none; }
+  :global(.dark) .snake-frame .snake-dark { display:block; }
+  .snake-caption { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.5rem; margin-top:.5rem; }
+  .snake-caption button { padding:.5rem .75rem; min-height:2.75rem; border:1px solid hsl(var(--border)); border-radius:.5rem; }
+  .snake-caption button:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
+  .snake-caption button:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
+  @media (prefers-reduced-motion:reduce) {
+    .snake-animated { display:none; }
+    .snake-static { display:block; }
+  }
+  contribution-snake[data-playing='false'] .snake-animated,
+  contribution-snake[data-playing='true'] .snake-static { display:none; }
+  contribution-snake[data-playing='false'] .snake-static,
+  contribution-snake[data-playing='true'] .snake-animated { display:block; }
+</style>
+
+<script>
+  class ContributionSnake extends HTMLElement {
+    private controller?: AbortController
+    connectedCallback() {
+      if (this.controller) return
+      this.controller = new AbortController()
+      const { signal } = this.controller
+      const button = this.querySelector<HTMLButtonElement>('[data-snake-toggle]')
+      if (!button) return
+      const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+      const setPlaying = (playing: boolean) => {
+        this.dataset.playing = String(playing)
+        button.setAttribute('aria-pressed', String(playing))
+        button.textContent = this.dataset.lang === 'en'
+          ? (playing ? 'Pause animation' : 'Play animation')
+          : (playing ? '暂停动画' : '播放动画')
+      }
+      setPlaying(!motion.matches)
+      button.hidden = false
+      button.addEventListener('click', () => setPlaying(this.dataset.playing !== 'true'), { signal })
+      motion.addEventListener('change', () => setPlaying(!motion.matches), { signal })
+    }
+    disconnectedCallback() { this.controller?.abort(); this.controller = undefined }
+  }
+  if (!customElements.get('contribution-snake')) customElements.define('contribution-snake', ContributionSnake)
+</script>

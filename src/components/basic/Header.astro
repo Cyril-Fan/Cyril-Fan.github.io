@@ -8,7 +8,7 @@ const brandTitle = config.header?.title || config.title
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/'
 const menuTitles: Record<string, string> = {
   '/blog/all': english ? 'Blog' : '博客',
-  '/academic': english ? 'Research' : '研究',
+  '/academic': english ? 'Academic' : '学术',
   '/links': english ? 'Links' : '友链',
   '/about': english ? 'About' : '关于'
 }
@@ -18,12 +18,11 @@ const categoryMap: Record<string, string> = {
   'all': english ? 'All posts' : '全部文章',
   'tech': english ? 'Technical' : '技术',
   'daily': english ? 'Daily Life' : '日常',
-  'research': english ? 'Research' : '科研',
-  'journal': english ? 'Month Journal' : '月记'
+  'research': english ? 'Research' : '科研'
 }
 
 // Define custom order (Research first)
-const categoryOrder = ['all', 'research', 'tech', 'daily', 'journal']
+const categoryOrder = ['all', 'research', 'tech', 'daily']
 
 // Filter and map categories with custom order
 const categories = categoryOrder
@@ -92,6 +91,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
                         <a
                           href={getLocalizedUrl(Astro.currentLocale, `/blog/${category.slug}`)}
                           aria-current={getAriaCurrent(`/blog/${category.slug}`)}
+                          data-all-posts={category.slug === 'all' || undefined}
                           class='category-link block px-4 py-2 text-sm transition-colors hover:bg-background/60 hover:text-primary dark:hover:bg-muted/60'
                         >
                           {category.name}
@@ -250,6 +250,11 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
 </script>
 
 <style>
+  .category-link[data-all-posts] {
+    border-bottom:1px dashed hsl(var(--border));
+    margin-bottom:.3rem;
+    padding-bottom:.8rem;
+  }
   .header-brand {
     padding-inline-end: .65rem;
     line-height: 1.25;

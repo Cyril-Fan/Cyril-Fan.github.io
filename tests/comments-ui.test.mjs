@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { parse } from '@astrojs/compiler'
 import ts from 'typescript'
+import * as commentMarkdown from './helpers/comment-markdown.mjs'
 
 const { JSDOM } = await import(process.env.COMMENTS_UI_JSDOM
   ? pathToFileURL(path.resolve(process.env.COMMENTS_UI_JSDOM)).href
@@ -152,6 +153,7 @@ async function setup(context, language, { identity = guest(), rows = [], configu
     const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
     const require = (id) => {
       if (id === '@supabase/supabase-js') return { createClient: () => client }
+      if (id === './comment-markdown') return commentMarkdown
       if (id === './comment-auth' || id === './comment-utils' || id === './comment-avatar') return loadModule(id.slice(2))
       throw new Error(`Unexpected module at test boundary: ${id}`)
     }
@@ -254,7 +256,7 @@ for (const language of ['zh', 'en']) {
   test(`${language}: auth change immediately removes pending rows and old action permissions`, async (context) => {
     const ui = await setup(context, language, { identity: member({ is_admin: true }), rows: [row(1, { can_delete: true }), row(2, { can_delete: true, is_pending: true, body: 'Pending private comment' })] })
     assert.ok(ui.list.querySelectorAll('button').length > 0)
-    ui.draft('Keep my draft across logout')
+    ui.draft('Private draft must not survive confirmed logout')
     const response = deferred()
     ui.handlers.comment_list = () => response.promise
     ui.changeIdentity(guest())
@@ -262,11 +264,12 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.list.querySelectorAll('button').length, 0)
     assert.equal(ui.list.textContent.includes('Pending private comment'), false)
     assert.equal(ui.select('[data-admin]').hidden, true)
-    assert.equal(ui.textarea.value, 'Keep my draft across logout')
+    assert.equal(ui.textarea.value, '')
+    assert.equal(ui.select('[data-counter]').textContent, '0 / 2000')
     response.resolve({ data: null, error: { message: 'Offline' } })
     await until(() => ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'failed logout refresh')
     assert.equal(ui.list.querySelectorAll('button').length, 0)
-    assert.equal(ui.textarea.value, 'Keep my draft across logout')
+    assert.equal(ui.textarea.value, '')
   })
 
   test(`${language}: acknowledged write and failed refresh get a distinct status`, async (context) => {
@@ -394,6 +397,67 @@ for (const language of ['zh', 'en']) {
 for (const language of ['zh', 'en']) {
   const label = (zh, en) => language === 'en' ? en : zh
   const replyTo = (ui, number) => [...ui.select(`#comment-${row(number).id}`).querySelectorAll('.comment-item-actions > button')].find(button => button.textContent === label('回复', 'Reply'))
+
+  test(`${language}: Markdown preview uses the same safe renderer without changing or submitting the draft`, async context => {
+    const ui = await setup(context, language, { identity: member(), rows: [row(1)] })
+    const source = '**Hello**\nNext line\n\n![diagram](https://example.org/diagram.png)\n\n<script>attack()</script>'
+    ui.draft(source)
+    const count = ui.calls.length
+    ui.select('[data-markdown-preview-toggle]').click()
+    const preview = ui.select('[data-markdown-preview]')
+    assert.equal(preview.hidden, false)
+    assert.equal(preview.querySelector('strong')?.textContent, 'Hello')
+    assert.equal(preview.querySelectorAll('br').length, 1)
+    assert.equal(preview.querySelectorAll('img,script').length, 0)
+    assert.match(preview.querySelector('button').textContent, /example.org/)
+    assert.equal(ui.select('[data-comment-input]').hidden, true)
+    assert.equal(ui.calls.length, count, 'Preview must never call a posting RPC')
+    assert.equal(ui.textarea.value, source)
+    assert.equal(ui.window.document.activeElement, preview)
+    ui.select('[data-markdown-write]').click()
+    assert.equal(ui.textarea.value, source)
+    assert.equal(ui.select('[data-comment-input]').hidden, false)
+    assert.equal(preview.childNodes.length, 0)
+    assert.equal(ui.window.document.activeElement, ui.textarea)
+    ui.select('[data-markdown-preview-toggle]').click()
+    replyTo(ui, 1).click()
+    assert.equal(preview.hidden, true, 'Selecting a reply opens the editor at that comment')
+    assert.equal(ui.compose.parentElement.id, `comment-${row(1).id}`)
+    assert.equal(ui.textarea.value, source)
+  })
+
+  test(`${language}: preview survives a same-account refresh and successful posting sends raw Markdown once`, async context => {
+    const ui = await setup(context, language, { identity: member() })
+    const source = 'A **formatted** draft'
+    ui.draft(source)
+    ui.select('[data-markdown-preview-toggle]').click()
+    ui.refreshIdentity()
+    await until(() => ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'same-account refresh')
+    assert.equal(ui.select('[data-markdown-preview]').hidden, false)
+    assert.equal(ui.textarea.value, source)
+    ui.submit()
+    await until(() => ui.calls.some(call => call.name === 'comment_create') && !ui.textarea.disabled, 'Markdown posting completes')
+    assert.equal(ui.calls.filter(call => call.name === 'comment_create').length, 1)
+    assert.equal(ui.calls.find(call => call.name === 'comment_create').args.p_body, source)
+    assert.equal(ui.textarea.value, '')
+    assert.equal(ui.select('[data-markdown-preview]').hidden, true)
+    assert.equal(ui.select('[data-markdown-preview]').childNodes.length, 0)
+  })
+
+  test(`${language}: empty-preview validation returns to an editable field and account changes clear preview`, async context => {
+    const ui = await setup(context, language, { identity: member() })
+    ui.select('[data-markdown-preview-toggle]').click()
+    assert.ok(ui.select('[data-markdown-preview]').textContent)
+    ui.textarea.dispatchEvent(new ui.window.Event('invalid'))
+    assert.equal(ui.select('[data-comment-input]').hidden, false)
+    assert.equal(ui.select('[data-markdown-preview]').hidden, true)
+    ui.draft('A preserved draft')
+    ui.select('[data-markdown-preview-toggle]').click()
+    ui.changeIdentity(guest())
+    assert.equal(ui.select('[data-markdown-preview]').hidden, true)
+    assert.equal(ui.select('[data-markdown-preview]').childNodes.length, 0)
+    assert.equal(ui.textarea.value, '')
+  })
 
   test(`${language}: site owner has a fixed identity and never needs a public-name field`, async (context) => {
     const ui = await setup(context, language, { identity: member({ is_admin: true, nickname: '1' }) })
@@ -547,7 +611,7 @@ for (const language of ['zh', 'en']) {
   test(`${language}: switching accounts clears the old nickname and ignores an old profile response`, async (context) => {
     const ui = await setup(context, language, { identity: member(), rows: [row(1)] })
     replyTo(ui, 1).click()
-    ui.draft('Shared draft stays visible')
+    ui.draft('Private draft from the previous account')
     ui.select('[data-profile-edit]').click()
     ui.nickname.value = 'Old account edit'
     const oldProfile = deferred(), newWrite = deferred()
@@ -556,9 +620,11 @@ for (const language of ['zh', 'en']) {
     await until(() => ui.calls.some(call => call.name === 'comment_profile_update'), 'old profile request in flight')
     ui.changeIdentity(member({ nickname: 'Another reader' }))
     assert.equal(ui.nickname.value, '', 'Old account nickname is cleared synchronously')
+    assert.equal(ui.textarea.value, '', 'Old account draft is cleared synchronously')
     assert.equal(ui.compose.parentElement, ui.select('[data-compose-home]'))
     await until(() => ui.select('[data-identity-name]').textContent === 'Another reader' && !ui.textarea.disabled, 'new account identity')
     assert.equal(ui.select('[data-profile-editor]').hidden, true)
+    ui.draft('New account draft')
     ui.handlers.comment_create = () => newWrite.promise
     ui.submit()
     await until(() => ui.calls.some(call => call.name === 'comment_create'), 'new account posting')
@@ -566,7 +632,7 @@ for (const language of ['zh', 'en']) {
     await flush()
     assert.equal(ui.select('[data-identity-name]').textContent, 'Another reader')
     assert.equal(ui.textarea.disabled, true, 'The previous account cannot release the new mutation lock')
-    assert.equal(ui.textarea.value, 'Shared draft stays visible')
+    assert.equal(ui.textarea.value, 'New account draft')
     newWrite.resolve({ data: null, error: { message: 'Offline' } })
     await until(() => !ui.textarea.disabled, 'new mutation completes')
     assert.equal(ui.calls.find(call => call.name === 'comment_create').args.p_nickname, 'Another reader')
@@ -806,7 +872,7 @@ for (const language of ['zh', 'en']) {
     const oldRows=Array.from({length:30},(_,index)=>row(index+1,{can_delete:true,is_pending:index===0}))
     const ui=await setup(context,language,{identity:member({is_admin:true}),rows:oldRows})
     ;[...ui.list.querySelectorAll('.comment-item-actions > button')].find(button=>button.textContent===(language==='en'?'Reply':'回复')).click()
-    ui.draft('Preserve text, not the old private target')
+    ui.draft('Private text and reply target from the old account')
     ui.identity=member({nickname:'Second reader'})
     ui.accountId='different-session-account'
     ui.handlers.comment_list=()=>ok([row(31)])
@@ -817,7 +883,7 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.list.querySelectorAll('.comment-menu').length,0)
     assert.equal(ui.select('[data-reply]').hidden,true)
     assert.equal(ui.compose.parentElement,ui.select('[data-compose-home]'))
-    assert.equal(ui.textarea.value,'Preserve text, not the old private target')
+    assert.equal(ui.textarea.value,'')
   })
 
   test(`${language}: a silently revoked session discovered during pagination clears posting and old delete controls`, async context => {
@@ -843,6 +909,9 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.textarea.value, 'Keep this draft if account storage fails')
     assert.equal(ui.status.parentElement, ui.select('[data-status-home]'))
     assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
+    delete ui.handlers.getSession
+    ui.changeIdentity(member({nickname:'Next account'}))
+    assert.equal(ui.textarea.value, '', 'An uncertain session read must not erase draft ownership and leak it into a later account')
   })
 }
 
@@ -958,5 +1027,22 @@ for(const language of ['zh','en']) {
     const ui=await setup(context,language,{identity:avatarMember({avatar_path:'https://tracker.example/a.jpg'}),rows:[row(1,{avatar_path:'../secret.jpg?v=1'}),row(2,{avatar_path:`${avatarKey}.jpg?v=1&email=private@example.com`})]})
     assert.equal(ui.select('[data-identity-avatar]').querySelector('img'),null)
     assert.equal(ui.select('[data-list]').querySelector('img'),null)
+  })
+
+  test(`${language}: emoji character counts match the database and oversize drafts stay local`,async context=>{
+    const ui=await setup(context,language,{identity:member()})
+    ui.draft('🙂'.repeat(2000))
+    assert.equal(ui.select('[data-counter]').textContent,'2000 / 2000')
+    assert.equal(ui.textarea.validationMessage,'')
+    ui.draft('🙂'.repeat(2001))
+    assert.equal(ui.select('[data-counter]').textContent,'2001 / 2000')
+    assert.ok(ui.textarea.validationMessage)
+    ui.select('[data-compose]').dispatchEvent(new ui.window.Event('submit',{bubbles:true,cancelable:true}))
+    await flush()
+    assert.equal(ui.calls.some(call=>call.name==='comment_create'),false)
+    assert.equal(Array.from(ui.textarea.value).length,2001)
+    ui.changeIdentity(guest())
+    assert.equal(ui.textarea.value,'')
+    assert.equal(ui.textarea.validity.customError,false)
   })
 }

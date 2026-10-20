@@ -1,0 +1,84 @@
+---
+import { Image } from 'astro:assets'
+import { Button, Card, Icon, Label } from '@/components/user'
+import ContributionSnake from './ContributionSnake.astro'
+import PageLayout from '@/layouts/BaseLayout.astro'
+import Section from './Section.astro'
+import BlogStats from './BlogStats.astro'
+import avatar from '@/assets/avatar.png'
+import config from '@/site-config'
+
+const en = Astro.currentLocale === 'en'
+---
+
+<PageLayout meta={{ title: en ? 'Home' : '首页' }} highlightColor='#659EB966'>
+  <main class='home-layout flex w-full flex-col items-center'>
+    <section class='home-profile animate mb-10 flex flex-col items-center gap-y-7' id='content-header'>
+      <div class='profile-heading flex flex-row items-center gap-x-6'>
+        <Image
+          src={avatar}
+          alt={en ? 'Cyril Fan’s avatar' : '范星宇的头像'}
+          class='profile-avatar h-28 w-auto shrink-0 rounded-lg border p-1 sm:h-36'
+          loading='eager'
+        />
+        <div class='profile-details flex min-w-0 flex-col gap-y-4'>
+          <h1 class='text-3xl font-bold'>{en ? config.author_en : config.author}</h1>
+          <div class='flex flex-wrap gap-x-1 gap-y-1'>
+            {config.personal?.location && (
+              <Label title={en ? 'Changchun' : '长春'}>
+                <Icon name='location' class='size-4' slot='icon' />
+              </Label>
+            )}
+            {config.personal?.githubUsername && (
+              <Label title='GitHub' as='a' href={`https://github.com/${config.personal.githubUsername}`} target='_blank' rel='noopener noreferrer'>
+                <Icon name='github' class='size-4' slot='icon' />
+              </Label>
+            )}
+            {config.personal?.email && (
+              <Label title={en ? 'Email' : '邮箱'} as='a' href={`mailto:${config.personal.email}`}>
+                <Icon name='email' class='size-4' slot='icon' />
+              </Label>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id='content' class='home-content animate flex w-full min-w-0 flex-col gap-y-10 md:w-4/5 lg:w-full'>
+      <Section title={en ? 'About' : '关于我'} class='home-section'>
+        <p class='font-medium'>{en ? 'Student / handsome guy😎' : '学生 / 帅哥😎'}</p>
+        <p class='home-intro text-muted-foreground'>
+          {en
+            ? 'Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents, and enjoy exploring AI through research and hands-on projects.'
+            : '你好，我是范星宇，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI 智能体，喜欢通过研究和动手实践探索人工智能。'}
+        </p>
+        <Button title={en ? 'More about me' : '更多关于我'} class='w-fit self-end' href={en ? '/en/about' : '/about'} style='ahead' />
+      </Section>
+      <Section title={en ? 'Education' : '教育背景'} class='home-section'>
+        <Card
+          as='a'
+          href='https://csw.jlu.edu.cn/'
+          heading={en ? 'Jilin University · JLU' : '吉林大学 · JLU'}
+          subheading={en ? 'Software Engineering' : '软件工程'}
+          date={en ? 'Aug 2024 - Present' : '2024 年 8 月 - 至今'}
+        />
+      </Section>
+      <Section title={en ? 'Statistics' : '站点统计'} class='home-section'>
+        <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />
+      </Section>
+      <ContributionSnake />
+    </div>
+  </main>
+</PageLayout>
+
+<style>
+  .home-intro { line-height:1.9; text-wrap:pretty; }
+  @media (min-width:1024px) {
+    .home-layout { display:grid; grid-template-columns:15rem minmax(0,1fr); align-items:start; gap:3rem; padding-block:1rem; }
+    .home-profile { position:sticky; top:7rem; margin-bottom:0; align-items:flex-start; min-width:0; }
+    .profile-heading { flex-direction:column; align-items:flex-start; gap:1.75rem; }
+    .profile-avatar { width:11rem; height:11rem; object-fit:cover; }
+    .profile-details h1 { letter-spacing:-.035em; }
+    .home-content :global(.home-section) { flex-direction:column; gap:1rem; }
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
 layout: '@/layouts/IndividualPage.astro'
 title: 'Privacy'
-description: 'Updated 2026-10-19'
+description: 'Updated 2026-10-20'
 language: 'English'
 back: '/en/terms/list'
 ---
@@ -14,13 +14,15 @@ Your public nickname belongs to your account profile. Saving a new nickname upda
 
 You may upload a public avatar; otherwise, your nickname initials are shown. The upload interface crops and compresses the image in your browser and removes the original file's metadata before sending it to Supabase avatar storage when you confirm saving. Avatars are public images that anyone with the image address can view. Only upload an image you wish to make public. Replacing or removing an avatar also changes earlier comments; other open pages reflect the change after refreshing, while caches and backups may update later. The owner's comments use the existing website portrait. Avatars are independent of email sign-in. We do not query email providers or Gravatar, and public avatar addresses do not contain email addresses, email hashes or account IDs.
 
-Sign-in sessions normally use browser local storage. Sign out after using a shared device. If storage is unavailable, the session lasts only until the page closes or refreshes. Unsubmitted drafts remain in page memory and may be lost when leaving or refreshing.
+Sign-in sessions normally use browser local storage. Sign out after using a shared device. If storage is unavailable, the session lasts only until the page closes or refreshes. Unsubmitted drafts remain in page memory and may be lost when leaving or refreshing. Confirmed sign-out or account changes clear the previous account's draft; a network failure alone does not.
+
+Comments support Markdown formatting. Scripts, raw HTML and embedded pages do not run as executable content. External images show their source first and load only after a click, without sending this page's address. The image provider still receives network information such as the IP address needed to complete the request.
 
 Deleting your comment clears its content and leaves a deletion notice, nickname, timestamp and reply relationships; other people’s replies remain. The owner may remove abusive discussions and their replies or restrict posting. Private duplicate-prevention fingerprints and operational metadata may remain; provider logs or backups follow their maintenance cycles. Clearing a comment does not immediately erase every historical copy. For account deletion or other personal data requests, contact the owner below; identity verification may be needed.
 
 Your light or dark theme preference is stored locally in your browser for future visits. Site search queries a static index in your browser; this website has no backend that receives your search terms.
 
-Public GitHub contribution data is fetched when the website is built and then displayed as static content. When image zoom is enabled on an article, your browser requests its script from jsDelivr. Hosting and external resource providers receive the information needed to complete network requests. See the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for GitHub's practices. External links lead to websites with their own practices.
+Contribution animations are synced from the owner's public GitHub profile repository at build time. Light, dark and still versions are served by this website, as are the scripts for image zoom and Markdown. Hosting and external resource providers receive the information needed to complete network requests. See the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for GitHub's practices. External links lead to websites with their own practices.
 
 Providers receive network information needed to deliver and protect their services, which may include IP and device information. The comment API does not publish those details. See the [Supabase Privacy Policy](https://supabase.com/privacy) and [Resend Privacy Policy](https://resend.com/legal/privacy-policy).
 
