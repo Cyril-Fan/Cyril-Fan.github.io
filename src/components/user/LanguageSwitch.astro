@@ -40,6 +40,9 @@ if (safeCurrentLocale === 'en') {
   pagePath = currentPath
 }
 
+// GitHub Pages has one shared 404 document; switch to the other language's home.
+if (/^\/404(?:\.html)?\/?$/.test(pagePath)) pagePath = '/'
+
 // 生成目标语言的 URL
 let targetUrl = getRelativeLocaleUrl(targetLocale, pagePath)
 
@@ -50,30 +53,16 @@ if (targetUrl !== '/' && targetUrl.endsWith('/')) {
 }
 ---
 
-<button 
+<a
   id="language-switch-btn"
   class="box-content rounded-md border p-1.5 transition-colors hover:bg-border md:group-[.not-top]:rounded-xl"
   title={`切换到${languages[targetLocale]}`}
-  data-target-url={targetUrl}
+  href={targetUrl}
+  hreflang={targetLocale}
 >
   <span class="sr-only">{`切换到${languages[targetLocale]}`}</span>
   <div class="flex items-center gap-1">
     <Icon name="earth" class="size-4" />
     <span class="text-xs font-medium">{languages[safeCurrentLocale]}</span>
   </div>
-</button>
-
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const switchBtn = document.getElementById('language-switch-btn') as HTMLButtonElement
-    
-    if (switchBtn) {
-      switchBtn.addEventListener('click', () => {
-        const targetUrl = switchBtn.dataset.targetUrl
-        if (targetUrl) {
-          window.location.href = targetUrl
-        }
-      })
-    }
-  })
-</script> 
+</a>

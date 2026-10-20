@@ -30,6 +30,11 @@ export function verifyDocument(html, route) {
   }
   const navigation = root.querySelector('header-component')
   if (navigation) {
+    const language = navigation.querySelector('a#language-switch-btn')
+    const target = language?.getAttribute('href') || ''
+    assert.ok(target.startsWith('/') && !target.startsWith('//'), `${route}: language navigation must work as a native local link`)
+    const english = root.querySelector('html')?.getAttribute('lang') === 'en'
+    assert.equal(/^\/en(?:\/|$)/.test(target), !english, `${route}: language link must lead to the other locale`)
     assert.doesNotMatch(navigation.textContent, /Month Journal|月记|(?:'|’)s? Blog/, `${route}: obsolete navigation label`)
     assert.ok(navigation.querySelector('[data-all-posts]'), `${route}: missing All posts group separator`)
     assert.ok(!navigation.querySelectorAll('a').some(link => /\/blog\/(?:journal|month-journal)(?:\/|$)/.test(link.getAttribute('href') || '')), `${route}: obsolete month-journal category`)
