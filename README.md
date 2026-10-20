@@ -1,13 +1,13 @@
 # Cyril Fan 的个人网站
 
-Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://github.com/Axi404/Axi-Theme) 定制，使用 Astro 生成静态页面。
+Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://github.com/Axi404/Axi-Theme) 定制，使用 Astro 7 和 Tailwind 4 生成静态页面。
 
 正式域名配置为 **[cyril-fan.top](https://cyril-fan.top/)**，公开源码仓库为 **[Cyril-Fan/Cyril-Fan.github.io](https://github.com/Cyril-Fan/Cyril-Fan.github.io)**。域名解析、GitHub Pages 部署和 HTTPS 状态应以控制台与实际访问结果为准。
 
 ## 首版内容
 
 - 中文默认页面与英文基础页面：首页、研究、项目、关于、友链。
-- 站内搜索、明暗主题、手机适配、分类、标签、RSS，以及与 GitHub 主页同步的浅／深色贡献蛇动画。
+- 站内搜索、明暗主题、手机适配、分类、标签、RSS，以及与 GitHub 主页同步的浅／深色贡献蛇动画。关闭动画后切换为同尺寸的真实贡献日历，支持悬停、点击、键盘及日期查询。
 - 暂无公开文章、论文、项目或友链时显示空状态；独立访客统计关闭。
 - 关于页与文章留言支持已验证邮箱的密码账户，中英文共用讨论，支持 CommonMark、GFM、公式与发布前预览。原始 HTML 按文本显示，外部图片经点击后加载。配置与验收见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)。
 
@@ -29,7 +29,9 @@ npm run build
 npm run preview
 ```
 
-`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标与动画回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 同步贡献动画、执行 Astro 检查、生成统一图标并生成 `dist/`，逐页检查图标引用后生成搜索索引。GitHub 暂时无法访问时保留随仓库提交的已验证动画；请通过 `preview` 验证站内搜索。
+`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标与贡献图回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 同步贡献动画及每日贡献数据、执行 Astro 检查、生成统一图标并生成 `dist/`，逐页检查图标引用后生成搜索索引。上游暂时无法访问时保留随仓库提交的已验证快照；请通过 `preview` 验证站内搜索。
+
+修改框架或文章处理插件后，可运行 `npm run test:content`：用临时中英文文章检查 MDX、公式、代码、图片、回退页面、草稿、搜索与 RSS，完成后移除临时内容，产物位于忽略提交的 `.content-check-dist/`。检查时不要同时编辑对应的 `migration-*` 临时内容目录。执行 `npm audit` 检查完整依赖树，生产依赖可另运行 `npm audit --omit=dev`。
 
 GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test:database` 和 `npm run build`，任一步失败都不会进入部署步骤。
 
@@ -37,7 +39,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 
 日常新增文章、草稿、图片与英文译文的方法见 [CONTENT-GUIDE.md](./CONTENT-GUIDE.md)。
 
-评论数据库迁移位于 `supabase/migrations/`，前端只接收两个公开项目变量，私钥不能提交到仓库。构建依赖的安全范围与后续迁移见 [SECURITY-NOTES.md](./SECURITY-NOTES.md)。
+评论数据库迁移位于 `supabase/migrations/`，前端只接收两个公开项目变量，私钥不能提交到仓库。依赖迁移、安全边界及验收记录见 [SECURITY-NOTES.md](./SECURITY-NOTES.md)。
 
 | 内容 | 维护位置 |
 | --- | --- |
@@ -47,7 +49,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 博客文章 | `src/content/blogs/每篇文章目录/index.mdx` |
 | 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 统一网站图标 | 只编辑 `src/assets/brand/star-orbit.svg`，开发和构建时自动生成 PNG、ICO、manifest 与版本地址 |
-| 贡献动画 | `scripts/sync-contribution-snake.mjs` 从公开主页仓库同步，`ContributionSnake.astro` 控制主题与播放状态 |
+| 贡献图 | `scripts/sync-contribution-snake.mjs` 同步动画，`scripts/sync-contribution-calendar.mjs` 同步每日数据，`ContributionSnake.astro` 控制主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
 | 正式地址、语言、静态构建 | `astro.config.mjs` |
 | 自动发布 | `.github/workflows/deploy.yml` |

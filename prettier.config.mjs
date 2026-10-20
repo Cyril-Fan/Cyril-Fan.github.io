@@ -20,6 +20,7 @@ export default {
   semi: false,
   singleAttributePerLine: false,
   singleQuote: true,
+  tailwindStylesheet: './src/assets/styles/app.css',
   tabWidth: 2,
   trailingComma: 'none',
   useTabs: false,

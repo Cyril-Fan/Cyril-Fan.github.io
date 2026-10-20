@@ -12,7 +12,8 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
     <h2>{en ? 'Conversation' : '留言与交流'}</h2>
     <p>{en ? 'Thoughts, questions, and friendly conversations are welcome.' : '欢迎分享想法、提出问题，也欢迎来打个招呼。'}</p>
   </header>
-  <div data-unconfigured>
+  <p data-boot role='status'>{en ? 'Loading conversation…' : '正在加载留言…'}</p>
+  <div data-unconfigured hidden>
     <p>{en ? 'The comment service is being prepared. You can reach me by email in the meantime.' : '留言服务正在准备中，暂时欢迎通过邮箱与我交流。'}</p>
     <a href='mailto:1943480241@qq.com'>1943480241@qq.com</a>
   </div>

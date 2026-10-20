@@ -1,6 +1,23 @@
 ---
 import assets from '../../assets/contributions.json'
+import snapshot from '../../assets/contribution-calendar.json'
+import { normalizeContributions, contributionWeeks } from '../../lib/github-contributions'
 const en = Astro.currentLocale === 'en'
+const data = normalizeContributions(snapshot)
+if (!data) throw new Error('Contribution calendar is invalid; run the data sync before building.')
+const days = data.contributions
+const weeks = contributionWeeks(days)
+const first = days[0].date
+const last = days[days.length - 1].date
+const description = en ? `${data.total} contributions · ${first} – ${last}` : `${data.total} 次贡献 · ${first} – ${last}`
+const dayLabel = (day: typeof days[number]) => en ? `${day.date}: ${day.count} contributions` : `${day.date}：${day.count} 次贡献`
+const monthLabels = weeks.flatMap((week, column) => {
+  const day = week.find(day => day !== null)
+  if (!day || (column > 0 && day.date.slice(5, 7) === weeks[column-1].find(day => day !== null)?.date.slice(5, 7))) return []
+  return [{ column, label: en ? new Date(`${day.date}T00:00:00Z`).toLocaleDateString('en', { month:'short', timeZone:'UTC' }) : `${Number(day.date.slice(5,7))}月` }]
+})
+// Use the same 880 × 192 coordinate system as the profile animation.
+const pitch = Math.min(16, 848 / weeks.length)
 ---
 
 <section class='min-w-0 w-full' aria-labelledby='contribution-heading'>
@@ -10,40 +27,69 @@ const en = Astro.currentLocale === 'en'
   </div>
   <contribution-snake data-lang={en ? 'en' : 'zh'} class='block min-w-0'>
     <div id='contribution-animation' class='snake-frame'>
-      <div class='snake-animated'>
-        <img class='snake-light' src={assets.light} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating the contribution squares from Cyril Fan’s GitHub profile' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
-        <img class='snake-dark' src={assets.dark} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating the contribution squares from Cyril Fan’s GitHub profile' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
-      </div>
-      <div class='snake-static'>
-        <img class='snake-light' src={assets.lightStatic} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'Still view of Cyril Fan’s GitHub contribution squares' : 'Cyril Fan 的 GitHub 贡献方块静态图'} />
-        <img class='snake-dark' src={assets.darkStatic} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'Still view of Cyril Fan’s GitHub contribution squares' : 'Cyril Fan 的 GitHub 贡献方块静态图'} />
+      <div class='contribution-canvas'>
+        <div class='snake-animated' aria-hidden='true'>
+          <img class='snake-light' src={assets.light} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating Cyril Fan’s GitHub contribution squares' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
+          <img class='snake-dark' src={assets.dark} width='880' height='192' loading='lazy' decoding='async' alt={en ? 'A snake eating Cyril Fan’s GitHub contribution squares' : '小蛇吃掉 Cyril Fan 的 GitHub 贡献方块'} />
+        </div>
+        <div class='contribution-calendar'>
+          <svg viewBox='-16 -32 880 192' width='880' height='192' role='group' aria-label={description}>
+            {monthLabels.map(({column, label}) => <text class='month-label' x={column * pitch} y='-12'>{label}</text>)}
+            {weeks.map((week, column) => week.map((day, row) => day && (
+              <rect class={`contribution-day level-${day.level}`} x={column * pitch} y={row * 16} width='12' height='12' rx='2'
+                role='button' tabindex={day.date === last ? '0' : '-1'} data-date={day.date} data-count={day.count}
+                aria-label={dayLabel(day)}><title>{dayLabel(day)}</title></rect>
+            )))}
+          </svg>
+        </div>
       </div>
     </div>
     <div class='snake-caption text-xs text-muted-foreground'>
-      <span>{en ? 'Synced from my GitHub profile each day.' : '每天同步 GitHub 主页上的贡献动画。'}</span>
-      <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Play animation' : '播放动画'}</button>
+      <span>{description}</span>
+      <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Turn on animation' : '开启动画'}</button>
     </div>
+    <div class='calendar-inspector text-xs text-muted-foreground'>
+      <label>{en ? 'Date' : '日期'} <input type='date' data-contribution-date min={first} max={last} value={last} /></label>
+      <output data-contribution-detail aria-live='polite' aria-atomic='true'>{dayLabel(days[days.length - 1])}</output>
+    </div>
+    <p class='contribution-help text-xs text-muted-foreground'>
+      <span data-animation-help>{en ? 'Daily GitHub sync. Turn off animation to explore each day.' : '每天同步 GitHub。关闭动画后，可查看每天的具体贡献。'}</span>
+      <span data-calendar-help>{en ? 'Hover or tap a square; use arrow keys or choose a date.' : '悬停或点击方块查看详情，也可使用方向键或选择日期。'}</span>
+    </p>
   </contribution-snake>
 </section>
 
 <style>
   .snake-frame { width:100%; min-width:0; overflow:hidden; border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.5rem; }
-  .snake-frame img { width:100%; height:auto; display:block; }
-  .snake-frame .snake-dark, .snake-static { display:none; }
+  .contribution-canvas { position:relative; width:100%; aspect-ratio:880 / 192; }
+  .snake-animated, .contribution-calendar { position:absolute; inset:0; transition:opacity .18s ease; }
+  .snake-animated { opacity:0; visibility:hidden; pointer-events:none; }
+  .snake-frame img, .snake-frame svg { width:100%; height:100%; display:block; }
+  .snake-frame .snake-dark { display:none; }
   :global(.dark) .snake-frame .snake-light { display:none; }
   :global(.dark) .snake-frame .snake-dark { display:block; }
+  .month-label { fill:currentColor; font-size:12px; }
+  .contribution-day { stroke:hsl(var(--foreground) / .08); stroke-width:1; cursor:pointer; }
+  .contribution-day:hover, .contribution-day:focus, .contribution-day[data-selected] { stroke:hsl(var(--foreground)); stroke-width:2; outline:none; }
+  .level-0 { fill:#eff2f5; } .level-1 { fill:#aceebb; } .level-2 { fill:#4ac26b; } .level-3 { fill:#2da44e; } .level-4 { fill:#116329; }
+  :global(.dark) .level-0 { fill:#151b23; } :global(.dark) .level-1 { fill:#033a16; } :global(.dark) .level-2 { fill:#196c2e; } :global(.dark) .level-3 { fill:#2ea043; } :global(.dark) .level-4 { fill:#56d364; }
   .snake-caption { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.5rem; margin-top:.5rem; }
   .snake-caption button { padding:.5rem .75rem; min-height:2.75rem; border:1px solid hsl(var(--border)); border-radius:.5rem; }
   .snake-caption button:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
-  .snake-caption button:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
-  @media (prefers-reduced-motion:reduce) {
-    .snake-animated { display:none; }
-    .snake-static { display:block; }
-  }
-  contribution-snake[data-playing='false'] .snake-animated,
-  contribution-snake[data-playing='true'] .snake-static { display:none; }
-  contribution-snake[data-playing='false'] .snake-static,
-  contribution-snake[data-playing='true'] .snake-animated { display:block; }
+  .snake-caption button:focus-visible, .calendar-inspector input:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
+  .calendar-inspector { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:center; min-height:2.75rem; margin-top:.25rem; }
+  .calendar-inspector label { display:flex; align-items:center; gap:.5rem; }
+  .calendar-inspector input { min-width:0; min-height:2.75rem; border:1px solid hsl(var(--border)); background:hsl(var(--background)); color:hsl(var(--foreground)); border-radius:.4rem; padding:.25rem .5rem; font-size:1rem; color-scheme:light; }
+  :global(.dark) .calendar-inspector input { color-scheme:dark; }
+  .contribution-help { margin-top:.5rem; min-height:2.5em; }
+  [data-animation-help] { display:none; }
+  contribution-snake[data-playing='true'] .snake-animated { opacity:1; visibility:visible; }
+  contribution-snake[data-playing='true'] .contribution-calendar { opacity:0; visibility:hidden; pointer-events:none; }
+  /* Keep the inspector's space so switching modes never shifts the page. */
+  contribution-snake[data-playing='true'] .calendar-inspector { visibility:hidden; }
+  contribution-snake[data-playing='true'] [data-animation-help] { display:inline; }
+  contribution-snake[data-playing='true'] [data-calendar-help] { display:none; }
+  @media (prefers-reduced-motion:reduce) { .snake-animated, .contribution-calendar { transition:none; } }
 </style>
 
 <script>
@@ -56,17 +102,51 @@ const en = Astro.currentLocale === 'en'
       const button = this.querySelector<HTMLButtonElement>('[data-snake-toggle]')
       if (!button) return
       const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+      const calendar = this.querySelector<HTMLElement>('.contribution-calendar')
+      const animation = this.querySelector<HTMLElement>('.snake-animated')
+      const date = this.querySelector<HTMLInputElement>('[data-contribution-date]')
+      const output = this.querySelector<HTMLOutputElement>('[data-contribution-detail]')
+      const squares = Array.from(this.querySelectorAll<SVGElement>('[data-date]'))
+      let userChoice = false
       const setPlaying = (playing: boolean) => {
         this.dataset.playing = String(playing)
         button.setAttribute('aria-pressed', String(playing))
+        calendar?.setAttribute('aria-hidden', String(playing))
+        animation?.setAttribute('aria-hidden', String(!playing))
+        if (date) date.disabled = playing
         button.textContent = this.dataset.lang === 'en'
-          ? (playing ? 'Pause animation' : 'Play animation')
-          : (playing ? '暂停动画' : '播放动画')
+          ? (playing ? 'Turn off animation' : 'Turn on animation')
+          : (playing ? '关闭动画' : '开启动画')
       }
-      setPlaying(!motion.matches)
+      const show = (square: SVGElement, focus = false) => {
+        for (const item of squares) { item.removeAttribute('data-selected'); item.setAttribute('tabindex', '-1') }
+        square.setAttribute('data-selected', '')
+        square.setAttribute('tabindex', '0')
+        if (date) date.value = square.dataset.date || ''
+        if (output) output.textContent = square.getAttribute('aria-label')
+        if (focus) square.focus()
+      }
+      for (const square of squares) {
+        for (const event of ['pointerenter', 'focus', 'click']) square.addEventListener(event, () => show(square), { signal })
+        square.addEventListener('keydown', (event) => {
+          const key = (event as KeyboardEvent).key
+          const position = squares.indexOf(square)
+          const offsets: Record<string, number> = { ArrowLeft:-7, ArrowRight:7, ArrowUp:-1, ArrowDown:1 }
+          const target = key === 'Home' ? 0 : key === 'End' ? squares.length - 1 : key in offsets ? position + offsets[key] : null
+          if (target === null) return
+          event.preventDefault()
+          show(squares[Math.max(0, Math.min(squares.length - 1, target))], true)
+        }, { signal })
+      }
+      date?.addEventListener('change', () => {
+        const square = squares.find(square => square.dataset.date === date.value)
+        if (square) show(square)
+        else if (output) output.textContent = this.dataset.lang === 'en' ? 'Choose a date within the displayed range.' : '请选择展示范围内的日期。'
+      }, { signal })
+      setPlaying(this.dataset.playing ? this.dataset.playing === 'true' : !motion.matches)
       button.hidden = false
-      button.addEventListener('click', () => setPlaying(this.dataset.playing !== 'true'), { signal })
-      motion.addEventListener('change', () => setPlaying(!motion.matches), { signal })
+      button.addEventListener('click', () => { userChoice = true; setPlaying(this.dataset.playing !== 'true') }, { signal })
+      motion.addEventListener('change', () => { if (motion.matches || !userChoice) setPlaying(!motion.matches) }, { signal })
     }
     disconnectedCallback() { this.controller?.abort(); this.controller = undefined }
   }

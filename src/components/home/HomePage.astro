@@ -12,13 +12,13 @@ const en = Astro.currentLocale === 'en'
 ---
 
 <PageLayout meta={{ title: en ? 'Home' : '首页' }} highlightColor='#659EB966'>
-  <main class='home-layout flex w-full flex-col items-center'>
-    <section class='home-profile animate mb-10 flex flex-col items-center gap-y-7' id='content-header'>
-      <div class='profile-heading flex flex-row items-center gap-x-6'>
+  <main class='home-layout'>
+    <section class='home-profile animate' id='content-header'>
+      <div class='profile-heading'>
         <Image
           src={avatar}
           alt={en ? 'Cyril Fan’s avatar' : '范星宇的头像'}
-          class='profile-avatar h-28 w-auto shrink-0 rounded-lg border p-1 sm:h-36'
+          class='profile-avatar shrink-0 rounded-lg border p-1'
           loading='eager'
         />
         <div class='profile-details flex min-w-0 flex-col gap-y-4'>
@@ -44,9 +44,14 @@ const en = Astro.currentLocale === 'en'
       </div>
     </section>
 
-    <div id='content' class='home-content animate flex w-full min-w-0 flex-col gap-y-10 md:w-4/5 lg:w-full'>
+    <div id='content' class='home-content animate'>
       <Section title={en ? 'About' : '关于我'} class='home-section'>
-        <p class='font-medium'>{en ? 'Student / handsome guy😎' : '学生 / 帅哥😎'}</p>
+        <p class='font-medium'>
+          {en ? 'Student / ' : '学生 / '}
+          <button class='role-spoiler' type='button' aria-expanded='false' aria-label={en ? 'Reveal playful introduction' : '显示趣味介绍'} data-role-spoiler>
+            <span>{en ? 'handsome guy😎' : '帅哥😎'}</span>
+          </button>
+        </p>
         <p class='home-intro text-muted-foreground'>
           {en
             ? 'Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents, and enjoy exploring AI through research and hands-on projects.'
@@ -72,7 +77,21 @@ const en = Astro.currentLocale === 'en'
 </PageLayout>
 
 <style>
+  /* Layout belongs here, without competing utility declarations at the same specificity. */
+  .home-layout { display:flex; width:100%; flex-direction:column; align-items:center; }
+  .home-profile { display:flex; flex-direction:column; align-items:center; margin-bottom:2.5rem; }
+  .profile-heading { display:flex; flex-direction:row; align-items:center; gap:1.5rem; }
+  .profile-avatar { width:7rem; height:7rem; object-fit:cover; }
+  .home-content { display:flex; width:100%; min-width:0; flex-direction:column; gap:2.5rem; }
   .home-intro { line-height:1.9; text-wrap:pretty; }
+  .role-spoiler { display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; }
+  .role-spoiler span { opacity:0; transition:opacity .18s ease; }
+  .role-spoiler[aria-expanded='true'] span, .role-spoiler:focus-visible span { opacity:1; }
+  .role-spoiler:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
+  @media (hover:hover) { .role-spoiler:hover span { opacity:1; } }
+  @media (prefers-reduced-motion:reduce) { .role-spoiler span { transition:none; } }
+  @media (min-width:640px) { .profile-avatar { width:9rem; height:9rem; } }
+  @media (min-width:768px) and (max-width:1023px) { .home-content { width:80%; } }
   @media (min-width:1024px) {
     .home-layout { display:grid; grid-template-columns:15rem minmax(0,1fr); align-items:start; gap:3rem; padding-block:1rem; }
     .home-profile { position:sticky; top:7rem; margin-bottom:0; align-items:flex-start; min-width:0; }
@@ -82,3 +101,15 @@ const en = Astro.currentLocale === 'en'
     .home-content :global(.home-section) { flex-direction:column; gap:1rem; }
   }
 </style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-role-spoiler]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') !== 'true'
+      button.setAttribute('aria-expanded', String(expanded))
+      button.setAttribute('aria-label', expanded
+        ? button.textContent?.trim() || ''
+        : document.documentElement.lang === 'en' ? 'Reveal playful introduction' : '显示趣味介绍')
+    })
+  })
+</script>

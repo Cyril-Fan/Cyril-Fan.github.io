@@ -1,6 +1,7 @@
 // @ts-check
 
-import { rehypeHeadingIds } from '@astrojs/markdown-remark'
+import { rehypeHeadingIds, unified } from '@astrojs/markdown-remark'
+import tailwindcss from '@tailwindcss/vite'
 // Integrations
 import AstroAxiIntegration from './src/axi-integration.ts'
 import { defineConfig } from 'astro/config'
@@ -51,6 +52,7 @@ export default defineConfig({
   },
 
   output: 'static',
+  compressHTML: true,
 
   image: {
     service: {
@@ -82,6 +84,7 @@ export default defineConfig({
   },
   // Markdown Options
   markdown: {
+    processor: unified({
     remarkPlugins: [remarkMath, remarkGfm],
     rehypePlugins: [
       rehypeHeadingIds,
@@ -100,6 +103,7 @@ export default defineConfig({
       footnoteBackLabel: '返回内容',
       footnoteBackContent: '↑'
     },
+    }),
     // https://docs.astro.build/en/guides/syntax-highlighting/
     shikiConfig: {
       themes: {
@@ -117,6 +121,7 @@ export default defineConfig({
     }
   },
   vite: {
+    plugins: [tailwindcss()],
     // plugins: [
     //   visualizer({
     //     emitFile: true,

@@ -5,8 +5,8 @@ import * as pagefind from 'pagefind'
 import type { AstroIntegration, RehypePlugins, RemarkPlugins } from 'astro'
 // Integrations
 import mdx from '@astrojs/mdx'
+import { isUnifiedProcessor, unified } from '@astrojs/markdown-remark'
 import sitemap from '@astrojs/sitemap'
-import tailwind from '@astrojs/tailwind'
 import rehypeExternalLinks from 'rehype-external-links'
 
 import { remarkAddZoomable, remarkReadingTime } from './plugins/remark-plugins'
@@ -40,9 +40,6 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
         if (!allIntegrations.find(({ name }) => name === '@astrojs/mdx')) {
           integrations.push(mdx({ optimize: true }))
         }
-        if (!allIntegrations.find(({ name }) => name === '@astrojs/tailwind')) {
-          integrations.push(tailwind({ applyBaseStyles: false }))
-        }
 
         // Add supported remark plugins based on user config.
         if (userConfig.integ.mediumZoom.enable)
@@ -70,14 +67,19 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
         const selfIndex = config.integrations.findIndex((i) => i.name === 'astro-axi')
         config.integrations.splice(selfIndex + 1, 0, ...integrations)
 
+        const processor = config.markdown.processor
+        if (!isUnifiedProcessor(processor)) throw new Error('Axi Markdown plugins require the unified processor.')
         updateConfig({
           vite: {
             // @ts-ignore
             plugins: [vitePluginUserConfig(userConfig, config)]
           },
           markdown: {
-            remarkPlugins,
-            rehypePlugins
+            processor: unified({
+              ...processor.options,
+              remarkPlugins: [...processor.options.remarkPlugins, ...remarkPlugins],
+              rehypePlugins: [...processor.options.rehypePlugins, ...rehypePlugins]
+            })
             // rehypePlugins: [rehypeRtlCodeSupport()],
             // shikiConfig:
             // Configure Shiki theme if the user is using the default github-dark theme.

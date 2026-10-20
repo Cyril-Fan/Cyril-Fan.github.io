@@ -12,7 +12,7 @@ const typographyConfig = ({ theme }) => ({
       '--tw-prose-body': fgMuted,
       '--tw-prose-links': fg,
       '--tw-prose-quotes': fgMuted,
-      '--tw-prose-code:': fg,
+      '--tw-prose-code': fg,
       '--tw-prose-pre-code': fgMuted,
       '--tw-prose-pre-bg': bgMuted,
 
@@ -88,7 +88,6 @@ const config = {
     './src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'
   ],
   darkMode: ['class'],
-  safelist: ['dark'],
   plugins: [typography()],
 
   theme: {

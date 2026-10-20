@@ -51,6 +51,7 @@ export class SiteComments extends HTMLElement {
   connectedCallback() {
     if (this.lifetime) return
     this.lifetime = new AbortController()
+    this.el<HTMLElement>('[data-boot]').hidden = true
     this.el('[data-configured]').hidden = !this.client
     this.el('[data-unconfigured]').hidden = !!this.client
     if (!this.client) return
@@ -176,7 +177,7 @@ export class SiteComments extends HTMLElement {
     const showEditor=this.me.can_post && !this.me.is_admin && (!name || this.editingProfile)
     const nickname=this.el<HTMLInputElement>('[name=nickname]')
     this.el<HTMLElement>('[data-compose]').hidden=!this.me.can_post
-    this.el('[data-login-prompt]').hidden=!this.identityReady || this.me.can_post || this.me.banned
+    this.el('[data-login-prompt]').hidden=!this.identityReady || !!this.accountId || this.me.can_post || this.me.banned
     this.el('[data-login-reply]').hidden=!this.loginReply
     this.el('[data-login-reply-label]').textContent=this.loginReply ? this.t(`登录后回复 ${this.rowName(this.loginReply.row)}`,`Sign in to reply to ${this.rowName(this.loginReply.row)}`) : ''
     const identity=this.el('[data-identity]')

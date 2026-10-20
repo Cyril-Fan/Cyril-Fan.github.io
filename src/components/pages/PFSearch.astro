@@ -6,7 +6,7 @@ import '@pagefind/default-ui/css/ui.css'
   <aside class='form my-4'>
     {
       import.meta.env.DEV ? (
-        <div class='w-full rounded-xl border-2 bg-transparent px-4 py-2 pe-3 outline-none focus:border-foreground'>
+        <div class='w-full rounded-xl border-2 bg-transparent px-4 py-2 pe-3 outline-hidden focus:border-foreground'>
           {Astro.currentLocale === 'en' ? 'You are in Dev mode, the search is disabled.' : '开发模式下暂不提供搜索，请构建后通过预览验证。'}
         </div>
       ) : (

@@ -826,6 +826,7 @@ for (const language of ['zh', 'en']) {
     ui.submit()
     assert.equal(ui.compose.hidden, true)
     assert.equal(ui.post.disabled, true)
+    assert.equal(ui.select('[data-login-prompt]').hidden, true, 'An already signed-in user should see verification guidance, not another sign-in prompt')
     assert.equal(ui.calls.some(call => call.name === 'comment_create'), false)
   })
 

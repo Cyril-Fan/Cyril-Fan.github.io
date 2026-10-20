@@ -56,6 +56,7 @@ Sessionx.vim
 
 # build output
 dist/
+.content-check-dist/
 .astro/
 .vercel/
 # logs
