@@ -34,11 +34,7 @@ export default defineConfig({
   trailingSlash: 'never',
   redirects: {
     '/blog': '/blog/all',
-    '/en/blog': '/en/blog/all',
-    '/blog/journal': '/blog/daily',
-    '/blog/month-journal': '/blog/daily',
-    '/en/blog/journal': '/en/blog/daily',
-    '/en/blog/month-journal': '/en/blog/daily'
+    '/en/blog': '/en/blog/all'
   },
 
   // Internationalization

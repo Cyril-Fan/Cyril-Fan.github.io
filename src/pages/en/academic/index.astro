@@ -3,9 +3,10 @@ import PageLayout from '@/layouts/CommonPage.astro'
 import { Icon } from '@/components/user'
 
 const headings = [
-  { depth: 2, slug: 'about-me', text: 'Background' },
+  { depth: 2, slug: 'about-me', text: 'About Me' },
   { depth: 2, slug: 'research-interests', text: 'Research Interests' },
-  { depth: 2, slug: 'publications', text: 'Publications & Projects' }
+  { depth: 2, slug: 'publications', text: 'Publications' },
+  { depth: 2, slug: 'open-source-projects', text: 'Open-source Projects' }
 ]
 
 const interests = [
@@ -16,10 +17,10 @@ const interests = [
 ---
 
 <PageLayout title='Academic' {headings}>
-  <h2 id='about-me'>Background<a class='anchor' href='#about-me'>#</a></h2>
+  <h2 id='about-me'>About Me<a class='anchor' href='#about-me'>#</a></h2>
   <p>
-    I’m a Software Engineering undergraduate at Jilin University (Aug 2024 - Present).
-    My research interests focus on deep learning, multimodal large language models, and AI agents.
+    I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University.
+    I enjoy exploring artificial intelligence through research and hands-on projects.
   </p>
 
   <h2 id='research-interests'>
@@ -38,7 +39,11 @@ const interests = [
     ))}
   </div>
 
-  <span id='open-source-projects' aria-hidden='true'></span>
-  <h2 id='publications'>Publications &amp; Projects<a class='anchor' href='#publications'>#</a></h2>
-  <p class='text-muted-foreground'>No publications or projects are available to share yet. Future work will appear here.</p>
+  <h2 id='publications'>Publications<a class='anchor' href='#publications'>#</a></h2>
+  <p class='text-muted-foreground'>No publications to display yet.</p>
+
+  <h2 id='open-source-projects'>
+    Open-source Projects<a class='anchor' href='#open-source-projects'>#</a>
+  </h2>
+  <p class='text-muted-foreground'>No projects to display yet.</p>
 </PageLayout>

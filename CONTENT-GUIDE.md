@@ -45,6 +45,7 @@ comment: false
 | `research` | 论文阅读、研究笔记、实验方法 |
 | `tech` | 编程与技术实践 |
 | `daily` | 日常记录 |
+| `journal` | 阶段总结、月记 |
 
 `tags` 可填多个词，系统会转为小写并去重。未发布文章时，分类和标签页面显示空状态。
 
@@ -89,7 +90,7 @@ heroImage:
 - `src/pages/links/index.astro` 与 `src/pages/en/links/index.astro`：友链。
 - `src/pages/terms/` 与 `src/pages/en/terms/`：网站使用、版权与隐私说明；新增外部服务时应同步核对实际行为。
 
-公开资料：中文名范星宇，英文名 Cyril Fan，吉林大学软件工程本科生，关注深度学习、多模态大语言模型与智能体，邮箱 `1943480241@qq.com`，GitHub `Cyril-Fan`。暂无公开成果时保留空状态，后续再补充真实内容。阶段总结可放在 `daily`；原 `journal` 与 `month-journal` 分类链接会跳转到日常栏目。
+首版公开资料为 Cyril Fan，吉林大学软件工程本科生，关注深度学习、多模态大语言模型与 AI Agents，邮箱 `1943480241@qq.com`，GitHub `Cyril-Fan`。暂无公开成果时保留空状态，后续再补充真实内容。
 
 ## 域名与 DNS
 

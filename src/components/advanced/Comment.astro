@@ -1,7 +1,6 @@
 ---
 import CommentAuth from './CommentAuth.astro'
 import { commentThread } from '../../lib/comment-utils'
-import 'katex/dist/katex.min.css'
 interface Props { thread?: string; class?: string }
 const lang = Astro.currentLocale === 'en' ? 'en' : 'zh'
 const en = lang === 'en'
@@ -48,21 +47,10 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
         <div class='comment-profile-actions'><button type='button' data-profile-save>{en ? 'Save nickname' : '保存昵称'}</button><button type='button' data-profile-cancel>{en ? 'Cancel' : '取消'}</button></div>
       </div>
       <div data-reply hidden class='comment-reply-preview'><div><span></span><p data-reply-excerpt></p></div><button type='button' data-cancel-reply>{en ? 'Cancel reply' : '取消回复'}</button></div>
-      <div class='comment-editor-tabs' role='group' aria-label={en ? 'Comment editor' : '留言编辑器'}>
-        <button type='button' data-markdown-write aria-pressed='true'>{en ? 'Write' : '编辑'}</button>
-        <button type='button' data-markdown-preview-toggle aria-pressed='false'>{en ? 'Preview' : '预览'}</button>
-        <span>Markdown</span>
-      </div>
-      <label data-comment-input class='comment-body-label'>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='4' maxlength='2000' required placeholder={en ? 'Share a thought or say hello… Markdown is welcome.' : '分享想法，或来打个招呼… 支持 Markdown。'} aria-describedby='comment-guide'></textarea></label>
-      <div data-markdown-preview hidden class='comment-body comment-markdown comment-preview' tabindex='0' role='region' aria-label={en ? 'Comment preview' : '留言预览'}></div>
+      <label class='comment-body-label'>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='3' maxlength='2000' required placeholder={en ? 'Share a thought or say hello…' : '分享想法，或来打个招呼…'} aria-describedby='comment-guide'></textarea></label>
       <div class='comment-compose-foot'><div class='comment-compose-meta'><span data-counter aria-live='off'>0 / 2000</span><span class='comment-shortcut'>{en ? 'Ctrl / ⌘ + Enter to post' : 'Ctrl / ⌘ + Enter 发布'}</span></div><button type='submit' data-submit disabled>{en ? 'Post comment' : '发布留言'}</button></div>
       <p data-moderation-note hidden class='comment-note' aria-live='polite'>{en ? 'Your comment will be public after the site owner approves it. You can view or delete it while it is pending.' : '留言将在站长审核通过后公开；等待期间你可以查看或删除自己的留言。'}</p>
-      <details class='comment-markdown-help'><summary>{en ? 'Formatting help' : '格式说明'}</summary>
-        <p>{en ? 'Use **bold**, *italic*, ~~strikethrough~~, # headings, > quotes, - lists, - [x] tasks, [text](https://…), and `code`. Separate paragraphs with a blank line.' : '支持 **粗体**、*斜体*、~~删除线~~、# 标题、> 引用、- 列表、- [x] 任务、[文字](https://…) 和 `代码`。段落之间请空一行。'}</p>
-        <p>{en ? 'Code blocks: wrap lines in ``` fences. Tables use | columns |; footnotes use [^1]. Math uses $inline$ or $$ on separate lines. Images use ![description](https://…).' : '代码块用 ``` 包围；表格用 | 分隔各列；脚注用 [^1] 引用。行内公式用 $…$，独立公式用单独成行的 $$ 包围。图片用 ![描述](https://…)。'}</p>
-        <p>{en ? 'Preview before posting. External images load only when clicked; their source is shown first. Raw HTML is shown as text, and scripts or embedded pages never run.' : '发布前可以先预览。外部图片会先显示来源，点击后才加载；原始 HTML 按文字显示，不运行脚本或嵌入网页。'}</p>
-      </details>
-      <p id='comment-guide' class='comment-note'>{en ? 'Email stays private · Deleting your comment keeps other people’s replies.' : '邮箱不公开 · 删除留言会保留他人的回复'} <a href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a></p>
+      <p id='comment-guide' class='comment-note'>{en ? 'Plain text · Email stays private · Deleting your comment keeps other people’s replies.' : '纯文本留言 · 邮箱不公开 · 删除留言会保留他人的回复'} <a href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a></p>
     </form></div>
     <details data-admin hidden class='comment-admin'><summary>{en ? 'Comment settings' : '留言管理设置'}</summary><label><input type='checkbox' data-moderation /> {en ? 'Review new comments before publishing' : '新评论先审核再公开'}</label></details>
     <div data-status-home><p data-status role='status' aria-live='polite'></p></div>
@@ -88,7 +76,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments p { margin:.65rem 0; }
   site-comments .comment-heading > p, site-comments .comment-note, site-comments [data-counter], site-comments time { color:hsl(var(--muted-foreground)); font-size:.875rem; }
   site-comments label { display:block; font-size:.9rem; margin:.85rem 0; }
-  site-comments input:not([type=checkbox]), site-comments textarea { display:block; width:100%; min-width:0; margin-top:.4rem; padding:.7rem .85rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--background)); color:hsl(var(--foreground)); font:inherit; font-size:1rem; }
+  site-comments input:not([type=checkbox]), site-comments textarea { display:block; width:100%; margin-top:.4rem; padding:.7rem .85rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--background)); color:hsl(var(--foreground)); font:inherit; }
   site-comments textarea { resize:vertical; min-height:6.5rem; line-height:1.65; }
   site-comments button { padding:.5rem .8rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font:inherit; font-size:.875rem; cursor:pointer; }
   site-comments button:hover:not(:disabled) { background:hsl(var(--muted)); }
@@ -104,44 +92,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-item-reply { margin-left:clamp(.75rem,3vw,2.25rem); }
   site-comments .comment-item-header { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
   site-comments .comment-item-header strong { font-weight:600; }
-  site-comments .comment-body { line-height:1.8; min-width:0; overflow-wrap:anywhere; }
-  site-comments .comment-markdown > :first-child { margin-top:0; }
-  site-comments .comment-markdown > :last-child { margin-bottom:0; }
-  site-comments .comment-markdown { margin:.8rem 0; font-size:.925rem; }
-  site-comments .comment-markdown :is(h1,h2,h3,h4,h5,h6) { font-weight:600; line-height:1.5; margin:1.1rem 0 .45rem; }
-  site-comments .comment-markdown h1 { font-size:1.3rem; }
-  site-comments .comment-markdown h2 { font-size:1.2rem; }
-  site-comments .comment-markdown :is(h3,h4,h5,h6) { font-size:1rem; }
-  site-comments .comment-markdown :is(ul,ol) { margin:.6rem 0; padding-left:1.5rem; }
-  site-comments .comment-markdown ul { list-style:disc; }
-  site-comments .comment-markdown ol { list-style:decimal; }
-  site-comments .comment-markdown li { padding-left:.15rem; }
-  site-comments .comment-markdown blockquote { border-left:3px solid hsl(var(--border)); margin:.8rem 0; padding:.1rem .9rem; color:hsl(var(--muted-foreground)); }
-  site-comments .comment-markdown :not(pre) > code { font-size:.85em; padding:.15em .35em; border-radius:.25rem; background:hsl(var(--muted)); overflow-wrap:anywhere; }
-  site-comments .comment-markdown pre { max-width:100%; overflow-x:auto; padding:.85rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--muted) / .6); font-size:.82rem; line-height:1.6; tab-size:2; }
-  site-comments .comment-markdown pre code { white-space:pre; }
-  site-comments .comment-markdown table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; margin:.8rem 0; font-size:.85rem; }
-  site-comments .comment-markdown :is(th,td) { border:1px solid hsl(var(--border)); padding:.45rem .65rem; min-width:5rem; }
-  site-comments .comment-markdown th { background:hsl(var(--muted)); font-weight:600; }
-  site-comments .comment-markdown .task-list-item { list-style:none; }
-  site-comments .comment-markdown input[type=checkbox] { width:.9rem; height:.9rem; margin:0 .4rem 0 -1.2rem; accent-color:hsl(var(--foreground)); }
-  site-comments .comment-markdown .katex-display { max-width:100%; overflow-x:auto; overflow-y:hidden; padding:.35rem 0; }
-  site-comments .comment-markdown .katex { display:inline-block; font-size:1.05em; max-width:100%; max-height:24rem; overflow:auto; vertical-align:middle; padding:.15em; }
-  site-comments .comment-markdown .footnotes { margin-top:1rem; padding-top:.5rem; border-top:1px dashed hsl(var(--border)); font-size:.8rem; }
-  site-comments .comment-markdown [id] { scroll-margin-top:6rem; }
-  site-comments .comment-markdown hr { border:0; border-top:1px solid hsl(var(--border)); margin:1rem 0; }
-  site-comments .comment-markdown-image { display:block; width:fit-content; max-width:100%; margin:.5rem 0; padding:.6rem; border:1px dashed hsl(var(--border)); border-radius:.5rem; }
-  site-comments .comment-markdown-image > span { display:block; margin-bottom:.3rem; color:hsl(var(--muted-foreground)); font-size:.85rem; }
-  site-comments .comment-markdown-image img { display:block; max-width:100%; max-height:26rem; object-fit:contain; border-radius:.3rem; }
-  site-comments .comment-load-image { text-align:start; max-width:100%; overflow-wrap:anywhere; }
-  site-comments .comment-editor-tabs { display:flex; align-items:center; gap:.3rem; margin:.8rem 0; border-bottom:1px solid hsl(var(--border)); padding-bottom:.4rem; }
-  site-comments .comment-editor-tabs button { border-color:transparent; padding:.35rem .7rem; }
-  site-comments .comment-editor-tabs button[aria-pressed=true] { background:hsl(var(--muted)); font-weight:600; }
-  site-comments .comment-editor-tabs > span { margin-left:auto; color:hsl(var(--muted-foreground)); font-size:.75rem; }
-  site-comments .comment-preview { min-height:8rem; max-height:32rem; overflow:auto; border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.75rem; }
-  site-comments .comment-markdown-help { font-size:.75rem; color:hsl(var(--muted-foreground)); margin-top:.75rem; }
-  site-comments .comment-markdown-help summary { cursor:pointer; width:fit-content; padding:.25rem 0; }
-  site-comments .comment-markdown-help p { line-height:1.7; }
+  site-comments .comment-body { white-space:pre-wrap; line-height:1.8; }
   site-comments .comment-context { border-left:2px solid hsl(var(--border)); padding-left:.7rem; font-size:.85rem; color:hsl(var(--muted-foreground)); }
   site-comments .comment-item-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem; }
   site-comments .comment-item-actions button { border-color:transparent; padding:.25rem .5rem; color:hsl(var(--muted-foreground)); }
@@ -158,7 +109,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-identity { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; font-size:.9rem; }
   site-comments [data-identity-home]:not(:empty) { padding:.75rem 0; }
   site-comments .comment-login-reply { margin:.75rem 0; padding:.65rem .8rem; border-radius:.5rem; background:hsl(var(--muted)); }
-  site-comments .comment-identity strong { font-weight:600; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  site-comments .comment-identity strong { font-weight:600; }
   site-comments .comment-avatar { display:inline-flex; position:relative; overflow:hidden; flex:none; align-items:center; justify-content:center; width:2rem; height:2rem; border-radius:50%; background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); font-size:.75rem; font-weight:600; user-select:none; }
   site-comments .comment-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   site-comments .comment-avatar-editor { flex-basis:100%; min-width:0; padding:.75rem; margin-top:.4rem; border-radius:.5rem; background:hsl(var(--muted) / .5); }
@@ -201,16 +152,8 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
     site-comments .comment-shortcut { display:none; }
     site-comments .comment-item-actions button, site-comments .comment-menu summary { min-height:2.5rem; display:inline-flex; align-items:center; }
     site-comments .comment-compose-foot { gap:.5rem; }
-    site-comments .comment-item-actions { position:relative; }
-    site-comments .comment-menu { position:static; }
-    site-comments .comment-menu-choices { left:auto; right:0; max-width:100%; min-width:min(10rem,100%); }
-    site-comments .comment-menu-choices button { white-space:normal; }
   }
   site-comments dialog { width:min(90vw,28rem); padding:1.5rem; border:1px solid hsl(var(--border)); border-radius:1rem; color:hsl(var(--foreground)); background:hsl(var(--background)); }
-  @media (pointer:coarse) {
-    site-comments button, site-comments summary { min-height:2.75rem; }
-    site-comments .comment-item-actions button, site-comments .comment-menu summary { min-height:2.75rem; }
-  }
   site-comments dialog::backdrop { background:rgb(0 0 0 / .45); }
   site-comments .comment-dialog-actions { justify-content:flex-end; margin-top:1.25rem; }
 </style>

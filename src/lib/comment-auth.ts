@@ -10,30 +10,6 @@ type AuthErrorLike = { code?: string; status?: number; name?: string }
 export const COMMENT_AUTH_EVENT = 'comment-auth-change'
 export const COMMENT_PASSWORD_MIN_LENGTH = 8
 
-/** Keep visibility local to the active form and reset it when its mode/session changes. */
-export function bindPasswordVisibility(root: HTMLElement, language: CommentAuthLanguage, signal: AbortSignal): () => void {
-  const buttons = root.querySelectorAll<HTMLButtonElement>('[data-password-toggle]')
-  const update = (button: HTMLButtonElement, visible: boolean) => {
-    const name = button.dataset.passwordToggle
-    if (name !== 'password' && name !== 'repeat') return
-    const input = root.querySelector<HTMLInputElement>(`input[name="${name}"]`)
-    if (!input) return
-    input.type = visible ? 'text' : 'password'
-    button.setAttribute('aria-pressed', String(visible))
-    button.textContent = language === 'en' ? (visible ? 'Hide' : 'Show') : (visible ? '隐藏' : '显示')
-    button.setAttribute('aria-label', language === 'en'
-      ? `${visible ? 'Hide' : 'Show'} ${name === 'repeat' ? 'repeated password' : 'password'}`
-      : `${visible ? '隐藏' : '显示'}${name === 'repeat' ? '再次输入的密码' : '密码'}`)
-  }
-  const reset = () => buttons.forEach((button) => update(button, false))
-  buttons.forEach((button) => button.addEventListener('click', () => {
-    update(button, button.getAttribute('aria-pressed') !== 'true')
-  }, { signal }))
-  signal.addEventListener('abort', reset, { once: true })
-  reset()
-  return reset
-}
-
 let client: SupabaseClient | null = null
 let initialized = false
 let persistentSession = false

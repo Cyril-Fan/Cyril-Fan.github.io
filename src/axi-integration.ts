@@ -13,8 +13,6 @@ import { remarkAddZoomable, remarkReadingTime } from './plugins/remark-plugins'
 import { vitePluginUserConfig } from './plugins/virtual-user-config'
 import { UserConfigSchema, type UserInputConfig } from './types/user-config'
 import { parseWithFriendlyErrors } from './utils/error-map'
-import { generateBranding } from '../scripts/generate-branding.mjs'
-import { verifySiteOutput } from '../scripts/verify-site-output.mjs'
 
 export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegration {
   let integrations: AstroIntegration[] = []
@@ -24,7 +22,6 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
     name: 'astro-axi',
     hooks: {
       'astro:config:setup': async ({ config, updateConfig }) => {
-        await generateBranding()
         let userConfig = parseWithFriendlyErrors(
           UserConfigSchema,
           opts,
@@ -90,7 +87,6 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
       },
 
       'astro:build:done': async ({ dir }) => {
-        await verifySiteOutput(fileURLToPath(dir))
         if (!opts.integ.pagefind) return
         const targetDir = fileURLToPath(dir)
         try {

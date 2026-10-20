@@ -1,7 +1,6 @@
 import { getCommentClient, type CommentAuthChangeDetail } from './comment-auth'
 import { commentError, type CommentRow, type CommentMe } from './comment-utils'
 import { prepareCommentAvatar, commentAvatarUrl, captureAvatarAuthorization, saveCommentAvatar, removeCommentAvatar, commentAvatarMessage } from './comment-avatar'
-import { renderCommentMarkdown } from './comment-markdown'
 
 const guestIdentity = (): CommentMe => ({ nickname:null, can_post:false, is_admin:false, banned:false, moderation_enabled:false })
 
@@ -36,8 +35,6 @@ export class SiteComments extends HTMLElement {
   private signal() { return AbortSignal.any([this.lifetime!.signal, this.accountLifetime.signal, AbortSignal.timeout(20000)]) }
   private current(lifetime:AbortController|undefined, account:number) { return this.isConnected && this.lifetime===lifetime && this.accountVersion===account }
   private name() { return this.me.is_admin ? 'Cyril Fan' : this.me.nickname }
-  private displayName(name:string,isOwner=false) { return isOwner ? this.t('范星宇','Cyril Fan') : name }
-  private rowName(row:CommentRow) { return this.displayName(row.nickname,row.is_admin_author) }
   private get avatarOrigin() { return String(import.meta.env.PUBLIC_SUPABASE_URL??'').trim() }
   private canChangeAvatar() { return this.identityReady && this.me.can_post && !this.me.is_admin && !!this.me.nickname && !!this.me.avatar_key && !!this.accountId }
   private canRemoveAvatar() { return this.identityReady && !this.me.is_admin && (this.me.can_post || this.me.banned) && !!this.me.avatar_key && !!this.me.avatar_path && !!this.accountId }
@@ -86,9 +83,6 @@ export class SiteComments extends HTMLElement {
     },options)
     const textarea=this.el<HTMLTextAreaElement>('textarea')
     textarea.addEventListener('input',()=>{this.el('[data-counter]').textContent=`${textarea.value.length} / 2000`},options)
-    this.el('[data-markdown-write]').addEventListener('click',()=>this.setPreview(false,true),options)
-    this.el('[data-markdown-preview-toggle]').addEventListener('click',()=>this.setPreview(true,true),options)
-    textarea.addEventListener('invalid',()=>this.setPreview(false),options)
     textarea.addEventListener('keydown',event=>{
       if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
         event.preventDefault()
@@ -102,9 +96,9 @@ export class SiteComments extends HTMLElement {
       else {
         const lifetime=this.lifetime, account=this.accountVersion
         void this.client!.auth.getSession().then(({data,error})=>{
-          if(this.current(lifetime,account)) this.authChanged(error ? null : data.session?.user.id??null,!error)
+          if(this.current(lifetime,account)) this.authChanged(error ? null : data.session?.user.id??null)
         }).catch(()=>{
-          if(this.current(lifetime,account)) this.authChanged(null,false)
+          if(this.current(lifetime,account)) this.authChanged(null)
         })
       }
     },options)
@@ -134,8 +128,8 @@ export class SiteComments extends HTMLElement {
     this.el<HTMLDialogElement>('dialog')?.close()
   }
 
-  private authChanged(userId:string|null,confirmed=true) {
-    if(confirmed && userId===this.accountId) {
+  private authChanged(userId:string|null) {
+    if(userId===this.accountId) {
       // SDK SIGNED_IN can also mean a refocused tab; TOKEN_REFRESHED is not an account switch.
       if(!this.busy && !this.loading) void this.load(false,true)
       return
@@ -143,19 +137,10 @@ export class SiteComments extends HTMLElement {
     // A guest reply intent may follow the first sign-in, but never an existing
     // member switching accounts or signing out midway through that sign-in.
     if(this.loginReply) {
-      if(confirmed && this.accountId===null && userId && this.loginReply.accountId===null) this.loginReply.accountId=userId
+      if(this.accountId===null && userId && this.loginReply.accountId===null) this.loginReply.accountId=userId
       else this.loginReply=null
     }
-    if(confirmed) {
-      if(this.accountId) {
-        this.el<HTMLTextAreaElement>('textarea').value=''
-        this.el('[data-counter]').textContent='0 / 2000'
-      }
-      this.accountId=userId
-    }
-    // A failed session read is not proof of logout. Retain the last known
-    // account ID so a later confirmed switch still clears its private draft.
-    this.setPreview(false)
+    this.accountId=userId
     this.resetAvatarEditor()
     this.accountLifetime.abort(); this.accountLifetime=new AbortController(); this.accountVersion++
     this.busy=false; this.editingProfile=false; this.requestId=null; this.fingerprint=''
@@ -172,13 +157,13 @@ export class SiteComments extends HTMLElement {
     this.el<HTMLElement>('[data-compose]').hidden=!this.me.can_post
     this.el('[data-login-prompt]').hidden=!this.identityReady || this.me.can_post || this.me.banned
     this.el('[data-login-reply]').hidden=!this.loginReply
-    this.el('[data-login-reply-label]').textContent=this.loginReply ? this.t(`登录后回复 ${this.rowName(this.loginReply.row)}`,`Sign in to reply to ${this.rowName(this.loginReply.row)}`) : ''
+    this.el('[data-login-reply-label]').textContent=this.loginReply ? this.t(`登录后回复 ${this.loginReply.row.nickname}`,`Sign in to reply to ${this.loginReply.row.nickname}`) : ''
     const identity=this.el('[data-identity]')
     const identityHome=this.me.can_post ? this.el('[data-compose]') : this.el('[data-identity-home]')
     if(identity.parentElement!==identityHome) identityHome.prepend(identity)
     identity.hidden=!name && !this.me.banned
-    this.el('[data-identity-name]').textContent=name ? this.displayName(name,this.me.is_admin) : (this.me.banned ? this.t('当前账户','Current account') : '')
-    this.renderAvatar(this.el('[data-identity-avatar]'),name ? this.displayName(name,this.me.is_admin) : '',this.me.is_admin,this.me.avatar_path)
+    this.el('[data-identity-name]').textContent=name??(this.me.banned ? this.t('当前账户','Current account') : '')
+    this.renderAvatar(this.el('[data-identity-avatar]'),name??'',this.me.is_admin,this.me.avatar_path)
     this.el('[data-owner-badge]').hidden=!this.me.is_admin
     this.el('[data-restricted-badge]').hidden=!this.me.banned
     this.el('[data-profile-edit]').hidden=!this.me.can_post || this.me.is_admin || this.editingProfile
@@ -202,7 +187,6 @@ export class SiteComments extends HTMLElement {
     this.querySelectorAll<HTMLButtonElement>('[data-profile-edit], [data-profile-save], [data-profile-cancel]').forEach(button=>{button.disabled=this.busy})
     this.el<HTMLButtonElement>('[data-compose] [data-submit]').disabled=this.busy || !this.me.can_post || this.replyUnavailable || (this.editingProfile && !!name)
     this.el<HTMLTextAreaElement>('textarea').disabled=this.busy
-    this.querySelectorAll<HTMLButtonElement>('[data-markdown-write], [data-markdown-preview-toggle]').forEach(button=>{button.disabled=this.busy})
     this.el('[data-admin]').hidden=!this.me.is_admin
     this.el<HTMLInputElement>('[data-moderation]').checked=this.me.moderation_enabled
     this.el<HTMLInputElement>('[data-moderation]').disabled=this.busy
@@ -320,25 +304,20 @@ export class SiteComments extends HTMLElement {
     for(const row of this.rows) {
       const item=this.node('li',undefined,`comment-item${row.parent_id ? ' comment-item-reply' : ''}`); item.id=`comment-${row.id}`
       const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
-      const displayName=this.rowName(row)
-      this.renderAvatar(avatar,displayName,row.is_admin_author,row.avatar_path)
-      const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',displayName))
+      this.renderAvatar(avatar,row.nickname,row.is_admin_author,row.avatar_path)
+      const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',row.nickname))
       if(row.is_admin_author) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
       if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
       const time=this.node('time',new Intl.DateTimeFormat(this.en?'en':'zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(new Date(row.created_at)))
       time.dateTime=row.created_at; header.append(time); item.append(header)
       if(row.parent_id) {
         const context=this.node('p',undefined,'comment-context')
-        const loadedParent=this.rows.find(parent=>parent.id===row.parent_id)
-        const label=`${this.t('回复','Reply to')} ${row.parent_deleted ? this.t('已删除的留言','a deleted comment') : loadedParent ? this.rowName(loadedParent) : row.parent_nickname??this.t('留言','a comment')}`
+        const label=`${this.t('回复','Reply to')} ${row.parent_deleted ? this.t('已删除的留言','a deleted comment') : row.parent_nickname??this.t('留言','a comment')}`
         if(loadedIds.has(row.parent_id)) {const link=this.node('a',label); link.href=`#comment-${row.parent_id}`; context.append(link)}
         else context.textContent=label
         item.append(context)
       }
-      const body=this.node('div',undefined,'comment-body comment-markdown')
-      if(row.deleted) body.textContent=this.t('此评论已删除','This comment has been deleted.')
-      else renderCommentMarkdown(body,row.body,this.en,row.id)
-      item.append(body)
+      item.append(this.node('p',row.deleted ? this.t('此评论已删除','This comment has been deleted.') : row.body,'comment-body'))
       const actions=this.node('div',undefined,'comment-item-actions')
       const action=(container:HTMLElement,label:string,run:()=>void)=>{
         const button=this.node('button',label); button.type='button'; button.disabled=this.busy
@@ -356,7 +335,7 @@ export class SiteComments extends HTMLElement {
       if(this.me.is_admin && row.is_pending) action(actions,this.t('审核通过','Approve'),()=>void this.mutate('comment_review',{p_id:row.id,p_approve:true}))
       if((!row.deleted && row.can_delete) || this.me.is_admin) {
         const menu=this.node('details',undefined,'comment-menu')
-        const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t(`${displayName} 的留言：更多操作`,`More actions for ${displayName}’s comment`))
+        const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t(`${row.nickname} 的留言：更多操作`,`More actions for ${row.nickname}’s comment`))
         summary.addEventListener('click',event=>{if(this.busy) event.preventDefault()},{signal:this.lifetime!.signal})
         menu.append(summary)
         const choices=this.node('div',undefined,'comment-menu-choices')
@@ -385,7 +364,7 @@ export class SiteComments extends HTMLElement {
     ;(parentItem??this.el('[data-compose-home]')).append(compose)
     compose.classList.toggle('comment-compose-reply',!!parentItem)
     this.el('[data-reply]').hidden=!this.parent
-    this.el('[data-reply] span').textContent=this.replyUnavailable ? this.t('原留言已无法回复。草稿已保留，可取消回复后发布新留言。','This comment is no longer available for replies. Your draft is kept; cancel the reply to post a new comment.') : this.parent ? `${this.t('正在回复','Replying to')} ${this.rowName(this.parent)}` : ''
+    this.el('[data-reply] span').textContent=this.replyUnavailable ? this.t('原留言已无法回复。草稿已保留，可取消回复后发布新留言。','This comment is no longer available for replies. Your draft is kept; cancel the reply to post a new comment.') : this.parent ? `${this.t('正在回复','Replying to')} ${this.parent.nickname}` : ''
     this.el('[data-reply-excerpt]').textContent=this.parent ? this.parent.body.slice(0,120) : ''
     this.el<HTMLButtonElement>('[data-compose] [data-submit]').textContent=this.parent ? this.t('发布回复','Post reply') : this.t('发布留言','Post comment')
   }
@@ -393,23 +372,9 @@ export class SiteComments extends HTMLElement {
     if(row && (this.busy || !this.me.can_post || row.deleted)) return
     this.parent=row; this.replyUnavailable=false; this.placeComposer(); this.updateControls()
     if(focus) {
-      this.setPreview(false)
       this.el('[data-compose]').scrollIntoView?.({block:'nearest'})
       this.el<HTMLTextAreaElement>('textarea').focus({preventScroll:true})
     }
-  }
-  private setPreview(preview:boolean,focus=false) {
-    this.el('[data-comment-input]').hidden=preview
-    const output=this.el('[data-markdown-preview]')
-    output.hidden=!preview
-    this.el('[data-markdown-write]').setAttribute('aria-pressed',String(!preview))
-    this.el('[data-markdown-preview-toggle]').setAttribute('aria-pressed',String(preview))
-    if(preview) {
-      const body=this.el<HTMLTextAreaElement>('textarea').value
-      if(body.trim()) renderCommentMarkdown(output,body,this.en,'preview')
-      else output.textContent=this.t('写点内容，就能在这里预览排版。','Write something to preview its formatting here.')
-    } else output.replaceChildren()
-    if(focus) (preview ? output : this.el<HTMLTextAreaElement>('textarea')).focus({preventScroll:true})
   }
   private editProfile(editing:boolean) {
     if(this.busy || this.me.is_admin || !this.me.can_post) return
@@ -544,7 +509,6 @@ export class SiteComments extends HTMLElement {
       if(!this.current(lifetime,account)) return
       if(error) throw error
       this.el<HTMLTextAreaElement>('textarea').value=''; this.el('[data-counter]').textContent='0 / 2000'
-      this.setPreview(false)
       this.requestId=null; this.setReply(null)
       const loaded=await this.load(false,true)
       if(!this.current(lifetime,account)) return

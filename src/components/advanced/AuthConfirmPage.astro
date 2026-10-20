@@ -1,7 +1,6 @@
 ---
 import '@/assets/styles/app.css'
 import ThemeProvider from '@/components/basic/ThemeProvider.astro'
-import SiteIcons from '@/components/SiteIcons.astro'
 
 interface Props { lang?: 'zh' | 'en' }
 const { lang = 'zh' } = Astro.props
@@ -13,17 +12,16 @@ const title = en ? 'Confirm your account' : '确认账户操作'
 <html lang={lang}>
   <head>
     <meta charset='utf-8' />
-    <meta http-equiv='Content-Security-Policy' content="object-src 'none'; base-uri 'self'; form-action 'self'" />
     <meta name='referrer' content='no-referrer' />
     <meta name='robots' content='noindex, nofollow' />
     <meta name='viewport' content='width=device-width, initial-scale=1' />
-    <title>Confirm Account · {en ? 'Cyril Fan' : '范星宇'}</title>
-    <SiteIcons />
+    <title>{title} · Cyril Fan</title>
+    <link rel='icon' type='image/svg+xml' href='/favicon.svg' />
     <ThemeProvider />
   </head>
   <body class='bg-background text-foreground' data-pagefind-ignore='all'>
     <main class='mx-auto max-w-xl px-5 py-12 sm:py-20'>
-      <a href={en ? '/en' : '/'} class='text-sm underline underline-offset-4'>{en ? 'Cyril Fan' : '范星宇'}</a>
+      <a href={en ? '/en' : '/'} class='text-sm underline underline-offset-4'>Cyril Fan</a>
       <h1 class='mb-4 mt-8 text-2xl font-medium'>{title}</h1>
       <auth-confirm data-lang={lang} class='block rounded-xl border border-border p-5'>
         <p data-intro class='text-sm leading-relaxed text-muted-foreground'>
@@ -33,18 +31,12 @@ const title = en ? 'Confirm your account' : '确认账户操作'
         <form method='post' data-recovery-form hidden class='mt-5 grid gap-4'>
           <div>
             <label for='recovery-password' class='mb-1 block text-sm font-medium'>{en ? 'New password' : '新密码'}</label>
-            <div class='confirm-password-control'>
-              <input id='recovery-password' name='password' type='password' required minlength='8' autocomplete='new-password' autocapitalize='none' spellcheck='false' aria-describedby='recovery-password-hint' class='confirm-input' />
-              <button type='button' data-password-toggle='password' aria-controls='recovery-password' aria-pressed='false' class='confirm-password-toggle'>{en ? 'Show' : '显示'}</button>
-            </div>
+            <input id='recovery-password' name='password' type='password' required minlength='8' autocomplete='new-password' aria-describedby='recovery-password-hint' class='confirm-input' />
             <p id='recovery-password-hint' class='mt-1 text-xs text-muted-foreground'>{en ? 'At least 8 characters. You may paste a password or use a password manager.' : '至少 8 个字符，可粘贴或使用密码管理器。'}</p>
           </div>
           <div>
             <label for='recovery-password-repeat' class='mb-1 block text-sm font-medium'>{en ? 'Repeat new password' : '再次输入新密码'}</label>
-            <div class='confirm-password-control'>
-              <input id='recovery-password-repeat' name='repeat' type='password' required minlength='8' autocomplete='new-password' autocapitalize='none' spellcheck='false' class='confirm-input' />
-              <button type='button' data-password-toggle='repeat' aria-controls='recovery-password-repeat' aria-pressed='false' class='confirm-password-toggle'>{en ? 'Show' : '显示'}</button>
-            </div>
+            <input id='recovery-password-repeat' name='repeat' type='password' required minlength='8' autocomplete='new-password' class='confirm-input' />
           </div>
           <p class='text-sm text-muted-foreground'>{en ? 'After saving, you will be signed out of your comment sessions and asked to sign in with your new password.' : '保存后会退出评论登录会话，请使用新密码重新登录。'}</p>
           <button type='submit' class='confirm-primary justify-self-start'>{en ? 'Save new password and sign out' : '保存新密码并退出'}</button>
@@ -63,7 +55,6 @@ const title = en ? 'Confirm your account' : '确认账户操作'
   import type { SupabaseClient } from '@supabase/supabase-js'
   import {
     authMessage,
-    bindPasswordVisibility,
     clearAuthUrl,
     createCommentRecoveryClient,
     emitCommentAuthChange,
@@ -94,7 +85,6 @@ const title = en ? 'Confirm your account' : '确认账户操作'
       if (this.controller) return
       this.controller = new AbortController()
       const { signal } = this.controller
-      bindPasswordVisibility(this, this.language, signal)
       this.confirmation = parseEmailConfirmation(window.location.href)
       this.field<HTMLButtonElement>('[data-confirm]').addEventListener('click', this.confirm, { signal })
       this.field<HTMLFormElement>('[data-recovery-form]').addEventListener('submit', this.updatePassword, { signal })
@@ -310,9 +300,7 @@ const title = en ? 'Confirm your account' : '确认账户操作'
 </script>
 
 <style>
-  .confirm-input { width: 100%; min-width:0; font-size:1rem; border: 1px solid hsl(var(--border)); border-radius: 0.5rem; background: hsl(var(--background)); padding: 0.55rem 0.75rem; }
-  .confirm-password-control { display:flex; align-items:stretch; gap:.5rem; }
-  .confirm-password-toggle { flex-shrink:0; min-width:3rem; min-height:2.75rem; padding:.4rem .5rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font-size:.875rem; }
+  .confirm-input { width: 100%; border: 1px solid hsl(var(--border)); border-radius: 0.5rem; background: hsl(var(--background)); padding: 0.55rem 0.75rem; }
   .confirm-primary { min-height: 2.75rem; border-radius: 0.5rem; background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0.6rem 1rem; font-size: 0.875rem; }
   button:disabled { cursor: wait; opacity: 0.6; }
   input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }

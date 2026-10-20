@@ -38,6 +38,9 @@ html.dark {
     animation: none !important;
     transform: none !important;
   }
+  .click-particle {
+    display: none !important;
+  }
 }
 #content-header {
   animation-delay: 50ms;

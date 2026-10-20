@@ -15,16 +15,19 @@ export const getStaticPaths = (async ({ paginate }) => {
     'tech': '技术',
     'daily': '日常',
     'research': '科研',
+    'journal': '月记',
     'technical': '技术',
     'life': '日常',
+    'month-journal': '月记',
     'all': '全部文章'
   }
   const aliases: Record<string, string> = {
     technical: 'tech',
-    life: 'daily'
+    life: 'daily',
+    'month-journal': 'journal'
   }
-  const normalizeCategory = (category: string) => category === 'journal' || category === 'month-journal' ? 'daily' : (aliases[category] || category)
-  const categoryOrder = ['research', 'tech', 'daily', 'all']
+  const normalizeCategory = (category: string) => aliases[category] || category
+  const categoryOrder = ['research', 'tech', 'daily', 'journal', 'all']
   const allCollections = await getBlogCollection()
   const allUniqueCategories = getUniqueCategories(allCollections).map(normalizeCategory)
   const navigationCategories = [...new Set([...categoryOrder, ...allUniqueCategories])]

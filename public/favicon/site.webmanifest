@@ -1,27 +1,14 @@
 {
-  "id": "/",
-  "name": "范星宇 · Cyril Fan",
+  "name": "Cyril Fan",
   "short_name": "Cyril Fan",
   "icons": [
-    {
-      "src": "/favicon/9f40ebae58fd/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/favicon/9f40ebae58fd/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/favicon/9f40ebae58fd/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    { "src": "/favicon.svg?v=star-orbit-1", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "start_url": "/",
-  "display": "browser"
+  "theme_color": "#101927",
+  "background_color": "#101927",
+  "display": "standalone"
 }

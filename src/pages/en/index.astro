@@ -10,13 +10,13 @@ import config from '@/site-config'
 ---
 
 <PageLayout meta={{ title: 'Home' }} highlightColor='#659EB966'>
-  <main class='home-layout flex w-full flex-col items-center'>
-    <section class='home-profile animate mb-10 flex flex-col items-center gap-y-7' id='content-header'>
-      <div class='profile-heading flex flex-row items-center gap-x-6'>
+  <main class='flex w-full flex-col items-center'>
+    <section class='animate mb-10 flex flex-col items-center gap-y-7' id='content-header'>
+      <div class='flex flex-row items-center gap-x-6'>
         <Image
           src={avatar}
           alt='Cyril Fan’s avatar'
-          class='profile-avatar h-28 w-auto shrink-0 rounded-lg border p-1 sm:h-36'
+          class='h-28 w-auto rounded-lg border p-1 sm:h-36'
           loading='eager'
         />
         <div class='flex min-w-0 flex-col gap-y-4'>
@@ -48,17 +48,17 @@ import config from '@/site-config'
       </div>
     </section>
 
-    <div id='content' class='home-content animate flex w-full min-w-0 flex-col gap-y-10'>
-      <Section title='About' class='home-section'>
+    <div id='content' class='animate flex w-full flex-col gap-y-10 md:w-4/5 lg:w-5/6'>
+      <Section title='About'>
         <p class='text-muted-foreground'>
-          Hello, I’m Cyril Fan, a Software Engineering undergraduate at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents. This is where I share learning notes, technical projects, and everyday reflections.
+          Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents, and enjoy exploring AI through research and hands-on projects.
         </p>
         <Button title='More about me' class='w-fit self-end' href='/en/about' style='ahead' />
       </Section>
-      <Section title='Education' class='home-section'>
-        <Card as='a' href='https://www.jlu.edu.cn/' heading='Jilin University · JLU' subheading='Software Engineering' date='Aug 2024 - Present' />
+      <Section title='Education'>
+        <Card heading='Jilin University' subheading='Software Engineering · Undergraduate' />
       </Section>
-      <Section title='Statistics' class='home-section'>
+      <Section title='Statistics'>
         <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />
       </Section>
       {config.personal?.githubUsername && (
@@ -67,18 +67,3 @@ import config from '@/site-config'
     </div>
   </main>
 </PageLayout>
-
-<style>
-  @media (min-width: 1024px) {
-    .home-layout {
-      display: grid;
-      grid-template-columns: 15rem minmax(0, 1fr);
-      align-items: start;
-      gap: 3rem;
-    }
-    .home-profile { position: sticky; top: 7rem; margin-bottom: 0; align-items: flex-start; }
-    .profile-heading { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
-    .profile-avatar { width: 11rem; height: 11rem; object-fit: cover; }
-    .home-content :global(.home-section) { flex-direction: column; gap: 1rem; }
-  }
-</style>

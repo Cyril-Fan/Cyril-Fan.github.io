@@ -34,14 +34,11 @@ const en = lang === 'en'
       <fieldset class='grid gap-3' disabled>
         <div>
           <label for={`${id}-email`} class='mb-1 block text-sm font-medium'>{en ? 'Email (private)' : '邮箱（不公开）'}</label>
-          <input id={`${id}-email`} name='email' type='email' autocomplete='email' inputmode='email' autocapitalize='none' spellcheck='false' required maxlength='254' class='auth-input' />
+          <input id={`${id}-email`} name='email' type='email' autocomplete='email' inputmode='email' required maxlength='254' class='auth-input' />
         </div>
         <div data-password-row>
           <label for={`${id}-password`} class='mb-1 block text-sm font-medium'>{en ? 'Password' : '密码'}</label>
-          <div class='auth-password-control'>
-            <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' autocapitalize='none' spellcheck='false' required aria-describedby={`${id}-password-hint`} class='auth-input' />
-            <button type='button' data-password-toggle='password' aria-controls={`${id}-password`} aria-pressed='false' class='auth-password-toggle'>{en ? 'Show' : '显示'}</button>
-          </div>
+          <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' required aria-describedby={`${id}-password-hint`} class='auth-input' />
           <p id={`${id}-password-hint`} data-password-hint hidden class='mt-1 text-xs text-muted-foreground'>
             {en ? 'Use at least 8 characters. Pasting and password managers are supported.' : '新密码至少 8 个字符，可粘贴或使用密码管理器。'}
           </p>
@@ -63,7 +60,6 @@ const en = lang === 'en'
     COMMENT_AUTH_EVENT,
     COMMENT_PASSWORD_MIN_LENGTH,
     authMessage,
-    bindPasswordVisibility,
     emitCommentAuthChange,
     getAuthRedirectUrl,
     getCommentAuthStatus,
@@ -83,13 +79,11 @@ const en = lang === 'en'
     private stateVersion = 0
     private mailCooldownUntil = 0
     private guestExpanded = false
-    private hidePasswords?: () => void
 
     connectedCallback() {
       if (this.controller) return
       this.controller = new AbortController()
       const { signal } = this.controller
-      this.hidePasswords = bindPasswordVisibility(this, this.language, signal)
       this.querySelector<HTMLFormElement>('[data-auth-form]')?.addEventListener('submit', this.submit, { signal })
       this.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', this.signOut, { signal })
       this.addEventListener('comment-auth-open', () => {
@@ -107,7 +101,6 @@ const en = lang === 'en'
         this.field<HTMLElement>('[data-guest]').hidden = true
         this.field<HTMLElement>('[data-account]').hidden = true
         this.field<HTMLInputElement>('[name=password]').value = ''
-        this.hidePasswords?.()
         this.closest('site-comments')?.querySelector<HTMLButtonElement>('[data-sign-in]')?.focus()
       }, { signal })
       this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
@@ -146,7 +139,6 @@ const en = lang === 'en'
     private setMode(mode: Mode) {
       if (this.busy) return
       this.mode = mode
-      this.hidePasswords?.()
       const password = this.field<HTMLInputElement>('[name=password]')
       const needsPassword = mode === 'login' || mode === 'signup'
       this.field<HTMLElement>('[data-password-row]').hidden = !needsPassword
@@ -186,7 +178,6 @@ const en = lang === 'en'
         if (!this.isConnected || version !== this.stateVersion) return
         if (error) throw error
         const user = session?.user
-        if (user) this.hidePasswords?.()
         this.field<HTMLElement>('[data-member]').hidden = !user
         this.field<HTMLElement>('[data-guest]').hidden = Boolean(user) || !this.guestExpanded
         this.field<HTMLElement>('[data-account]').hidden = !user && !this.guestExpanded
@@ -281,7 +272,7 @@ const en = lang === 'en'
         const { error } = await client.auth.signOut({ scope: 'local' })
         if (!this.isConnected || connection !== this.controller) return
         if (error) throw error
-        this.message(this.say('已退出当前设备，并清除本页的留言草稿。', 'Signed out on this device. This page’s comment draft has been cleared.'))
+        this.message(this.say('已退出当前设备。评论草稿已保留。', 'Signed out on this device. Your comment draft is preserved.'))
         emitCommentAuthChange(null)
       } catch (error) {
         if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)
@@ -299,14 +290,12 @@ const en = lang === 'en'
 
 <style>
   .auth-session-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
-  .auth-session-row [data-account] { margin:.5rem 0; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  .auth-session-row [data-account] { margin:.5rem 0; }
   .auth-session-row [data-signout] { min-height:2rem; padding:.25rem .5rem; border-color:transparent; color:hsl(var(--muted-foreground)); }
   .auth-guest-panel { border:1px solid hsl(var(--border)); border-radius:.75rem; padding:0 1rem 1rem; margin:.5rem 0 1rem; }
   [data-message]:empty { display:none; }
   .auth-input {
     width: 100%;
-    min-width: 0;
-    font-size: 1rem;
     border: 1px solid hsl(var(--border));
     border-radius: 0.5rem;
     background: hsl(var(--background));
@@ -314,7 +303,7 @@ const en = lang === 'en'
     color: hsl(var(--foreground));
   }
   .auth-action, .auth-primary {
-    min-height: 2.75rem;
+    min-height: 2.5rem;
     border: 1px solid hsl(var(--border));
     border-radius: 0.5rem;
     padding: 0.45rem 0.85rem;
@@ -322,9 +311,6 @@ const en = lang === 'en'
   }
   .auth-action[aria-pressed='true'] { border-color: hsl(var(--foreground)); }
   .auth-primary { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-  .auth-password-control { display:flex; align-items:stretch; gap:.5rem; margin-top:.4rem; }
-  :global(site-comments .auth-password-control input) { margin-top:0; }
-  .auth-password-toggle { flex-shrink:0; min-width:3rem; min-height:2.75rem; padding:.4rem .5rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font-size:.875rem; }
   button:disabled { cursor: wait; opacity: 0.6; }
   input:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
   [hidden] { display: none !important; }

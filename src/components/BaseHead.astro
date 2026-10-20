@@ -4,32 +4,28 @@
 import { prod } from '@/utils/server'
 import type { SiteMeta } from '@/types'
 import config from '@/site-config'
-import SiteIcons from './SiteIcons.astro'
-import { pageTitle } from '../lib/page-title.mjs'
 
 type Props = SiteMeta
 
 const { articleDate, description, ogImage, title } = Astro.props
 
-const english = Astro.currentLocale === 'en'
-const author = english ? (config.author_en || config.author) : config.author
-const brand = english ? (config.author_en || config.title) : config.title
-const siteTitle = `${pageTitle(Astro.url.pathname, title, !!articleDate)} ${config.titleDelimiter} ${brand}`
-const isNotFound = /^\/(?:en\/)?404(?:\.html)?\/?$/.test(Astro.url.pathname)
-const canonicalURL = new URL(isNotFound ? '/404.html' : Astro.url.pathname, Astro.site)
+const siteTitle = `${title} ${config.titleDelimiter} ${config.title}`
+const canonicalURL = new URL(Astro.url.pathname, Astro.site)
 const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.site).href
 ---
 
 <meta charset='utf-8' />
-<meta http-equiv='Content-Security-Policy' content="object-src 'none'; base-uri 'self'; form-action 'self'" />
-<meta name='referrer' content='strict-origin-when-cross-origin' />
 <meta content='width=device-width, initial-scale=1.0, shrink-to-fit=no' name='viewport' />
 <meta content='IE=edge' http-equiv='X-UA-Compatible' />
 <title>{siteTitle}</title>
-{isNotFound && <meta name='robots' content='noindex, follow' />}
 
 {/* Icons / Favicon */}
-<SiteIcons />
+<link rel='apple-touch-icon' sizes='180x180' href='/favicon/apple-touch-icon.png' />
+<link rel='icon' type='image/svg+xml' href='/favicon.svg?v=star-orbit-1' />
+<link rel='icon' type='image/png' sizes='32x32' href='/favicon/icon-32.png' />
+<link rel='icon' type='image/png' sizes='16x16' href='/favicon/icon-16.png' />
+<link rel='shortcut icon' href='/favicon.ico?v=star-orbit-1' />
+<link rel='manifest' href='/favicon/site.webmanifest' />
 
 {/* Font preloads */}
 <link rel='preload' href='/fonts/Satoshi-Variable.ttf' as='font' type='font/ttf' crossorigin />
@@ -47,7 +43,7 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 {/* Primary Meta Tags */}
 <meta content={siteTitle} name='title' />
 <meta content={description} name='description' />
-<meta content={author} name='author' />
+<meta content={config.author} name='author' />
 
 {/* Theme Color */}
 <meta content='' name='theme-color' />
@@ -57,13 +53,13 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 <meta content={title} property='og:title' />
 <meta content={description} property='og:description' />
 <meta content={canonicalURL} property='og:url' />
-<meta content={brand} property='og:site_name' />
+<meta content={config.title} property='og:site_name' />
 <meta content={Astro.currentLocale === 'en' ? 'en_US' : 'zh_CN'} property='og:locale' />
 <meta content={socialImageURL} property='og:image' />
 {
   articleDate && (
     <>
-      <meta content={author} property='article:author' />
+      <meta content={config.author} property='article:author' />
       <meta content={articleDate} property='article:published_time' />
     </>
   )
@@ -83,7 +79,7 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 <link
   rel='alternate'
   type='application/rss+xml'
-  title={brand}
+  title={config.title}
   href={`${Astro.site}rss.xml`}
 />
 

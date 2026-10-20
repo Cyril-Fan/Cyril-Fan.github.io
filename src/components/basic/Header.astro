@@ -4,11 +4,11 @@ import { Icon } from '@/components/user'
 import LanguageSwitch from '@/components/user/LanguageSwitch.astro'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 const english = Astro.currentLocale === 'en'
-const brandTitle = english ? (config.author_en || config.title) : (config.header?.title || config.title)
+const brandTitle = config.header?.title || config.title
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/'
 const menuTitles: Record<string, string> = {
   '/blog/all': english ? 'Blog' : '博客',
-  '/academic': english ? 'Academic' : '学术',
+  '/academic': english ? 'Research' : '研究',
   '/links': english ? 'Links' : '友链',
   '/about': english ? 'About' : '关于'
 }
@@ -18,11 +18,12 @@ const categoryMap: Record<string, string> = {
   'all': english ? 'All posts' : '全部文章',
   'tech': english ? 'Technical' : '技术',
   'daily': english ? 'Daily Life' : '日常',
-  'research': english ? 'Research' : '科研'
+  'research': english ? 'Research' : '科研',
+  'journal': english ? 'Month Journal' : '月记'
 }
 
 // Define custom order (Research first)
-const categoryOrder = ['all', 'research', 'tech', 'daily']
+const categoryOrder = ['all', 'research', 'tech', 'daily', 'journal']
 
 // Filter and map categories with custom order
 const categories = categoryOrder
@@ -89,7 +90,6 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
                     <div class='py-1'>
                       {categories.map((category) => (
                         <a
-                          data-all-posts={category.slug === 'all' ? '' : undefined}
                           href={getLocalizedUrl(Astro.currentLocale, `/blog/${category.slug}`)}
                           aria-current={getAriaCurrent(`/blog/${category.slug}`)}
                           class='category-link block px-4 py-2 text-sm transition-colors hover:bg-background/60 hover:text-primary dark:hover:bg-muted/60'
@@ -301,7 +301,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
  
 
   /* header menu */
-  @media (max-width: 767px) {
+  @media (max-width: 768px) {
     #headerExpandConetent {
       grid-template-rows: 0fr;
       transition:
@@ -368,11 +368,6 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   }
 
   /* Dropdown menu styles */
-  .category-link[data-all-posts] {
-    border-bottom: 1px dashed hsl(var(--border));
-    margin-bottom: .25rem;
-    padding-bottom: .65rem;
-  }
   .menu-item-with-dropdown {
     position: relative !important;
   }
@@ -411,7 +406,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   }
 
   /* Mobile dropdown adjustments */
-  @media (max-width: 767px) {
+  @media (max-width: 768px) {
     .menu-item-with-dropdown {
       display: flex;
       flex-direction: column;

@@ -6,17 +6,22 @@ import Comment from '@/components/advanced/Comment.astro'
 
 const headings = [
   { depth: 2, slug: 'about-me', text: '关于我' },
-  { depth: 2, slug: 'on-this-site', text: '在这里' },
+  { depth: 2, slug: 'interests', text: '研究兴趣' },
   { depth: 2, slug: 'contact', text: '联系我' }
 ]
 ---
 
 <PageLayout title='关于' {headings}>
   <h2 id='about-me'>关于我<a class='anchor' href='#about-me'>#</a></h2>
-  <p>你好，我是范星宇，正在吉林大学学习软件工程。我喜欢通过研究和动手实践探索人工智能，也在这里记录学习过程。</p>
+  <p>你好，我是 Cyril Fan，吉林大学软件工程本科生。欢迎来到我的个人网站。</p>
+  <p>我喜欢通过研究和动手实践探索人工智能，也在这里记录学习与思考。</p>
 
-  <h2 id='on-this-site'>在这里<a class='anchor' href='#on-this-site'>#</a></h2>
-  <p>博客收录学习笔记、技术实践和生活记录；学术页整理研究兴趣与后续可公开的工作。文章会随学习过程持续修订，欢迎指出疏漏或在下方留言交流。</p>
+  <h2 id='interests'>研究兴趣<a class='anchor' href='#interests'>#</a></h2>
+  <ul>
+    <li>深度学习（Deep Learning）</li>
+    <li>多模态大语言模型（Multimodal Large Language Models）</li>
+    <li>AI 智能体（AI Agents）</li>
+  </ul>
   <Button title='查看学术主页' class='w-fit' href='/academic' style='ahead' />
 
   <h2 id='contact'>联系我<a class='anchor' href='#contact'>#</a></h2>

@@ -5,7 +5,6 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { parse } from 'node-html-parser'
-import { JSDOM } from 'jsdom'
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sourcePath = path.join(project, 'src/lib/comment-auth.ts')
@@ -144,38 +143,6 @@ test('missing or privileged public configuration stays disabled without creating
     assert.equal(instance.api.createCommentRecoveryClient(), null)
     assert.equal(instance.api.getCommentAuthStatus().configured, false)
     assert.equal(instance.calls.length, 0)
-  }
-})
-
-test('password visibility is scoped to each form, keeps input intact, and resets on abort', () => {
-  const instance = runtime()
-  const dom = new JSDOM(`<form><input name="password" type="password" value="local-only-fixture">
-    <button type="button" data-password-toggle="password">显示</button>
-    <input name="repeat" type="password" value="local-only-fixture">
-    <button type="button" data-password-toggle="repeat">显示</button></form>`)
-  try {
-    const root = dom.window.document.querySelector('form')
-    const controller = new dom.window.AbortController()
-    const reset = instance.api.bindPasswordVisibility(root, 'zh', controller.signal)
-    const password = root.querySelector('[name=password]')
-    const repeat = root.querySelector('[name=repeat]')
-    const button = root.querySelector('[data-password-toggle=password]')
-    button.click()
-    assert.equal(password.type, 'text')
-    assert.equal(repeat.type, 'password')
-    assert.equal(button.textContent, '隐藏')
-    assert.equal(button.getAttribute('aria-pressed'), 'true')
-    assert.equal(password.value, 'local-only-fixture')
-    reset()
-    assert.equal(password.type, 'password')
-    assert.equal(button.getAttribute('aria-label'), '显示密码')
-    button.click()
-    controller.abort()
-    assert.equal(password.type, 'password')
-    button.click()
-    assert.equal(password.type, 'password', 'disconnected forms have no active visibility handler')
-  } finally {
-    dom.window.close()
   }
 })
 
