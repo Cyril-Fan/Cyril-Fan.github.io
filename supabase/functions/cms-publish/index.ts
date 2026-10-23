@@ -27,8 +27,11 @@ Deno.serve(async (request: Request) => {
   const fetchBounded=(url: string,init: RequestInit={})=>fetch(url,{...init,redirect:'error',signal:AbortSignal.timeout(20000)})
   const rpc=async(name: string,args: unknown,service=false)=>{
     const res=await fetchBounded(`${endpoint}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:service?serviceKey:anon,Authorization:service?`Bearer ${serviceKey}`:authorization,'Content-Type':'application/json'},body:JSON.stringify(args)})
-    const data=await res.json()
-    if(!res.ok) throw new Error(['cms_publish_busy','cms_lease_lost'].includes(data.message)?'另一项发布操作仍在执行，请稍后刷新。':'后台操作未完成，请刷新后重试。')
+    // PostgREST returns HTTP 204 with an empty body for SQL RETURNS void.
+    // The database write has succeeded; parsing that response as JSON would
+    // incorrectly turn a completed publish into a client-visible failure.
+    const body=await res.text(),data=body?JSON.parse(body):null
+    if(!res.ok) throw new Error(['cms_publish_busy','cms_lease_lost'].includes(data?.message)?'另一项发布操作仍在执行，请稍后刷新。':'后台操作未完成，请刷新后重试。')
     return data
   }
   let job: Job | undefined

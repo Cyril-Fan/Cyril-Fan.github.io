@@ -27,11 +27,11 @@ function setup(t,{owner=true,token=true,conflict=false,uncertain=false,external=
       if(name==='comment_me')return reply({is_admin:owner})
       if(name==='cms_jobs')return reply([job])
       if(name==='cms_service_claim'){if(['queued','failed'].includes(job.state)){job.state='publishing';job.lease=randomUUID()}return reply(job)}
-      if(name==='cms_service_stage'){Object.assign(job.blobs,body.p_blobs);job.state='queued';job.lease=null;return reply(null)}
-      if(name==='cms_service_redeploy'){job.commit_sha=body.p_sha;return reply(null)}
+      if(name==='cms_service_stage'){Object.assign(job.blobs,body.p_blobs);job.state='queued';job.lease=null;return new Response(null,{status:204})}
+      if(name==='cms_service_redeploy'){job.commit_sha=body.p_sha;return new Response(null,{status:204})}
       if(name==='cms_service_finish'){
         if(uncertain&&!failedFinalization&&body.p_state==='committed'){failedFinalization=true;return reply({message:'database unavailable'},503)}
-        job.state=body.p_state;job.commit_sha=body.p_sha;return reply(null)
+        job.state=body.p_state;job.commit_sha=body.p_sha;return new Response(null,{status:204})
       }
       throw Error(`Unexpected RPC ${name}`)
     }
