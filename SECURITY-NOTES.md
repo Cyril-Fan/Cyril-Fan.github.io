@@ -36,7 +36,7 @@
 - 在现有 Edge 会话中打开 `/links/leonwater.webp`，普通重新加载实际请求 `/favicon.ico`，收到 HTTP 200、`image/vnd.microsoft.icon`，资源为当前透明星形图。中文与英文首页的声明一致，但 HTML 页面声明、原图页默认图标、浏览器历史图标是不同的查找和缓存路径。
 - 加入 96px PNG、显式预合成 Apple Touch 声明及新的资源版本；生成器同步全部历史图标目录，防止旧书签/HTML 再请求旧路径时得到旧图。全站布局、主题和账号数据不变。
 - 页面加载后，每个品牌版本只在后台重新验证一次根目录 ICO、Apple Touch、预合成 Touch 文件的 **HTTP 缓存**；失败不会标为成功，不反复刷新页面，也不清除用户的浏览记录、登录状态或数据。
-- 这不能直接重写浏览器私有 favicon/history 数据库。Safari 原生标签页/历史列表需要 iPhone 真机复验；桌面浏览器手机尺寸测试不等于 Safari 验收。[WebKit 图标缓存问题](https://bugs.webkit.org/show_bug.cgi?id=266426)、[Microsoft 对精确 URL 与主机图标缓存的说明](https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/security/site-icons-change-new-tab-page)
+- 这不能直接重写浏览器私有 favicon/history 数据库。用户 iPhone 真机复验：Safari 普通首页及刷新后仍为旧图，`/?icon-check=d6fa057671e0` 为新图；此前未访问本站的手机浏览器均为新图。结合已核验的线上资源，现有证据强烈指向旧浏览器按网址保留的图标记录；Safari 普通首页的原生显示仍未通过，不能表述为已完全修复。参数地址仅为诊断入口，不加入自动跳转，也不改动正式首页 URL。[WebKit 图标缓存问题](https://bugs.webkit.org/show_bug.cgi?id=266426)、[Microsoft 对精确 URL 与主机图标缓存的说明](https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/security/site-icons-change-new-tab-page)
 - 本轮 `npm test` **221 项通过**；Astro 检查 0 errors / 0 warnings，49 个生成页面通过检查。Edge 网络记录确认首次加载的三个默认图标均由脚本重新请求并返回 200，切换英文后不再重复请求；390/1440px 的中英文首页、友链共 8 组无横向溢出或坏图。未将 Codex 给受控标签页附加的徽标当作浏览器原生 favicon 验收结果。
 
 ### 前轮页面与评论验收
