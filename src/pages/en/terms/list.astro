@@ -2,20 +2,13 @@
 import { Button, CardList } from '@/components/user'
 import { cn } from '@/utils'
 import PageLayout from '@/layouts/BaseLayout.astro'
-import { integ, terms } from '@/site-config'
+import { integ, englishTerms } from '@/site-config'
 
 const meta = {
   title: 'Site policy',
-  description: 'Site policy documentation'
+  description: 'How this site handles privacy, comments, copyright and content'
 }
 
-const englishTerms = {
-  ...terms,
-  list: terms.list.map((item) => ({
-    ...item,
-    link: item.link?.startsWith('/terms/') ? `/en${item.link}` : item.link
-  }))
-}
 ---
 
 <PageLayout {meta}>
@@ -26,7 +19,6 @@ const englishTerms = {
     </div>
 
     <div id='content' class={cn('animate mt-8 min-w-0 max-w-none', integ.typography.class)}>
-      <h2 class='text-xl font-medium'>Site policy documentation</h2>
       <CardList {...englishTerms} />
     </div>
   </main>

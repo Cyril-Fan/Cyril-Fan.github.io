@@ -135,26 +135,35 @@ export const integ: IntegrationUserConfig = {
 }
 
 export const terms: CardListData = {
-  title: 'Terms content',
+  title: '使用与内容说明',
   list: [
     {
-      title: 'Privacy Policy',
+      title: '隐私说明',
       link: '/terms/privacy-policy'
     },
     {
-      title: 'Terms and Conditions',
+      title: '网站使用说明',
       link: '/terms/terms-and-conditions'
     },
     {
-      title: 'Copyright',
+      title: '版权说明',
       link: '/terms/copyright'
     },
     {
-      title: 'Disclaimer',
+      title: '内容说明',
       link: '/terms/disclaimer'
     }
   ]
 }
 
 const config = { ...theme, integ } as Config
+export const englishTerms: CardListData = {
+  title: 'Using the site and its content',
+  list: [
+    { title: 'Privacy', link: '/en/terms/privacy-policy' },
+    { title: 'Using This Website', link: '/en/terms/terms-and-conditions' },
+    { title: 'Copyright', link: '/en/terms/copyright' },
+    { title: 'About the Content', link: '/en/terms/disclaimer' }
+  ]
+}
 export default config

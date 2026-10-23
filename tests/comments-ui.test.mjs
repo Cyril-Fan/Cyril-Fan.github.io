@@ -387,6 +387,23 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.calls.filter(call=>call.name==='comment_author_email').length,1,'Refreshing never fetches email automatically')
   })
 
+  test(`${language}: owner can hide an email from its inline button or menu and reveal it again`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    ui.handlers.comment_author_email=()=>ok('private-author@example.invalid')
+    const hideLabel=language==='en'?'Hide author email':'隐藏作者邮箱'
+    for(const via of ['inline','menu']) {
+      emailAction(ui).click()
+      await until(()=>ui.list.textContent.includes('private-author@example.invalid'),'email shown')
+      const hide=via==='inline' ? ui.select('[data-author-email] button') : [...ui.list.querySelectorAll('.comment-menu button')].find(button=>button.textContent===hideLabel)
+      hide.click()
+      assert.equal(ui.list.querySelector('[data-author-email]'),null)
+      assert.equal(ui.list.textContent.includes('private-author@example.invalid'),false)
+      assert.ok(emailAction(ui))
+      assert.equal(ui.window.document.activeElement.tagName,'SUMMARY')
+    }
+    assert.equal(ui.calls.filter(call=>call.name==='comment_author_email').length,2,'Revealing requires a fresh authorized read')
+  })
+
   test(`${language}: ordinary and guest viewers have no author email action`, async context => {
     for(const identity of [guest(),member()]) {
       const ui=await setup(context,language,{identity,rows:[row(1,{can_delete:identity.can_post})]})

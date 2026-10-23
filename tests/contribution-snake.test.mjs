@@ -1,283 +1,164 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import ts from 'typescript'
 import { JSDOM } from 'jsdom'
-import { fetchContributionSnapshot, syncContributionSnake, validateSnake, staticSnake, verifyContributionBundle } from '../scripts/sync-contribution-snake.mjs'
-import { createContributionAnimations, planContributionRoute, STEP_MS, validateRoute } from '../scripts/contribution-animation.mjs'
-import { contributionPalettes, normalizeContributions } from '../src/lib/github-contributions.ts'
+import { syncContributionSnake, verifyContributionBundle } from '../scripts/sync-contribution-snake.mjs'
+import { calendarHash, fetchContributionBundle, validateProfileSnake, PROFILE_REF } from '../src/lib/contribution-feed.ts'
+import * as calendarHelpers from '../src/lib/github-contributions.ts'
 
-const metadata = JSON.parse(readFileSync(new URL('../src/assets/contributions.json', import.meta.url), 'utf8'))
-const svg = readFileSync(new URL(`../public${metadata.light}`, import.meta.url), 'utf8')
-test('checked-in animations and static alternatives match one verified daily calendar', async () => {
-  assert.equal(validateSnake(svg), svg)
-  const dark = readFileSync(new URL(`../public${metadata.dark}`, import.meta.url), 'utf8')
-  assert.notEqual(validateSnake(dark), svg)
-  assert.ok(svg.includes('--ce:#eff2f5'))
-  assert.ok(dark.includes('--ce:#151b23'))
-  assert.equal(readFileSync(new URL(`../public${metadata.lightStatic}`, import.meta.url), 'utf8'), staticSnake(svg))
-  await verifyContributionBundle({ requireFresh: false })
-})
-test('changed remote SVG cannot inject executable tags, handlers, remote resources or entities', () => {
-  for (const payload of [
-    '<script>alert(1)</script>', '<foreignObject><p>HTML</p></foreignObject>',
-    '<image href="https://example.org/tracker"/>', '<g onclick="alert(1)"></g>',
-    '<style>@import "https://example.org/style.css";</style>',
-    '<style>.x{fill:url(https://example.org/image)}</style>',
-    '<!ENTITY test SYSTEM "file:///secret">',
-  ]) assert.throws(() => validateSnake(svg.replace('</svg>', payload+'</svg')))
-})
-
-const activityFixture = ({ start = '2025-10-19', length = 370, dense = false, empty = false } = {}) => {
-  const begin = Date.parse(`${start}T00:00:00Z`)
-  const active = new Set([0, 6, 7, 21, 166, length - 3, length - 1])
-  const contributions = Array.from({ length }, (_, index) => {
-    const level = !empty && (dense || active.has(index)) ? index % 4 + 1 : 0
-    return { date: new Date(begin + index * 86_400_000).toISOString().slice(0, 10), count: level * 3, level }
-  })
-  return { contributions, total: { lastYear: contributions.reduce((sum, day) => sum + day.count, 0) } }
+const read = file => readFileSync(new URL(file, import.meta.url), 'utf8')
+const metadata = JSON.parse(read('../src/assets/contributions.json'))
+const snapshot = JSON.parse(read('../src/assets/contribution-calendar.json'))
+const calendar = calendarHelpers.normalizeContributions(snapshot)
+const light = read(`../public${metadata.light}`), dark = read(`../public${metadata.dark}`)
+const now = new Date(Date.parse(snapshot.fetchedAt) + 300000)
+const profile = { login:'Cyril-Fan', updated:snapshot.fetchedAt.slice(0,16).replace('T',' '), calendar:snapshot.contributions, stats:[['Contributions',calendar.total]], snake_calendar_hash:snapshot.dataHash }
+const response = value => new Response(typeof value === 'string' ? value : JSON.stringify(value))
+function feed(override = {}) {
+  const calls = []
+  const fetcher = async (url, options) => {
+    calls.push({url,options})
+    if (url === PROFILE_REF) return response({object:{sha:metadata.sourceCommit}})
+    assert.ok(url.includes(`/${metadata.sourceCommit}/assets/`), 'Every resource must be commit pinned')
+    const name = url.split('/').at(-1)
+    const value = override[name] ?? ({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark})[name]
+    if (value instanceof Error) throw value
+    return response(value)
+  }
+  return {calls,fetcher}
 }
 
-function graphResponse(input) {
-  const names = ['NONE', 'FIRST_QUARTILE', 'SECOND_QUARTILE', 'THIRD_QUARTILE', 'FOURTH_QUARTILE']
-  return { data: { user: { login: 'Cyril-Fan', contributionsCollection: { contributionCalendar: {
-    totalContributions: input.total.lastYear,
-    weeks: [{ contributionDays: input.contributions.map(day => ({ date: day.date, contributionCount: day.count, contributionLevel: names[day.level] })) }]
-  } } } } }
-}
-const responseFor = value => ({ ok: true, status: 200, json: async () => structuredClone(value) })
-const checkTime = new Date('2026-10-23T03:00:00.000Z')
+test('published fallback preserves the original profile SVG and matching calendar in both themes', async () => {
+  await verifyContributionBundle({requireFresh:false})
+  assert.equal(await calendarHash(calendar), profile.snake_calendar_hash)
+  assert.equal(validateProfileSnake(light,calendar,'light').duration, metadata.cycleDurationMs)
+  assert.equal(validateProfileSnake(dark,calendar,'dark').width, metadata.width)
+  assert.ok(!light.includes('data-consumed-at'), 'No custom path or easing replaces the original animation')
+})
 
-for (const [name, fixture] of [
-  ['sparse activity and distant targets', activityFixture()],
-  ['a dense year', activityFixture({ dense: true })],
-  ['a leap year with partial weeks', activityFixture({ start: '2023-08-01', length: 367 })],
-  ['a completely empty year', activityFixture({ empty: true })]
-]) test(`snake motion is continuous, collision-free and complete for ${name}`, () => {
-  const calendar = normalizeContributions(fixture)
-  const plan = planContributionRoute(calendar)
-  assert.deepEqual(plan.route.at(-1), plan.route[0], 'The loop must return with the same body pose')
-  const visited = new Set()
-  for (let index = 0; index < plan.route.length; index++) {
-    const pose = plan.route[index]
-    assert.equal(new Set(pose.map(point => `${point.x},${point.y}`)).size, 4)
-    visited.add(`${pose[0].x},${pose[0].y}`)
-    if (index) {
-      const before = plan.route[index - 1]
-      assert.equal(Math.abs(pose[0].x - before[0].x) + Math.abs(pose[0].y - before[0].y), 1)
-      assert.deepEqual(pose.slice(1), before.slice(0, -1))
-    }
+test('updates fetch all resources at one commit, omit credentials and keep tokens off raw file requests', async () => {
+  const remote = feed()
+  const bundle = await fetchContributionBundle({fetcher:remote.fetcher,now,token:'test-token'})
+  assert.equal(bundle.calendar.total, calendar.total)
+  assert.equal(bundle.light,light)
+  assert.equal(bundle.dark,dark)
+  assert.equal(remote.calls.length,4)
+  for (const call of remote.calls) {
+    assert.equal(call.options.credentials,'omit')
+    assert.equal(call.options.referrerPolicy,'no-referrer')
+    assert.equal(call.options.redirect,'error')
+    assert.equal(call.options.cache,'no-store')
+    assert.equal(call.options.headers?.Authorization,call.url === PROFILE_REF ? 'Bearer test-token' : undefined)
   }
-  for (const cell of plan.cells.filter(cell => cell.count > 0)) assert.ok(visited.has(`${cell.x},${cell.y}`))
-  assert.equal(plan.consumed.size, fixture.contributions.filter(day => day.count > 0).length)
-  if (name === 'a completely empty year') assert.equal(plan.route.length, 1, 'An empty calendar invents no activity')
+  const unchanged = feed()
+  assert.equal(await fetchContributionBundle({fetcher:unchanged.fetcher,now,currentCommit:metadata.sourceCommit}),null)
+  assert.equal(unchanged.calls.length,1)
 })
 
-test('route validation rejects a teleport, self intersection, missed cell and broken loop', () => {
-  const plan = planContributionRoute(normalizeContributions(activityFixture()))
-  const teleport = structuredClone(plan.route)
-  teleport[1][0].x += 3
-  assert.throws(() => validateRoute(teleport, plan.cells))
-  const collision = structuredClone(plan.route)
-  collision[1][0] = { ...collision[1][1] }
-  assert.throws(() => validateRoute(collision, plan.cells), /intersects/)
-  assert.throws(() => validateRoute([plan.route[0]], plan.cells), /misses/)
-  assert.throws(() => validateRoute(plan.route.slice(0, -1), plan.cells), /loop/)
-})
-
-test('both SVG themes preserve every date/count/level and actual CSS eats a cell only at head arrival', context => {
-  const input = activityFixture({ start: '2023-08-01', length: 367 })
-  const { calendar, plan, light, dark } = createContributionAnimations(input)
-  for (const [theme, asset] of [['light', light], ['dark', dark]]) {
-    const dom = new JSDOM(`<html><head><style>${asset.match(/<style>([\s\S]+?)<\/style>/)[1]}</style></head><body>${asset}</body></html>`)
-    context.after(() => dom.window.close())
-    const rules = [...dom.window.document.styleSheets[0].cssRules]
-    const frames = new Map(rules.filter(rule => rule.name).map(rule => [rule.name, [...rule.cssRules]]))
-    const rectangles = [...dom.window.document.querySelectorAll('rect.c')]
-    const headFrames = frames.get('s0').map(frame => ({
-      fraction: Number.parseFloat(frame.keyText) / 100,
-      point: frame.style.getPropertyValue('transform').match(/translate\((-?[\d.]+)px,(-?[\d.]+)px\)/).slice(1).map(Number)
-    }))
-    const headAt = fraction => {
-      const right = headFrames.findIndex(frame => frame.fraction >= fraction)
-      const a = headFrames[Math.max(0, right - 1)]
-      const b = headFrames[right]
-      const progress = b.fraction === a.fraction ? 0 : (fraction - a.fraction) / (b.fraction - a.fraction)
-      return a.point.map((value, axis) => value + (b.point[axis] - value) * progress)
-    }
-    assert.equal(rectangles.length, input.contributions.length)
-    rectangles.forEach((rect, index) => {
-      const expected = input.contributions[index]
-      assert.equal(rect.dataset.date, expected.date)
-      assert.equal(Number(rect.dataset.count), expected.count)
-      assert.equal(Number(rect.dataset.level), expected.level)
-      assert.ok(rect.classList.contains(`level-${expected.level}`))
-      const fillRule = rules.find(rule => rule.selectorText === `.level-${expected.level}`)
-      assert.equal(fillRule.style.getPropertyValue('fill'), `var(--c${expected.level})`)
-      assert.equal(rules[0].style.getPropertyValue(`--c${expected.level}`), contributionPalettes[theme].colors[expected.level])
-      if (!expected.count) {
-        assert.equal(rect.dataset.consumedAt, undefined)
-        return
-      }
-      const motion = rules.find(rule => rule.selectorText === `.e${index}`)
-      assert.match(motion.style.getPropertyValue('animation'), /steps\(1,end\)/)
-      const colorFrames = frames.get(`e${index}`)
-      assert.equal(colorFrames[0].style.getPropertyValue('fill'), `var(--c${expected.level})`)
-      assert.equal(colorFrames[1].style.getPropertyValue('fill'), 'var(--ce)')
-      const arrivalFraction = Number.parseFloat(colorFrames[1].keyText) / 100
-      const [headX, headY] = headAt(arrivalFraction)
-      assert.ok(Math.abs(headX - (Number(rect.getAttribute('x')) - 2)) < 0.001)
-      assert.ok(Math.abs(headY - (Number(rect.getAttribute('y')) - 2)) < 0.001)
-      assert.ok(Math.abs(arrivalFraction * plan.duration - Number(rect.dataset.consumedAt)) < 0.001)
-    })
-    // Between arrival times the head must stay on the orthogonal route too.
-    plan.route.forEach((pose, step) => {
-      const point = headAt((450 + step * STEP_MS) / plan.duration)
-      assert.ok(Math.abs(point[0] - pose[0].x * 16) < 0.001)
-      assert.ok(Math.abs(point[1] - pose[0].y * 16) < 0.001)
-    })
-    assert.equal(staticSnake(asset).includes('*{animation:none!important;transition:none!important}'), true)
+test('half-published snapshots, wrong cells, incorrect themes, stale data and interrupted requests are rejected', async () => {
+  const wrong = structuredClone(profile)
+  const active = wrong.calendar.find(day=>day.level>0)
+  active.count++; wrong.stats[0][1]++
+  for (const override of [
+    {'profile-data.json':wrong},
+    {'profile-data.json':{...profile,login:'somebody-else'}},
+    {'profile-data.json':{...profile,updated:'2026-01-01 00:00'}},
+    {'github-contribution-grid-snake-dark.svg':light},
+    {'github-contribution-grid-snake.svg':light.replace('class="c" x="','class="c c999" x="')},
+    {'github-contribution-grid-snake-dark.svg':new Error('Offline')}
+  ]) await assert.rejects(fetchContributionBundle({fetcher:feed(override).fetcher,now}))
+  for (const payload of ['<script>alert(1)</script>','<foreignObject/>','<image href="https://example.org/x"/>','<g onclick="x()"/>','<style>@import "x";</style>','<style>.x{fill:url(x)}</style>','<!ENTITY x>']) {
+    assert.throws(()=>validateProfileSnake(light.replace('</svg>',payload+'</svg>'),calendar,'light'))
   }
-  assert.equal(calendar.total, input.total.lastYear)
 })
 
-test('a new contribution changes the calendar identity and both animated themes together', () => {
-  const input = activityFixture()
-  const before = createContributionAnimations(input)
-  input.contributions[42].count = 2
-  input.contributions[42].level = 1
-  input.total.lastYear += 2
-  const after = createContributionAnimations(input)
-  assert.notEqual(before.light, after.light)
-  assert.notEqual(before.dark, after.dark)
-  assert.equal(after.plan.consumed.size, before.plan.consumed.size + 1)
-  assert.equal(after.calendar.total, before.calendar.total + 2)
-})
-
-test('one fresh GitHub request publishes a matching bundle; failures never replace its files', async context => {
-  const directory = await mkdtemp(join(tmpdir(), 'contribution-tests-'))
-  const root = pathToFileURL(directory + sep)
-  context.after(async () => {
-    const target = resolve(directory)
-    assert.equal(dirname(target), resolve(tmpdir()))
+test('failed refresh never overwrites the complete local fallback', async context => {
+  const directory = await mkdtemp(join(tmpdir(),'contribution-tests-'))
+  const root = pathToFileURL(directory+sep)
+  context.after(async()=>{
+    const target=resolve(directory)
+    assert.equal(dirname(target),resolve(tmpdir()))
     assert.ok(basename(target).startsWith('contribution-tests-'))
-    await rm(target, { recursive: true, force: true })
+    await rm(target,{recursive:true,force:true})
   })
-  const input = activityFixture()
-  let calls = 0
-  const metadata = await syncContributionSnake({ root, now: checkTime, token: 'test-token', ci: true, fetcher: async (url, options) => {
-    calls++
-    assert.equal(url, 'https://api.github.com/graphql')
-    assert.equal(options.headers.Authorization, 'Bearer test-token')
-    assert.equal(options.cache, 'no-store')
-    return responseFor(graphResponse(input))
-  } })
-  assert.equal(calls, 1)
-  const result = await verifyContributionBundle({ root, now: checkTime })
-  assert.equal(result.calendar.total, input.total.lastYear)
-  assert.equal(metadata.dataHash, result.snapshot.dataHash)
-  const manifestFile = new URL('src/assets/contributions.json', root)
-  const calendarFile = new URL('src/assets/contribution-calendar.json', root)
-  const before = [await readFile(manifestFile, 'utf8'), await readFile(calendarFile, 'utf8')]
-  for (const fetcher of [
-    async () => { throw new Error('Offline') },
-    async () => ({ ok: false, status: 403 }),
-    async () => responseFor({ errors: [{ message: 'Unavailable' }] }),
-    async () => responseFor(graphResponse(activityFixture({ start: '2025-10-01' }))),
-    async () => responseFor(graphResponse({ ...input, total: { lastYear: input.total.lastYear + 1 } }))
-  ]) {
-    await assert.rejects(syncContributionSnake({ root, now: checkTime, token: 'test-token', ci: true, fetcher }))
-    assert.deepEqual([await readFile(manifestFile, 'utf8'), await readFile(calendarFile, 'utf8')], before)
+  await syncContributionSnake({root,now,fetcher:feed().fetcher,token:''})
+  await verifyContributionBundle({root,now})
+  const file=new URL('src/assets/contributions.json',root)
+  const before=await readFile(file,'utf8')
+  await assert.rejects(syncContributionSnake({root,now,token:'',fetcher:feed({'github-contribution-grid-snake-dark.svg':new Error('Offline')}).fetcher}))
+  assert.equal(await readFile(file,'utf8'),before)
+})
+
+const code=ts.transpileModule(read('../src/lib/contribution-view.ts'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText
+const flush=async()=>{for(let i=0;i<12;i++) await Promise.resolve();await new Promise(setImmediate)}
+function view(context,{en=false,remote=async()=>null,reduced=false,decode=async()=>{}}={}) {
+  const cells=Array.from({length:10},(_,i)=>`<rect class="contribution-day level-0" role="button" data-date="2026-10-${String(i+1).padStart(2,'0')}" data-count="${i}" tabindex="${i===9?0:-1}" aria-label="day ${i}: ${i} contributions"></rect>`).join('')
+  const dom=new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><div class="snake-animated"><img class="snake-light" src="/old-light.svg"><img class="snake-dark" src="/old-dark.svg"></div><div class="contribution-calendar"><svg>${cells}</svg></div></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
+  context.after(()=>dom.window.close())
+  const {window}=dom
+  const media=new window.EventTarget();media.matches=reduced
+  window.matchMedia=()=>media
+  let sequence=0
+  const revoked=[]
+  window.URL.createObjectURL=()=>`blob:test-${++sequence}`
+  window.URL.revokeObjectURL=url=>revoked.push(url)
+  window.HTMLImageElement.prototype.decode=decode
+  const module={exports:{}}
+  window.Function('require','module','exports',code)(name=>name.includes('contribution-feed')?{fetchContributionBundle:remote,REFRESH_INTERVAL_MS:300000}:calendarHelpers,module,module.exports)
+  window.customElements.define('contribution-snake',module.exports.ContributionSnake)
+  const host=window.document.querySelector('contribution-snake')
+  return {window,host,media,revoked,button:host.querySelector('button'),cells:[...host.querySelectorAll('[data-date]')],input:host.querySelector('input'),output:host.querySelector('output')}
+}
+for(const en of [false,true]) test(`${en?'en':'zh'}: keyboard, hover, date picker, reduced motion and reconnection remain usable`,async context=>{
+  const ui=view(context,{en,reduced:true})
+  assert.equal(ui.host.dataset.playing,'false');assert.equal(ui.button.hidden,false)
+  ui.button.click();assert.equal(ui.host.dataset.playing,'true');assert.equal(ui.input.disabled,true)
+  ui.button.click()
+  ui.cells[3].dispatchEvent(new ui.window.Event('pointerover',{bubbles:true}))
+  assert.equal(ui.output.textContent,'day 3: 3 contributions')
+  ui.cells[9].dispatchEvent(new ui.window.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))
+  assert.equal(ui.output.textContent,'day 2: 2 contributions')
+  ui.input.value='2026-10-06';ui.input.dispatchEvent(new ui.window.Event('change'))
+  assert.equal(ui.output.textContent,'day 5: 5 contributions')
+  ui.media.matches=false;ui.media.dispatchEvent(new ui.window.Event('change'))
+  assert.equal(ui.host.dataset.playing,'false','Explicit static choice is preserved')
+  ui.host.remove();ui.window.document.body.append(ui.host);ui.button.click()
+  assert.equal(ui.host.dataset.playing,'true')
+  ui.media.matches=true;ui.media.dispatchEvent(new ui.window.Event('change'))
+  assert.equal(ui.host.dataset.playing,'false')
+})
+
+test('calendar, count and both images update only after both new images decode; selection remains interactive',async context=>{
+  let release;const pending=new Promise(resolve=>{release=resolve})
+  const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
+  const ui=view(context,{remote:async()=>bundle,decode:()=>pending,reduced:true})
+  await flush()
+  assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,'old total')
+  assert.equal(ui.cells.length,10)
+  assert.equal(ui.host.querySelector('.snake-light').getAttribute('src'),'/old-light.svg')
+  release();await flush()
+  assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,`${calendar.total} 次贡献`)
+  assert.equal(ui.host.querySelectorAll('[data-date]').length,calendar.contributions.length)
+  assert.match(ui.host.querySelector('.snake-dark').src,/^data:image\/svg\+xml;/)
+  const active=ui.host.querySelector('[data-level="1"]')
+  active.dispatchEvent(new ui.window.MouseEvent('click',{bubbles:true}))
+  assert.equal(ui.input.value,active.dataset.date)
+  assert.ok(ui.output.textContent.includes(active.dataset.count))
+  assert.equal(ui.host.dataset.playing,'false')
+})
+
+test('failed image decoding or network keeps the old visible pair and calendar intact',async context=>{
+  const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
+  for(const options of [{remote:async()=>{throw new Error('Offline')}},{remote:async()=>bundle,decode:async()=>{throw new Error('Bad SVG')}}]) {
+    const ui=view(context,options);await flush()
+    assert.equal(ui.host.querySelector('.snake-light').getAttribute('src'),'/old-light.svg')
+    assert.equal(ui.host.querySelector('.snake-dark').getAttribute('src'),'/old-dark.svg')
+    assert.equal(ui.host.querySelectorAll('[data-date]').length,10)
+    assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,'old total')
   }
-  const tampered = JSON.parse(before[1])
-  tampered.contributions[0].count++
-  tampered.total.lastYear++
-  await writeFile(calendarFile, JSON.stringify(tampered))
-  await assert.rejects(verifyContributionBundle({ root, now: checkTime }), /identity mismatch/)
-})
-
-test('CI requires direct GitHub data; local public snapshots retain their source time and must be fresh', async () => {
-  let calls = 0
-  await assert.rejects(fetchContributionSnapshot({ token: '', ci: true, fetcher: async () => { calls++ } }), /GITHUB_TOKEN/)
-  assert.equal(calls, 0)
-  const input = activityFixture()
-  const publicData = { login: 'Cyril-Fan', updated: '2026-10-23 01:57', calendar: input.contributions, stats: [['Contributions', input.total.lastYear]] }
-  const snapshot = await fetchContributionSnapshot({ token: '', ci: false, now: checkTime, fetcher: async () => responseFor(publicData) })
-  assert.equal(snapshot.fetchedAt, '2026-10-23T01:57:00.000Z')
-  assert.equal(snapshot.checkedAt, checkTime.toISOString())
-  assert.equal(snapshot.dataThrough, '2026-10-23')
-  await assert.rejects(fetchContributionSnapshot({ token: '', ci: false, now: checkTime, fetcher: async () => responseFor({ ...publicData, updated: '2026-10-21 00:00' }) }), /stale/)
-})
-
-const component = readFileSync(new URL('../src/components/home/ContributionSnake.astro', import.meta.url), 'utf8')
-const script = component.match(/<script>([\s\S]*?)<\/script>/)[1]
-const compiled = ts.transpileModule(script, {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText
-for (const en of [true, false]) test(`${en?'en':'zh'}: reduced motion, manual play/pause and reconnect stay consistent`, context => {
-  const dom = new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><button data-snake-toggle hidden></button></contribution-snake>`, {runScripts:'outside-only'})
-  context.after(() => dom.window.close())
-  const media = new dom.window.EventTarget()
-  media.matches = true
-  dom.window.matchMedia = () => media
-  dom.window.eval(compiled)
-  const host = dom.window.document.querySelector('contribution-snake')
-  const button = host.querySelector('button')
-  assert.equal(host.dataset.playing, 'false')
-  assert.equal(button.hidden, false)
-  button.click()
-  assert.equal(host.dataset.playing, 'true')
-  assert.equal(button.textContent, en?'Turn off animation':'关闭动画')
-  button.click()
-  assert.equal(host.dataset.playing, 'false')
-  media.matches = false
-  media.dispatchEvent(new dom.window.Event('change'))
-  assert.equal(host.dataset.playing, 'false', 'An explicit off choice survives a motion preference change')
-  host.remove()
-  dom.window.document.body.append(host)
-  button.click()
-  assert.equal(host.dataset.playing, 'true', 'Reconnection must not attach duplicate click handlers')
-})
-
-test('calendar reveals real day counts on hover, tap, keyboard and date selection; animation hides its controls', context => {
-  const days = Array.from({length:10}, (_, i) => `<rect role="button" data-date="2026-10-${String(i+1).padStart(2,'0')}" data-count="${i}" tabindex="${i===9?0:-1}" aria-label="day ${i}: ${i} contributions"></rect>`).join('')
-  const dom = new JSDOM(`<contribution-snake data-lang="en"><div class="snake-animated"></div><div class="contribution-calendar"><svg>${days}</svg></div><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle></button></contribution-snake>`, {runScripts:'outside-only'})
-  context.after(() => dom.window.close())
-  const media = new dom.window.EventTarget()
-  media.matches = false
-  dom.window.matchMedia = () => media
-  dom.window.eval(compiled)
-  const host = dom.window.document.querySelector('contribution-snake')
-  const input = host.querySelector('input')
-  const output = host.querySelector('output')
-  const cells = [...host.querySelectorAll('[data-date]')]
-  const button = host.querySelector('button')
-  assert.equal(host.dataset.playing, 'true')
-  assert.equal(input.disabled, true)
-  button.click()
-  assert.equal(host.querySelector('.contribution-calendar').getAttribute('aria-hidden'), 'false')
-  assert.equal(input.disabled, false)
-  cells[3].dispatchEvent(new dom.window.Event('pointerenter'))
-  assert.equal(output.textContent, 'day 3: 3 contributions')
-  assert.equal(input.value, '2026-10-04')
-  cells[4].dispatchEvent(new dom.window.MouseEvent('click'))
-  assert.equal(output.textContent, 'day 4: 4 contributions')
-  const key = (i, value) => cells[i].dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:value, cancelable:true}))
-  key(9, 'ArrowLeft')
-  assert.equal(output.textContent, 'day 2: 2 contributions')
-  key(2, 'Home')
-  assert.equal(output.textContent, 'day 0: 0 contributions')
-  key(0, 'End')
-  assert.equal(cells.filter(c => c.tabIndex === 0).length, 1)
-  input.value = '2026-10-06'
-  input.dispatchEvent(new dom.window.Event('change'))
-  assert.equal(output.textContent, 'day 5: 5 contributions')
-  button.click()
-  assert.equal(input.disabled, true)
-  assert.equal(host.querySelector('.contribution-calendar').getAttribute('aria-hidden'), 'true')
-  media.matches = true
-  media.dispatchEvent(new dom.window.Event('change'))
-  assert.equal(host.dataset.playing, 'false', 'Reduced-motion preference stops the animation')
 })

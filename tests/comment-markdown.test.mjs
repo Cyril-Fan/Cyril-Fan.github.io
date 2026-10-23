@@ -24,6 +24,23 @@ test('CommonMark and GFM render rich blocks, nested lists, tasks, tables and ref
   }
 })
 
+test('fractions, radicals, integrals, matrices and arrows keep native math layout inside outer scroll wrappers', context => {
+  const target=rendered(String.raw`Inline $\frac{a}{b}$, $\sqrt{x^2+1}$ and $\int_0^1 x^2\,dx$.
+
+$$
+\begin{pmatrix}a&b\\c&d\end{pmatrix}\quad\xrightarrow{label}\frac{1}{\sqrt{x}}
+$$
+
+~~~tex
+$not math in code$
+~~~`,context)
+  assert.equal(target.querySelectorAll('.comment-math-inline > .katex').length,3)
+  assert.equal(target.querySelectorAll('.katex-display > .katex').length,1)
+  assert.equal(target.querySelectorAll('.katex-display .comment-math-inline').length,0)
+  assert.equal(target.querySelectorAll('.katex-error').length,0)
+  assert.equal(target.querySelectorAll('annotation[encoding="application/x-tex"]').length,4)
+})
+
 test('raw HTML, SVG, forms, styles and embedded pages remain literal text', context => {
   const source = '<script>alert(1)</script>\n\n<img src=x onerror=alert(2)>\n\n<svg><foreignObject><iframe srcdoc="<script>alert(3)</script>"></iframe></foreignObject></svg>\n\n<form id=comments><input name=action></form>\n\n<style>body{display:none}</style>\n\n<a id=location name=constructor href="javascript:alert(4)">x</a>'
   const target = rendered(source, context)

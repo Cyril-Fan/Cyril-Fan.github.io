@@ -29,9 +29,11 @@ npm run build
 npm run preview
 ```
 
-`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标、目录与贡献图回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 获取一份 GitHub 贡献数据，同时生成每日静态日历与浅色／深色蛇动画，再执行 Astro 检查、生成统一图标和 `dist/`，逐页校验后生成搜索索引。请通过 `preview` 验证站内搜索。
+`npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标、目录与贡献图回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 读取本人 GitHub 资料仓库同一提交的日历和两套原版蛇动画，校验通过后生成静态日历，再执行 Astro 检查、生成统一图标和 `dist/`，逐页校验后生成搜索索引。请通过 `preview` 验证站内搜索。
 
-CI 使用工作流自带的短期 `GITHUB_TOKEN` 查询 GitHub GraphQL；本地无 token 时读取本人 GitHub 资料仓库中带时间戳的公开快照。数据不新鲜、抓取失败或两种图表不一致时停止构建，保留已在线的成功版本，不用仓库里的旧快照覆盖它。工作流每小时尝试同步，GitHub 的数据与任务队列都可能延迟；页面展示数据截至日期及获取时间。蛇路线由本站独立实现，检查正交移动、不自交、蛇头到达时吃格及循环闭合。
+构建与浏览器共用 `contribution-feed.ts`：先读取 `Cyril-Fan/Cyril-Fan` 的 main 提交号，再按这个固定提交获取日历、浅色 SVG 和深色 SVG。校验日历连续性、总数、时间、资料仓库的 `snake_calendar_hash`、每个 SVG 格子的坐标与实际颜色等级。直接保留 GitHub 主页的原版 Platane/snk 动画，不再使用本站自写寻路。资料工作流生成到一半、读取失败或文件不一致时，不替换完整版本。
+
+网站工作流每小时尝试更新构建快照。浏览器在首页可见时另检查最新资料提交，每个页面最多每 5 分钟一次；两个新图解码完成后，才同时更新动画、日历和总数。更新失败保留当前快照，不影响静态日历查询。浏览器请求不带本站登录凭据或页面地址，CI 的短期 token 只发给 GitHub API。GitHub 数据与任务队列仍可能延迟；悬停贡献总数可查看数据日期及 24 小时制更新时间。
 
 修改框架或文章处理插件后，可运行 `npm run test:content`：用临时中英文文章检查 MDX、公式、代码、图片、回退页面、草稿、搜索与 RSS，完成后移除临时内容，产物位于忽略提交的 `.content-check-dist/`。检查时不要同时编辑对应的 `migration-*` 临时内容目录。执行 `npm audit` 检查完整依赖树，生产依赖可另运行 `npm audit --omit=dev`。
 
@@ -52,7 +54,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 关于页照片 | `src/assets/photos/cyril-fan-lakeside.webp`，`AboutPhoto.astro` 负责两种语言的响应图片 |
 | 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
-| 贡献图 | `scripts/sync-contribution-snake.mjs` 获取同一数据并生成整套资源，`sync-contribution-calendar.mjs` 核验整套资源，`contribution-animation.mjs` 生成连续蛇路线，`ContributionSnake.astro` 控制主题、动画/日历切换与查询 |
+| 贡献图 | `src/lib/contribution-feed.ts` 读取并校验原版日历和动画；`scripts/sync-contribution-snake.mjs` 保存构建快照；`ContributionSnake.astro` 与 `contribution-view.ts` 控制刷新、主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
 | 正式地址、语言、静态构建 | `astro.config.mjs` |
 | 自动发布 | `.github/workflows/deploy.yml` |

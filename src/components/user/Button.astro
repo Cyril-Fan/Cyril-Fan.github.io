@@ -46,7 +46,7 @@ const { as: Tag = 'a', class: className, title, href, style = 'button', ...props
       }
     </slot>
     <slot>
-      {title && <p class='my-0 transition-colors duration-200'>{title}</p>}
+      {title && <span class='transition-colors duration-200'>{title}</span>}
     </slot>
     <slot name='after'>
       {

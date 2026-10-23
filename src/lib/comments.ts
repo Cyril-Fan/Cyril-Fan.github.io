@@ -390,7 +390,11 @@ export class SiteComments extends HTMLElement {
           const choices=this.node('div',undefined,'comment-menu-choices')
           if(!row.deleted && row.can_delete) action(choices,this.t('删除','Delete'),()=>void this.removeComment(row,false))
           if(this.me.is_admin) {
-            action(choices,this.t('查看作者邮箱','View author email'),()=>void this.showAuthorEmail(row))
+            const emailVisible=this.authorEmails.has(row.id)
+            action(choices,emailVisible ? this.t('隐藏作者邮箱','Hide author email') : this.t('查看作者邮箱','View author email'),()=>{
+              if(this.authorEmails.has(row.id)) this.hideAuthorEmail(row)
+              else void this.showAuthorEmail(row)
+            })
             action(choices,row.parent_id || row.root_unavailable ? this.t('清理此条及其回复','Remove comment and replies') : this.t('清理整串','Remove thread'),()=>void this.removeComment(row,true))
             if(!row.is_admin_author) action(choices,row.author_banned ? this.t('解除封禁','Unban author') : this.t('封禁作者','Ban author'),()=>void this.ban(row))
           }
@@ -402,6 +406,7 @@ export class SiteComments extends HTMLElement {
           const email=this.node('p',address ? this.t('作者邮箱（仅站长可见）：','Author email (owner only): ')+address : this.t('此作者账户已不可用','This author account is unavailable.'),'comment-author-email')
           email.dataset.authorEmail=''; email.setAttribute('aria-label',this.t('作者邮箱，仅站长可见','Author email, visible only to the site owner'))
           email.setAttribute('role','status')
+          action(email,this.t('隐藏作者邮箱','Hide author email'),()=>this.hideAuthorEmail(row))
           item.append(email)
         }
         if(!isRoot) {
@@ -442,6 +447,11 @@ export class SiteComments extends HTMLElement {
     this.emailGeneration++; this.emailOperation?.abort(); this.emailOperation=undefined
     this.authorEmails.clear()
     this.querySelectorAll('[data-author-email]').forEach(node=>node.remove())
+  }
+  private hideAuthorEmail(row:CommentRow) {
+    this.authorEmails.delete(row.id)
+    this.render()
+    this.querySelector<HTMLElement>(`#comment-${row.id} .comment-menu summary`)?.focus({preventScroll:true})
   }
   private async locatePostedComment(id:string,lifetime:AbortController|undefined,account:number) {
     if(!this.client || !this.current(lifetime,account)) return false

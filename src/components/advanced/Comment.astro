@@ -107,6 +107,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-thread > .comment-thread-replies > .comment-item:last-child { padding-bottom:0; }
   site-comments .comment-unavailable { color:hsl(var(--muted-foreground)); padding:.75rem 0; font-size:.875rem; }
   site-comments .comment-author-email { font-size:.8rem; color:hsl(var(--muted-foreground)); overflow-wrap:anywhere; }
+  site-comments .comment-author-email button { display:inline-block; margin-inline-start:.5rem; padding:.25rem .5rem; text-decoration:underline; text-underline-offset:3px; }
   site-comments .comment-thread-gap { margin:.75rem 0 .75rem clamp(.75rem,3vw,2.25rem); padding:.5rem .8rem; border-left:2px dashed hsl(var(--border)); color:hsl(var(--muted-foreground)); font-size:.875rem; }
   site-comments .comment-item-header { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
   site-comments .comment-item-header strong { font-weight:600; }
@@ -131,8 +132,11 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-markdown th { background:hsl(var(--muted)); font-weight:600; }
   site-comments .comment-markdown .task-list-item { list-style:none; }
   site-comments .comment-markdown input[type=checkbox] { width:.9rem; height:.9rem; margin:0 .4rem 0 -1.2rem; accent-color:hsl(var(--foreground)); }
-  site-comments .comment-markdown .katex-display { max-width:100%; overflow-x:auto; overflow-y:hidden; padding:.35rem 0; }
-  site-comments .comment-markdown .katex { display:inline-block; font-size:1.05em; max-width:100%; max-height:24rem; overflow:auto; vertical-align:middle; padding:.15em; }
+  site-comments .comment-markdown .katex-display { max-width:100%; overflow-x:auto; overflow-y:hidden; padding:.4em .1em; }
+  site-comments .comment-markdown .katex { font-size:1.05em; }
+  site-comments .comment-markdown .katex-display > .katex { min-width:max-content; }
+  site-comments .comment-math-inline { display:inline-block; max-width:100%; overflow-x:auto; overflow-y:hidden; vertical-align:middle; padding:.4em .1em; }
+  site-comments .comment-math-inline > .katex { display:block; padding:0 .2em; }
   site-comments .comment-markdown .footnotes { margin-top:1rem; padding-top:.5rem; border-top:1px dashed hsl(var(--border)); font-size:.8rem; }
   site-comments .comment-markdown [id] { scroll-margin-top:6rem; }
   site-comments .comment-markdown hr { border:0; border-top:1px solid hsl(var(--border)); margin:1rem 0; }

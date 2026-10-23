@@ -22,7 +22,7 @@ back: '/terms/list'
 
 明暗主题选择会保存在当前浏览器的本地存储中，供下次访问使用。站内搜索在浏览器中查询静态搜索索引，本站没有接收搜索词的后台服务。
 
-首页的贡献日历和动画在构建时根据站长的 GitHub 贡献数据一同生成，并由本站提供浅色、深色和静态版本。浏览贡献图不会向 GitHub 发送访客的查询。图片缩放与 Markdown 所需脚本也随网站一同提供。访问网站或外部资源时，服务提供方会收到完成网络请求所需的信息；GitHub 的相关说明见 [GitHub 隐私声明](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)。外部链接打开后适用目标网站的说明。
+首页贡献图使用站长 GitHub 主页同一份日历和原版蛇动画。本站提供完整快照；首页处于可见状态时，浏览器还会向 GitHub 的公开 API 和原始文件服务检查更新，每个页面最多每 5 分钟一次。请求不携带本站账户凭据或当前页面地址，GitHub 会接收完成请求所需的网络信息。更新不完整或连接失败时，保留上一份完整快照。图片缩放与 Markdown 所需脚本也随网站一同提供。访问网站或外部资源时，服务提供方会收到完成网络请求所需的信息；GitHub 的相关说明见 [GitHub 隐私声明](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)。外部链接打开后适用目标网站的说明。
 
 服务商会接收完成请求和防止滥用所需的网络信息，可能包括 IP 地址和设备信息；这些信息不会由评论接口公开。更多信息见 [Supabase 隐私说明](https://supabase.com/privacy) 与 [Resend 隐私说明](https://resend.com/legal/privacy-policy)。
 

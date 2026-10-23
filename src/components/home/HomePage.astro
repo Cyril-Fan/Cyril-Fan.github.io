@@ -84,6 +84,7 @@ const en = Astro.currentLocale === 'en'
   .profile-avatar { width:7rem; height:7rem; object-fit:cover; }
   .home-content { display:flex; width:100%; min-width:0; flex-direction:column; gap:2.5rem; }
   .home-intro { line-height:1.9; text-align:justify; text-align-last:start; text-wrap:pretty; }
+  .home-intro:lang(en) { text-align:start; }
   .role-spoiler { display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; }
   .role-spoiler span { opacity:0; transition:opacity .18s ease; }
   .role-spoiler[aria-expanded='true'] span, .role-spoiler:focus-visible span { opacity:1; }

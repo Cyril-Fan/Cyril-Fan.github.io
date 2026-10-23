@@ -159,6 +159,26 @@ function boundedMath() {
 
 let scopeSequence = 0
 
+// Keep KaTeX's inner layout intact. Only the outer wrapper may scroll, so a
+// fraction's strut or integral depth never creates a scrollbar beside a formula.
+function mathLayout() {
+  return (tree: Root) => {
+    const walk = (parent: Root | Element) => {
+      parent.children = parent.children.map(node => {
+        if (node.type !== 'element') return node
+        const classes = node.properties.className
+        if (Array.isArray(classes) && classes.includes('katex')) {
+          if (parent.type === 'element' && Array.isArray(parent.properties.className) && parent.properties.className.includes('katex-display')) return node
+          return { type: 'element', tagName: 'span', properties: { className: ['comment-math-inline'] }, children: [node] }
+        }
+        walk(node)
+        return node
+      })
+    }
+    walk(tree)
+  }
+}
+
 /** Safe CommonMark + GFM + TeX, with no network requests during rendering. */
 export function commentMarkdownHtml(source: string, en: boolean, scope = String(++scopeSequence)): string {
   const safeScope = scope.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || String(++scopeSequence)
@@ -179,6 +199,7 @@ export function commentMarkdownHtml(source: string, en: boolean, scope = String(
     // renderer. Allowing arbitrary input styles/MathML in the schema is unsafe.
     .use(rehypeKatex, { trust: false, strict: 'ignore', maxExpand: 100, maxSize: 10 })
     .use(boundedMath)
+    .use(mathLayout)
     .use(rehypeStringify)
     .processSync(Array.from(source).slice(0, 2000).join('')))
 }
