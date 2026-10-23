@@ -91,3 +91,9 @@ test('draft trash has a reverse action and restoring does not publish',async t=>
 test('export provides a persistent download link and sign-out revokes it',async t=>{
   const ui=await setup(t);await ui.click('友链');ui.root.querySelector('[data-list] button').click();await tick();await ui.click('导出此项');const link=ui.root.querySelector('[data-cms-download]');assert.ok(link.download.endsWith('.json'));assert.match(link.href,/^blob:/);assert.match(ui.root.querySelector('[data-cms-message]').textContent,/点击/);ui.role('guest');await tick();assert.equal(ui.root.querySelector('[data-cms-download]'),null)
 })
+
+test('a delayed image operation cannot replace the newly selected panel',async t=>{
+  const ui=await setup(t);let finish
+  ui.override(name=>name==='cms_media_list'?{data:[{id:'81000000-0000-4000-8000-000000000001',name:'sample.webp',alt:'',deleted:false}],error:null}:name==='cms_media_save'?new Promise(resolve=>finish=resolve):null)
+  await ui.click('图片库');await ui.click('移入回收站');await ui.click('发布记录');finish({data:{},error:null});await tick();assert.equal(ui.root.querySelector('[data-editor] h2').textContent,'发布记录')
+})

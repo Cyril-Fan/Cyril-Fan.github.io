@@ -361,6 +361,7 @@ export class OwnerCMS extends HTMLElement {
     }
   }
   private async renderMedia(){
+    if(this.view!=='media')return
     const target=this.q('[data-editor]');target.replaceChildren(el('h2','图片库'),el('p','图片自动转为 WebP 并移除原始元数据。替换图片请上传新文件，旧版本仍可恢复。','cms-hint'),this.uploadControl(()=>this.renderMedia()))
     try{const media:Media[]=await this.rpc('cms_media_list');if(this.view!=='media')return
       for(const deleted of [false,true]){const section=el('section');section.append(el('h3',deleted?'已回收的图片':'可用图片'));const grid=el('div','','cms-media-grid');section.append(grid);target.append(section);for(const m of media.filter(x=>x.deleted===deleted))await this.mediaCard(grid,m);if(!grid.childElementCount)grid.append(el('p','暂无图片。','cms-muted'))}
