@@ -82,7 +82,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   import '../../lib/comments'
 </script>
 <style is:global>
-  site-comments { display:block; padding:clamp(1.2rem,3vw,2rem); border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); }
+  site-comments { display:block; scroll-margin-top:6rem; padding:clamp(1.2rem,3vw,2rem); border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); }
   site-comments [hidden] { display:none !important; }
   site-comments h2 { font-size:1.35rem; font-weight:600; margin:0 0 .5rem; }
   site-comments h3 { font-weight:600; }
