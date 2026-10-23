@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import sharp from 'sharp'
-import { brandSvg, iconLinks, iconPrefix, iconRecipe, maskSvg, rasterSvg } from './branding.mjs'
+import { brandSvg, brandVersion, defaultIconPaths, iconLinks, iconPrefix, iconRecipe, maskSvg, rasterSvg } from './branding.mjs'
 
 function pngsToIco(images) {
   const header = Buffer.alloc(6 + images.length * 16)
@@ -27,7 +27,13 @@ export async function generateBranding() {
   // Static JSON is bundled into Astro layouts; no filesystem reads are needed
   // from a relocated prerendered server chunk.
   await writeFile(new URL('../src/assets/brand/generated-icons.json', import.meta.url), `${JSON.stringify(iconLinks, null, 2)}\n`)
+  await writeFile(new URL('../src/assets/brand/generated-brand.json', import.meta.url), `${JSON.stringify({ version: brandVersion, defaultIconPaths }, null, 2)}\n`)
   await mkdir(versionDir, { recursive: true })
+  // Old documents, bookmarks and browser icon databases can still point here.
+  // Rewrite every previously published icon version, not only today's aliases.
+  const iconDirs = [legacyDir, ...(await readdir(legacyDir, { withFileTypes: true }))
+    .filter(entry => entry.isDirectory() && /^[a-f0-9]{12}$/.test(entry.name))
+    .map(entry => new URL(`${entry.name}/`, legacyDir))]
   const sizes = iconRecipe.sizes
   const images = await Promise.all(sizes.map(async (size) => ({
     size, buffer: await sharp(Buffer.from(rasterSvg), { density: iconRecipe.density }).resize(size, size).png().toBuffer()
@@ -52,8 +58,7 @@ export async function generateBranding() {
     ...images.map(({ size, buffer }) => [size === 180 ? 'apple-touch-icon.png' : `icon-${size}.png`, buffer])
   ]
   for (const [name, content] of files) {
-    await writeFile(new URL(name, versionDir), content)
-    await writeFile(new URL(name, legacyDir), content)
+    for (const directory of iconDirs) await writeFile(new URL(name, directory), content)
   }
   // Some mobile launchers, old bookmarks and crawlers probe these conventional paths.
   await writeFile(new URL('favicon.svg', publicDir), brandSvg)

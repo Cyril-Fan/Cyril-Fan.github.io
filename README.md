@@ -53,7 +53,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 博客文章 | `src/content/blogs/每篇文章目录/index.mdx` |
 | 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 关于页照片 | `src/assets/photos/cyril-fan-lakeside.webp`，`AboutPhoto.astro` 负责两种语言的响应图片 |
-| 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
+| 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，并同步所有已发布图标目录；版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
 | 贡献图 | `src/lib/contribution-feed.ts` 读取并校验原版日历和动画；`scripts/sync-contribution-snake.mjs` 保存构建快照；`ContributionSnake.astro` 与 `contribution-view.ts` 控制刷新、主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
 | 正式地址、语言、静态构建 | `astro.config.mjs` |

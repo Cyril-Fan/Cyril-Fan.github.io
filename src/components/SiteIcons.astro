@@ -2,3 +2,22 @@
 import iconLinks from '../assets/brand/generated-icons.json'
 ---
 {iconLinks.map((attributes) => <link {...attributes} />)}
+
+<script>
+  import brand from '../assets/brand/generated-brand.json'
+  import { refreshDefaultIconCache } from '../lib/icon-cache'
+
+  // Leave navigation, login callbacks and page state alone. This background
+  // request only replaces conventional icon resources in the HTTP cache.
+  const refresh = () => {
+    let storage: Storage
+    let session: Storage
+    try {
+      storage = window.localStorage
+      session = window.sessionStorage
+    } catch { return }
+    void refreshDefaultIconCache({ ...brand, storage, session, fetch: window.fetch.bind(window) })
+  }
+  if (document.readyState === 'complete') refresh()
+  else window.addEventListener('load', refresh, { once: true })
+</script>

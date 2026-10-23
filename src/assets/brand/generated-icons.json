@@ -3,32 +3,43 @@
     "rel": "icon",
     "type": "image/x-icon",
     "sizes": "16x16 32x32 48x48",
-    "href": "/favicon/ab8d598f58d1/favicon.ico"
+    "href": "/favicon/d6fa057671e0/favicon.ico"
   },
   {
     "rel": "icon",
     "type": "image/png",
     "sizes": "32x32",
-    "href": "/favicon/ab8d598f58d1/icon-32.png"
+    "href": "/favicon/d6fa057671e0/icon-32.png"
+  },
+  {
+    "rel": "icon",
+    "type": "image/png",
+    "sizes": "96x96",
+    "href": "/favicon/d6fa057671e0/icon-96.png"
   },
   {
     "rel": "icon",
     "type": "image/svg+xml",
     "sizes": "any",
-    "href": "/favicon/ab8d598f58d1/icon.svg"
+    "href": "/favicon/d6fa057671e0/icon.svg"
   },
   {
     "rel": "apple-touch-icon",
     "sizes": "180x180",
-    "href": "/favicon/ab8d598f58d1/apple-touch-icon.png"
+    "href": "/favicon/d6fa057671e0/apple-touch-icon.png"
+  },
+  {
+    "rel": "apple-touch-icon-precomposed",
+    "sizes": "180x180",
+    "href": "/favicon/d6fa057671e0/apple-touch-icon.png"
   },
   {
     "rel": "mask-icon",
     "color": "#64748b",
-    "href": "/favicon/ab8d598f58d1/safari-pinned-tab.svg"
+    "href": "/favicon/d6fa057671e0/safari-pinned-tab.svg"
   },
   {
     "rel": "manifest",
-    "href": "/favicon/ab8d598f58d1/site.webmanifest"
+    "href": "/favicon/d6fa057671e0/site.webmanifest"
   }
 ]
