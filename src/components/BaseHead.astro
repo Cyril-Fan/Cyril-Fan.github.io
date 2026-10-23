@@ -12,6 +12,7 @@ const { articleDate, description, ogImage, title } = Astro.props
 
 const siteTitle = `${title} ${config.titleDelimiter} ${config.title}`
 const isNotFound = /^\/(?:en\/)?404(?:\.html)?\/?$/.test(Astro.url.pathname)
+const privatePage = /^\/(?:en\/)?admin(?:\/|$)/.test(Astro.url.pathname)
 const canonicalURL = new URL(isNotFound ? '/404.html' : Astro.url.pathname, Astro.site)
 const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.site).href
 ---
@@ -23,6 +24,7 @@ const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.s
 <meta content='IE=edge' http-equiv='X-UA-Compatible' />
 <title>{siteTitle}</title>
 {isNotFound && <meta name='robots' content='noindex, follow' />}
+{privatePage && <meta name='robots' content='noindex, nofollow' />}
 
 {/* Icons / Favicon */}
 <SiteIcons />

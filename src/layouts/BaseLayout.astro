@@ -22,7 +22,7 @@ const {
 const langAttr = currentLocale === 'en' ? 'en' : 'zh'
 ---
 
-<html lang={langAttr}>
+<html lang={langAttr} data-pagefind-ignore={/^\/(?:en\/)?admin(?:\/|$)/.test(Astro.url.pathname) ? 'all' : undefined}>
   <head>
     <BaseHead {articleDate} {description} {ogImage} {title} />
     <ThemeProvider />
@@ -78,7 +78,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
     }
     <div class='w-full max-w-[70rem] px-4 sm:px-7 lg:px-10'>
       <Header />
-      <div class='contents' data-pagefind-body><slot /></div>
+      <div class='contents' data-pagefind-body={/^\/(?:en\/)?admin(?:\/|$)/.test(Astro.url.pathname) ? undefined : true}><slot /></div>
       <Footer />
     </div>
 

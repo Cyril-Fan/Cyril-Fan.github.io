@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "id": "academic",
+      "kind": "academic",
+      "revision": 1,
+      "payload": {
+        "zh": {
+          "background": "我是范星宇，吉林大学软件工程本科生，喜欢通过研究与动手实践探索人工智能。",
+          "interests": "深度学习\n多模态大语言模型\nAI 智能体",
+          "publications": [],
+          "projects": []
+        },
+        "en": {
+          "background": "I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I enjoy exploring artificial intelligence through research and hands-on projects.",
+          "interests": "Deep Learning\nMultimodal Large Language Models\nAI Agents",
+          "publications": [],
+          "projects": []
+        }
+      }
+    },
+    {
+      "id": "b8fd0200-d2d4-44b9-8a30-000000000001",
+      "kind": "friend",
+      "revision": 1,
+      "payload": {
+        "name": "Axi",
+        "intro": "axi404.top",
+        "link": "https://axi404.top/",
+        "avatar": "/links/axi.webp",
+        "feed": "https://axi404.top/rss.xml"
+      }
+    },
+    {
+      "id": "b8fd0200-d2d4-44b9-8a30-000000000002",
+      "kind": "friend",
+      "revision": 1,
+      "payload": {
+        "name": "Leonwater",
+        "intro": "leonwater1.github.io",
+        "link": "https://leonwater1.github.io/",
+        "avatar": "/links/leonwater.webp",
+        "feed": ""
+      }
+    },
+    {
+      "id": "b8fd0200-d2d4-44b9-8a30-000000000003",
+      "kind": "friend",
+      "revision": 1,
+      "payload": {
+        "name": "Roy Zhao",
+        "intro": "royzhao.cn",
+        "link": "https://royzhao.cn/",
+        "avatar": "/links/royzhao.webp",
+        "feed": "https://royzhao.cn/rss.xml"
+      }
+    },
+    {
+      "id": "b8fd0200-d2d4-44b9-8a30-000000000004",
+      "kind": "friend",
+      "revision": 1,
+      "payload": {
+        "name": "VYS3N",
+        "intro": "vys3n.github.io",
+        "link": "https://vys3n.github.io/",
+        "avatar": "/links/vys3n.webp",
+        "feed": "https://vys3n.github.io/rss.xml"
+      }
+    },
+    {
+      "id": "profile",
+      "kind": "profile",
+      "revision": 1,
+      "payload": {
+        "zh": {
+          "name": "范星宇",
+          "homeName": "Cyril Fan",
+          "location": "长春",
+          "role": "学生 /",
+          "spoiler": "帅哥😎",
+          "intro": "你好，我是范星宇，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI 智能体。",
+          "about": "你好，我是范星宇，吉林大学软件工程本科生。欢迎来到我的个人网站。\n\n我喜欢通过研究和动手实践探索人工智能，也在这里记录学习与思考。",
+          "photoAlt": "范星宇站在湖畔的木质栈台上",
+          "interests": "深度学习\n多模态大语言模型\nAI 智能体",
+          "school": "吉林大学 · JLU",
+          "major": "软件工程",
+          "period": "2024 年 8 月 - 至今",
+          "contactIntro": "欢迎通过邮件或 GitHub 与我交流。"
+        },
+        "en": {
+          "name": "Cyril Fan",
+          "homeName": "Cyril Fan",
+          "location": "Changchun",
+          "role": "Student /",
+          "spoiler": "handsome guy😎",
+          "intro": "Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents.",
+          "about": "Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. Welcome to my personal website.\n\nI enjoy exploring artificial intelligence through research and hands-on projects. This is where I share what I learn and think about.",
+          "photoAlt": "Cyril Fan standing on a wooden deck beside a lake",
+          "interests": "Deep Learning\nMultimodal Large Language Models\nAI Agents",
+          "school": "Jilin University · JLU",
+          "major": "Software Engineering",
+          "period": "Aug 2024 - Present",
+          "contactIntro": "Feel free to reach out by email or connect with me on GitHub."
+        },
+        "avatar": "",
+        "photo": "",
+        "email": "1943480241@qq.com",
+        "github": "Cyril-Fan",
+        "schoolUrl": "https://csw.jlu.edu.cn/"
+      }
+    }
+  ]
+}

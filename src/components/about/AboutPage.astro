@@ -1,0 +1,30 @@
+---
+import PageLayout from '@/layouts/CommonPage.astro'
+import { Button, Icon } from '@/components/user'
+import Comment from '@/components/advanced/Comment.astro'
+import AboutPhoto from './AboutPhoto.astro'
+import Markdown from '../cms/Markdown.astro'
+import { profile, lines } from '../../lib/cms-content'
+const en = Astro.currentLocale === 'en', p = profile[en ? 'en' : 'zh']
+const headings = [
+  {depth:2,slug:'about-me',text:en?'About Me':'关于我'},
+  {depth:2,slug:'interests',text:en?'Research Interests':'研究兴趣'},
+  {depth:2,slug:'contact',text:en?'Contact':'联系我'},
+  {depth:2,slug:'comments',text:en?'Conversation':'留言与交流'}
+]
+---
+<PageLayout title={en?'About':'关于'} {headings}>
+  <h2 id='about-me'>{headings[0].text}<a class='anchor' href='#about-me'>#</a></h2>
+  <AboutPhoto />
+  <Markdown source={p.about} />
+  <h2 id='interests'>{headings[1].text}<a class='anchor' href='#interests'>#</a></h2>
+  <ul>{lines(p.interests).map(item=><li>{item}</li>)}</ul>
+  <Button title={en?'Visit my academic page':'查看学术主页'} class='w-fit' href={en?'/en/academic':'/academic'} style='ahead' />
+  <h2 id='contact'>{headings[2].text}<a class='anchor' href='#contact'>#</a></h2>
+  <p>{p.contactIntro}</p>
+  <div class='not-prose flex flex-wrap gap-3'>
+    {profile.email && <Button title={profile.email} href={`mailto:${profile.email}`}><Icon name='email' class='size-4' slot='before' /></Button>}
+    {profile.github && <Button title={`GitHub · ${profile.github}`} href={`https://github.com/${profile.github}`} target='_blank' rel='noopener noreferrer'><Icon name='github' class='size-4' slot='before' /></Button>}
+  </div>
+  <Comment slot='bottom' thread='/about' class='mt-6' />
+</PageLayout>

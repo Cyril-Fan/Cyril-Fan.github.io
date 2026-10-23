@@ -1,6 +1,7 @@
 -- LOCAL TEST DATABASE ONLY. Do not run mocks against a real Supabase project.
 create role anon nologin;
 create role authenticated nologin;
+create role service_role nologin;
 create schema auth;
 create table auth.users (
   id uuid primary key,

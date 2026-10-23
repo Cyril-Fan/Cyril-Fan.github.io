@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import CommentAuth from '../advanced/CommentAuth.astro'
+import '../../assets/styles/cms.css'
+import 'katex/dist/katex.min.css'
+---
+<BaseLayout meta={{title:'内容管理',description:'站长内容管理后台'}}>
+  <main class='cms-page' data-pagefind-ignore>
+    <header class='cms-heading'><div><p class='cms-eyebrow'>CYRIL FAN / STUDIO</p><h1>内容管理</h1><p class='cms-muted'>在这里写作、整理与发布。</p></div><a href='/' class='cms-return'>返回网站 ↗</a></header>
+    <section class='cms-account' aria-label='站长登录'><CommentAuth id='cms-auth' context='admin' /><p class='cms-muted'>使用现有站长账号登录。编辑内容与草稿仅站长可见。</p></section>
+    <owner-cms>
+      <p data-cms-gate role='status'>正在验证站长权限…</p>
+      <div data-cms-shell hidden>
+        <nav class='cms-nav' aria-label='内容类型'>
+          <button type='button' data-kind='post' aria-pressed='true'>文章</button><button type='button' data-kind='friend' aria-pressed='false'>友链</button><button type='button' data-kind='profile' aria-pressed='false'>首页与关于</button><button type='button' data-kind='academic' aria-pressed='false'>学术与项目</button><button type='button' data-kind='media' aria-pressed='false'>图片库</button><button type='button' data-kind='trash' aria-pressed='false'>回收站</button><button type='button' data-kind='jobs' aria-pressed='false'>发布记录</button>
+        </nav>
+        <div class='cms-tools'><button type='button' data-create>新建文章</button><button type='button' data-refresh>刷新列表</button><details class='cms-backup'><summary>导入与备份</summary><div><button type='button' data-export>导出当前内容与图片</button><label class='cms-file'>导入备份 / Markdown<input type='file' data-import accept='.json,.md,.markdown' /></label><p>导入后先保存为草稿，不会自动发布或覆盖已上线内容。</p></div></details></div>
+        <p data-cms-message class='cms-message' role='status' aria-live='polite'></p>
+        <div class='cms-workspace'>
+          <aside class='cms-sidebar'><label>查找内容<input type='search' data-search placeholder='按名称查找' /></label><div data-list class='cms-list'></div></aside>
+          <section data-editor class='cms-editor' aria-label='内容编辑区'><div class='cms-empty'>选择一项内容，或开始写一篇新文章。</div></section>
+        </div>
+      </div>
+      <dialog data-cms-dialog class='cms-dialog'><form method='dialog'><button class='cms-dialog-close' aria-label='关闭' value='close'>×</button></form><div data-dialog-body></div></dialog>
+    </owner-cms>
+    <noscript>内容管理需要启用 JavaScript。</noscript>
+  </main>
+</BaseLayout>
+<script>
+  import { installCMS } from '../../lib/cms-editor'
+  installCMS()
+</script>

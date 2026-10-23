@@ -9,6 +9,7 @@ import { defineConfig } from 'astro/config'
 import rehypeKatex from 'rehype-katex'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
+import { literalArticleHtml, boundedArticleMath, articleMathOptions } from './src/lib/article-markdown.ts'
 
 // Others
 // import { visualizer } from 'rollup-plugin-visualizer'
@@ -85,10 +86,10 @@ export default defineConfig({
   // Markdown Options
   markdown: {
     processor: unified({
-    remarkPlugins: [remarkMath, remarkGfm],
+    remarkPlugins: [remarkMath, remarkGfm, literalArticleHtml, boundedArticleMath],
     rehypePlugins: [
       rehypeHeadingIds,
-      [rehypeKatex, {}],
+      [rehypeKatex, articleMathOptions],
       [
         rehypeAutolinkHeadings,
         {

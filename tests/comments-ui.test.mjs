@@ -83,7 +83,7 @@ async function until(condition, description) {
 }
 
 async function setup(context, language, { identity = guest(), rows = [], configured = true, initialSessionBeforeComments = false } = {}) {
-  const scope = { en: language === 'en', lang: language, id: 'comment-auth', thread: '/blog/dom-regression', Astro: { props: {} } }
+  const scope = { en: language === 'en', lang: language, id: 'comment-auth', context: 'comments', ownerAvatar: '/avatar/avatar.png', thread: '/blog/dom-regression', Astro: { props: {} } }
   const dom = new JSDOM(`<!doctype html><html lang="${language}"><body>${renderTemplate(commentAst, scope)}</body></html>`, {
     url: `https://cyril-fan.top/${language === 'en' ? 'en/' : ''}blog/dom-regression`, runScripts: 'outside-only'
   })

@@ -1,13 +1,15 @@
 ---
 import CommentAuth from './CommentAuth.astro'
 import { commentThread } from '../../lib/comment-utils'
+import { profile } from '../../lib/cms-content'
 import 'katex/dist/katex.min.css'
 interface Props { thread?: string; class?: string }
 const lang = Astro.currentLocale === 'en' ? 'en' : 'zh'
 const en = lang === 'en'
 const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
+const ownerAvatar = profile.avatar || '/avatar/avatar.png'
 ---
-<site-comments id='comments' data-thread={thread} data-lang={lang} class:list={['not-prose comment-panel', Astro.props.class]} data-pagefind-ignore>
+<site-comments id='comments' data-thread={thread} data-lang={lang} data-owner-avatar={ownerAvatar} class:list={['not-prose comment-panel', Astro.props.class]} data-pagefind-ignore>
   <header class='comment-heading'>
     <h2>{en ? 'Conversation' : '留言与交流'}</h2>
     <p>{en ? 'Thoughts, questions, and friendly conversations are welcome.' : '欢迎分享想法、提出问题，也欢迎来打个招呼。'}</p>

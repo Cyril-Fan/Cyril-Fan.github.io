@@ -77,6 +77,11 @@ try {
   const trafficResults = await db.exec(await readFile(path.join(here, 'traffic-regression.sql'), 'utf8'));
   const trafficAssertions = Number(trafficResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'traffic_assertions_passed'))?.traffic_assertions_passed ?? 0);
   if (trafficAssertions < 20) throw new Error('Traffic assertions did not complete.');
+  stage = 'owner CMS privacy, versioning and publication regression';
+  const cmsResults = await db.exec(await readFile(path.join(here, 'cms-regression.sql'), 'utf8'));
+  const cmsAssertions = Number(cmsResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'cms_assertions_passed'))?.cms_assertions_passed ?? 0);
+  if (cmsAssertions < 50) throw new Error('CMS assertions did not complete.');
+  console.log(`PASS: ${cmsAssertions} owner CMS PostgreSQL assertions passed.`);
   console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions + trafficAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions; ${trafficAssertions} on anonymous page views).`);
   console.log('PGlite uses one backend. Multi-connection lock contention is not exercised by this suite.');
   console.log('Avatar tests model Storage metadata only; real JPEG upload, MIME/size enforcement and CDN caching require integration checks.');

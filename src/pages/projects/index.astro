@@ -1,15 +1,17 @@
 ---
 import PageLayout from '@/layouts/CommonPage.astro'
 import { Button } from '@/components/user'
+import { academic } from '../../lib/cms-content'
+import ProjectItems from '../../components/cms/ProjectItems.astro'
 
 const headings = [{ depth: 2, slug: 'projects', text: '开源项目' }]
 ---
 
 <PageLayout title='项目' {headings} info={{ slug: '/projects', hideComment: true }}>
   <h2 id='projects'>开源项目</h2>
-  <div class='not-prose rounded-xl border border-border bg-card px-6 py-10 text-center'>
+  {academic.zh.projects.length ? <ProjectItems items={academic.zh.projects} /> : <div class='not-prose rounded-xl border border-border bg-card px-6 py-10 text-center'>
     <p class='text-xl font-medium'>暂无公开项目</p>
     <p class='mt-3 text-muted-foreground'>研究方向与论文成果整理在学术页面。</p>
     <Button title='查看学术页面' class='mt-5 inline-flex w-fit' href='/academic' />
-  </div>
+  </div>}
 </PageLayout>

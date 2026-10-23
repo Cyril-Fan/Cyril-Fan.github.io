@@ -5,6 +5,6 @@ const en = Astro.currentLocale === 'en'
   {en ? 'Site visits' : '访问次数'} <span aria-hidden='true'>·</span> <span data-visit-total></span>
 </p>
 <style>
-  .site-visits { margin:0; text-align:center; color:hsl(var(--muted-foreground)); font-size:.75rem; line-height:1.5; font-variant-numeric:tabular-nums; }
+  .site-visits { margin:0 0 .75rem; text-align:end; color:hsl(var(--muted-foreground)); font-size:.75rem; line-height:1.5; font-variant-numeric:tabular-nums; }
   .site-visits[hidden] { display:none; }
 </style>

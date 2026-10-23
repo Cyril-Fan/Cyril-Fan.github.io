@@ -10,8 +10,8 @@ const key = 'header.'+Buffer.from('{"role":"anon"}').toString('base64url')+'.sig
 const endpoint = 'https://project.supabase.co'
 const stats = {total:'24',started_at:'2026-10-23T12:00:00Z'}
 const flush = () => new Promise(resolve=>setImmediate(resolve))
-function setup({host='cyril-fan.top',visible=true,production=true,fetcher=async()=>({ok:true,json:async()=>stats})}={}) {
-  const dom = new JSDOM('<html lang="zh"><p data-site-visits hidden><span data-visit-total></span></p></html>',{url:`https://${host}/`,runScripts:'outside-only'})
+function setup({host='cyril-fan.top',path='/',visible=true,production=true,fetcher=async()=>({ok:true,json:async()=>stats})}={}) {
+  const dom = new JSDOM('<html lang="zh"><p data-site-visits hidden><span data-visit-total></span></p></html>',{url:`https://${host}${path}`,runScripts:'outside-only'})
   const {window}=dom
   Object.defineProperty(window.document,'visibilityState',{configurable:true,value:visible?'visible':'hidden'})
   window.AbortSignal.timeout=AbortSignal.timeout
@@ -33,6 +33,13 @@ test('only public keys and valid count responses are accepted',()=>{
   assert.equal(a.module.parseSiteStats({...stats,started_at:'unknown'}),null)
   assert.deepEqual(JSON.parse(JSON.stringify(a.module.parseSiteStats(stats))),stats)
   a.close()
+})
+
+test('private authoring pages do not inflate public page views',async()=>{
+  for(const path of ['/admin','/admin/','/en/admin/']){
+    let calls=0;const a=setup({path,fetcher:async()=>{calls++;throw Error('unexpected request')}})
+    await flush();assert.equal(calls,0);a.close()
+  }
 })
 test('record once per visible load, without credentials, path or account identity',async()=>{
   const calls=[]

@@ -20,7 +20,7 @@ const blogSchema = ({ image }: { image: () => any }) =>
     updatedDate: z.coerce.date().optional(),
     heroImage: z
       .object({
-        src: image(),
+        src: z.union([z.string().regex(/^(?:\/(?:media|links)\/[a-z0-9-]+\.webp|https:\/\/[^\s]+)$/), image()]),
         alt: z.string().optional(),
         inferSize: z.boolean().optional(),
         width: z.number().optional(),

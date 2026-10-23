@@ -2,6 +2,22 @@
 
 这份文件按“我想改什么”整理维护入口。路径都相对于仓库根目录；点击链接可直接在 GitHub 打开。正式网站：[cyril-fan.top](https://cyril-fan.top/)。
 
+**日常维护优先使用 [站长内容后台](https://cyril-fan.top/admin/)**，操作见 [CMS-GUIDE.md](CMS-GUIDE.md)。下面的源码路径用于理解结构和开发；文章、友链、个人资料及学术内容已由后台生成公开快照，不要同时直接修改快照与后台草稿。
+
+## 后台内容的数据源
+
+| 内容 | 私有源 / 公开产物 | 页面实现 |
+| --- | --- | --- |
+| 草稿、历史版本、回收站、发布任务 | Supabase `cms_private`；不在 GitHub | [`src/lib/cms-editor.ts`](src/lib/cms-editor.ts)、[`AdminPage.astro`](src/components/cms/AdminPage.astro) |
+| 首页、关于、学术和项目资料 | 后台 → [`src/data/cms-published.json`](src/data/cms-published.json) | `HomePage.astro`、`AboutPage.astro`、`AcademicPage.astro`、`ProjectItems.astro` |
+| 友链与订阅地址 | 后台 → [`public/links.json`](public/links.json) | `LinksPage.astro` / `FriendList.astro` |
+| 文章 | 后台 → `src/content/blogs/<slug>/index.md` 与 `index-en.md` | 既有博客、搜索、RSS 页面 |
+| 新上传图片 | 私有 `cms-media` 桶 → 发布引用的 `public/media/<UUID>.webp` | 头像、照片、封面与正文 |
+| 发布校验与 Git 提交 | [`supabase/functions/cms-publish/index.ts`](supabase/functions/cms-publish/index.ts) | 服务器 Edge Function |
+| 表单规则和公开文件生成 | [`supabase/functions/_shared/cms.ts`](supabase/functions/_shared/cms.ts) | 前后台共用校验 |
+| 当前部署标记 | [`public/data/cms-release.json`](public/data/cms-release.json) | 后台核验真实上线状态 |
+| 后台数据库和存储权限 | [`202610230009_owner_cms.sql`](supabase/migrations/202610230009_owner_cms.sql) | [部署说明](supabase/README.md) |
+
 ## 先记住这几个目录
 
 | 目录 | 放什么 | 修改方式 |
@@ -21,10 +37,10 @@
 | 想改的内容 | 直接维护的位置 | 注意 |
 | --- | --- | --- |
 | 网站标题、作者、邮箱、GitHub 用户名、域名、建站日期 | [`src/site.config.ts`](src/site.config.ts) | 英文元信息同时检查 `description_en` / `author_en` |
-| 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | [`src/components/home/HomePage.astro`](src/components/home/HomePage.astro) | 同一个组件内用 `en` 区分两种语言 |
+| 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | 后台“首页与关于” → `src/data/cms-published.json` 的 `profile` | [`HomePage.astro`](src/components/home/HomePage.astro) 保留双语布局 |
 | 中文 / 英文首页入口 | [`src/pages/index.astro`](src/pages/index.astro)、[`src/pages/en/index.astro`](src/pages/en/index.astro) | 实际界面由 `HomePage.astro` 生成 |
-| 主页头像 | [`src/assets/avatar.png`](src/assets/avatar.png) | 首页会生成优化后的响应图片 |
-| 评论站长头像、对外提供的本站头像地址 | [`public/avatar/avatar.png`](public/avatar/avatar.png) | 与上面的头像同步更新；不会自动跟随 GitHub 头像变化 |
+| 主页头像 | 后台“首页与关于”的头像 | 空值使用默认 [`src/assets/avatar.png`](src/assets/avatar.png) |
+| 评论站长头像、对外提供的本站头像地址 | 跟随后台设置的主页头像 | 默认对外地址为 [`public/avatar/avatar.png`](public/avatar/avatar.png)，不自动跟随 GitHub |
 | 左上角 Cyril Fan、顶部菜单和手机菜单 | [`src/components/basic/Header.astro`](src/components/basic/Header.astro) | 字体与字重也在该组件；中英文导航在这里分别呈现 |
 | 页脚署名、站点说明入口、社交链接 | [`src/components/basic/Footer.astro`](src/components/basic/Footer.astro)、[`src/site.config.ts`](src/site.config.ts) 的 `footer` | 四条站点说明的正文不在这里 |
 | 全站宽度和页面外壳 | [`src/layouts/BaseLayout.astro`](src/layouts/BaseLayout.astro) | 所有普通页面共用 |
@@ -38,10 +54,10 @@
 
 | 内容 | 中文 | 英文 / 补充 |
 | --- | --- | --- |
-| 关于：自我介绍、研究兴趣、联系方式和目录条目 | [`src/pages/about/index.astro`](src/pages/about/index.astro) | [`src/pages/en/about/index.astro`](src/pages/en/about/index.astro) |
+| 关于：自我介绍、研究兴趣、联系方式 | 后台“首页与关于” | 两种语言共用 [`AboutPage.astro`](src/components/about/AboutPage.astro)，目录也在此 |
 | 关于页湖畔照片 | [`src/assets/photos/cyril-fan-lakeside.webp`](src/assets/photos/cyril-fan-lakeside.webp) | [`src/components/about/AboutPhoto.astro`](src/components/about/AboutPhoto.astro) 控制两种语言的大小、对齐与替代文字 |
-| 学术页面 | [`src/pages/academic/index.astro`](src/pages/academic/index.astro) | [`src/pages/en/academic/index.astro`](src/pages/en/academic/index.astro) |
-| 项目页面 | [`src/pages/projects/index.astro`](src/pages/projects/index.astro) | [`src/pages/en/projects/index.astro`](src/pages/en/projects/index.astro) |
+| 学术页面 | 后台“学术与项目” | [`AcademicPage.astro`](src/components/cms/AcademicPage.astro) |
+| 项目页面 | 后台“学术与项目”的项目列表 | [`src/pages/projects/index.astro`](src/pages/projects/index.astro) 与英文入口 |
 | 文章正文 | `src/content/blogs/<文章目录>/index.mdx` 或 `index.md` | 可选 `index-en.mdx`；配图放同目录，使用相对路径 |
 | 文章标题、摘要、日期、分类、标签、草稿和评论开关 | 文章最上方的 frontmatter | 修改正文后如需更新展示日期，要同时改 `updatedDate` |
 | 博客列表与分类 | [`src/pages/blog/[category]/[...page].astro`](src/pages/blog/[category]/[...page].astro) | 对应英文文件位于 `src/pages/en/blog/`；“全部文章”与虚线等展示由相关博客组件控制 |
@@ -68,7 +84,7 @@
 | 构建使用的订阅快照 | [`src/assets/friend-feeds.json`](src/assets/friend-feeds.json)，由 `npm run sync:friends` 更新 |
 | 朋友圈后台更新检测 | [`src/lib/friend-feed-refresh.ts`](src/lib/friend-feed-refresh.ts)，读取 [`public/data/friend-feeds.json`](public/data/friend-feeds.json) |
 
-添加朋友时，在 `public/links.json` 中增加一条记录即可；不用自己打乱或手工维护显示顺序。`feed` 不是网站主页地址，而是 RSS / Atom 地址。Roy Zhao 的订阅是 `https://royzhao.cn/rss.xml`。没有可用订阅或订阅暂时没有文章时，卡片仍会显示，但朋友圈没有该站文章。
+添加朋友时，使用后台“友链”，填写表单并发布；`public/links.json` 是自动生成的公开文件。不用手工维护显示顺序。`feed` 不是网站主页地址，而是 RSS / Atom 地址。Roy Zhao 的订阅是 `https://royzhao.cn/rss.xml`。没有可用订阅或订阅暂时没有文章时，卡片仍会显示，但朋友圈没有该站文章。
 
 导入头像：
 
@@ -94,7 +110,7 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 | 贡献图展示、动画开关、日期查询、前台刷新 | [`ContributionSnake.astro`](src/components/home/ContributionSnake.astro)、[`src/lib/contribution-view.ts`](src/lib/contribution-view.ts) |
 | 建站天数、最近文章日期、字数、文章数 | [`src/components/home/BlogStats.astro`](src/components/home/BlogStats.astro)；建站日期在 `src/site.config.ts` |
 | 建站天数的上海日期计算及跨日刷新 | [`src/lib/site-days.ts`](src/lib/site-days.ts) |
-| 主页底部的访问次数文字与位置 | [`src/components/home/SiteVisits.astro`](src/components/home/SiteVisits.astro)，由 `HomePage.astro` 引入 |
+| 主页底部的访问次数文字与位置 | [`SiteVisits.astro`](src/components/home/SiteVisits.astro)，由 `Footer.astro` 仅在首页引入，右对齐显示在页脚分隔线上方 |
 | 全站访问次数请求、重试与只读刷新 | [`src/lib/site-traffic.ts`](src/lib/site-traffic.ts)，由 `BaseLayout.astro` 加载 |
 | 访问次数的真实总数 | **Supabase** 的 `site_private.traffic`，不是 GitHub 文件；结构见 [`202610230008_site_page_views.sql`](supabase/migrations/202610230008_site_page_views.sql) |
 
@@ -113,7 +129,7 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 | 全站访问次数 | 页面打开、刷新或历史返回后可见时加 1；主页显示每分钟读取最新总数 | 新请求重试不重复计数，不等于独立人数；禁用脚本、拦截或异常流量限频会影响结果 |
 | 建站天数 | 按上海日期，每分钟及返回页面时重算 | 跨午夜无需等待重新部署 |
 | 文章数量、字数、最近文章日期、搜索、本站 RSS、站点地图 | 发布内容后重新构建生成 | 推送 `main` 会触发发布；必须等待 Actions 成功 |
-| 站长头像、友链头像、个人简介和友链清单 | 修改本仓库对应文件并发布 | 不会自动跟随 GitHub 头像或朋友站点的修改 |
+| 站长头像、友链头像、个人简介和友链清单 | 后台修改并发布，等待构建完成 | 不会自动跟随 GitHub 头像或朋友站点的修改 |
 
 “每小时 / 每 5 分钟”是检查计划，不是即时同步承诺；上游数据、任务队列和 CDN 缓存都可能增加延迟。同步失败保留真实旧记录及原日期，不伪装成最新数据。
 

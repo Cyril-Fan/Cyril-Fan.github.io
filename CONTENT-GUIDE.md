@@ -1,5 +1,9 @@
 # 写作与维护指南
 
+日常写作现在可以直接使用 [内容后台](https://cyril-fan.top/admin/)，参见 [后台操作指南](CMS-GUIDE.md)。私有草稿、图片和历史记录存放在 Supabase，点发布后才生成公开 Markdown 并自动构建。
+
+以下为代码维护和原有 Markdown / MDX 工作流参考。后台管理的文章不要同时手工修改生成文件；后台检测到外部冲突会停止发布。提交到公开仓库的传统 `draft: true` 文件依然公开，不能代替后台的私有草稿。
+
 ## 新增一篇文章
 
 在 `src/content/blogs/` 下新建一个简短的英文目录，例如 `my-first-note/`，再创建 `index.mdx`（普通 Markdown 也可用 `index.md`）。目录名用于文章地址，发布后尽量不要改动。

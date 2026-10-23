@@ -23,6 +23,7 @@ export function parseSiteStats(value:unknown): Stats | null {
 
 export function installSiteTraffic({url,key,production,fetcher=fetch}:Options): () => void {
   if (!production || !['cyril-fan.top','www.cyril-fan.top'].includes(location.hostname) || !publicStatsConfig(url,key)) return () => {}
+  if (/^\/(?:en\/)?admin(?:\/|$)/.test(location.pathname)) return () => {}
   const controller = new AbortController()
   const {signal} = controller
   const display = document.querySelector<HTMLElement>('[data-site-visits]')

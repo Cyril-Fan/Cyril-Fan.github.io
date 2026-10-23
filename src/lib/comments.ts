@@ -342,7 +342,8 @@ export class SiteComments extends HTMLElement {
     return (words.length>1 ? (Array.from(words[0])[0]??'')+(Array.from(words.at(-1)!)[0]??'') : Array.from(name.trim())[0]??'').toLocaleUpperCase()
   }
   private renderAvatar(container:HTMLElement,name:string,isOwner:boolean,path?:string|null) {
-    const source=isOwner ? '/avatar/avatar.png' : commentAvatarUrl(this.avatarOrigin,path)
+    const ownerAvatar=this.dataset.ownerAvatar || ''
+    const source=isOwner ? (/^\/(?:links\/[a-z0-9-]+|media\/[a-f0-9-]{36})\.webp$/.test(ownerAvatar) ? ownerAvatar : '/avatar/avatar.png') : commentAvatarUrl(this.avatarOrigin,path)
     if(container.dataset.avatarName===name && container.dataset.avatarSource===(source??'')) return
     container.dataset.avatarName=name; container.dataset.avatarSource=source??''
     container.textContent=this.initials(name)

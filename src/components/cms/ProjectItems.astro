@@ -1,0 +1,13 @@
+---
+import Markdown from './Markdown.astro'
+const {items = []} = Astro.props
+---
+<div class='project-items'>
+{items.map((item: any) => <section class='rounded-xl border border-border bg-card p-5 mb-4'>
+  <h3 class='!mt-0'>{item.url ? <a href={item.url} target='_blank' rel='noopener noreferrer'>{item.title}</a> : item.title}</h3>
+  {item.image && <img src={item.image} alt={item.title} loading='lazy' class='rounded-lg' />}
+  {item.authors && <p>{item.authors}</p>}
+  {item.venue && <p class='text-muted-foreground'>{item.venue}</p>}
+  <Markdown source={item.summary} />
+</section>)}
+</div>

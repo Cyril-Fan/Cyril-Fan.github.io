@@ -1,0 +1,7 @@
+---
+import { articleMarkdown } from '../../lib/article-markdown'
+import 'katex/dist/katex.min.css'
+const { source = '' } = Astro.props
+---
+<div class='content-markdown' set:html={articleMarkdown(source)} />
+<style>.content-markdown { display:contents; }</style>

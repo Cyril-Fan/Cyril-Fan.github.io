@@ -1,10 +1,11 @@
 ---
+import { profile } from '../../lib/cms-content'
 const en = Astro.currentLocale === 'en'
 const fields = [
   ['Name', 'Cyril Fan'],
   ['Desc', 'Cosmic style'],
   ['Link', 'https://cyril-fan.top/'],
-  ['Avatar', 'https://cyril-fan.top/avatar/avatar.png'],
+  ['Avatar', `https://cyril-fan.top${profile.avatar || '/avatar/avatar.png'}`],
   ['RSS', 'https://cyril-fan.top/rss.xml']
 ]
 const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
