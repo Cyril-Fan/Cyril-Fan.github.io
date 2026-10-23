@@ -87,3 +87,7 @@ test('sign-out cancels pending publication confirmation',async t=>{
 test('draft trash has a reverse action and restoring does not publish',async t=>{
   const ui=await setup(t);await ui.click('新建文章');ui.fill('zh.title','Reversible');await ui.click('保存草稿');await ui.click('移入回收站');await ui.click('确认移入回收站');assert.ok(ui.find('恢复到草稿'));await ui.click('恢复到草稿');const d=[...ui.docs.values()].find(d=>d.payload.zh?.title==='Reversible');assert.equal(d.deleted,false);assert.equal(ui.jobs.length,0)
 })
+
+test('export provides a persistent download link and sign-out revokes it',async t=>{
+  const ui=await setup(t);await ui.click('友链');ui.root.querySelector('[data-list] button').click();await tick();await ui.click('导出此项');const link=ui.root.querySelector('[data-cms-download]');assert.ok(link.download.endsWith('.json'));assert.match(link.href,/^blob:/);assert.match(ui.root.querySelector('[data-cms-message]').textContent,/点击/);ui.role('guest');await tick();assert.equal(ui.root.querySelector('[data-cms-download]'),null)
+})

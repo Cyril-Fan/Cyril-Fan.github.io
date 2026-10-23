@@ -25,6 +25,7 @@
 .cms-file input { display:block; max-width:100%; font-size:.75rem; margin-top:.5rem; }
 .cms-message { min-height:1.6rem; font-size:.8rem; color:hsl(var(--muted-foreground)); margin:.25rem 0 .75rem; overflow-wrap:anywhere; }
 .cms-message[data-error=true] { color:#c94f4f; }
+.cms-download { display:inline-flex; padding:.6rem 1rem; margin:0 0 1rem; border:1px solid hsl(var(--border)); border-radius:.45rem; color:hsl(var(--primary)); font-size:.82rem; }
 .cms-workspace { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:1.5rem; align-items:start; }
 .cms-sidebar { position:sticky; top:6.5rem; max-height:calc(100dvh - 7.5rem); overflow:auto; }
 .cms-page label { display:grid; gap:.4rem; font-size:.8rem; font-weight:500; }

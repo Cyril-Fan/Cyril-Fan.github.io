@@ -44,6 +44,7 @@ export class OwnerCMS extends HTMLElement {
   private publishing=false
   private jobsTimer?:number
   private confirmCancel?:()=>void
+  private downloadUrl?:string
   private q<T extends HTMLElement=HTMLElement>(selector:string):T { return this.querySelector<T>(selector)! }
   private notify(message:string,error=false){const p=this.q('[data-cms-message]');p.textContent=message;p.dataset.error=String(error)}
   private get dirty(){return !!this.current&&JSON.stringify(this.current.payload)!==this.saved}
@@ -69,6 +70,8 @@ export class OwnerCMS extends HTMLElement {
   disconnectedCallback(){this.abort?.abort();this.abort=undefined;this.clearPrivate()}
   private clearPrivate(){
     this.confirmCancel?.()
+    if(this.downloadUrl)URL.revokeObjectURL(this.downloadUrl)
+    this.downloadUrl=undefined;this.querySelector('[data-cms-download]')?.remove()
     this.epoch++;this.userId=null;this.current=null;this.saved='';this.docs=[];this.previews.clear();this.pendingRequest=undefined;this.publishing=false
     window.clearTimeout(this.timer);window.clearTimeout(this.jobsTimer);this.saving=undefined
     for(const url of this.privateUrls.values())URL.revokeObjectURL(url)
@@ -305,7 +308,8 @@ export class OwnerCMS extends HTMLElement {
       const jobs=await this.rpc('cms_jobs');if(this.view!=='jobs')return
       if(!jobs.length)target.append(el('div','还没有发布记录。','cms-empty'))
       const states:Record<string,string>={queued:'等待提交',publishing:'正在提交',failed:'提交未完成',committed:'已提交 · 等待部署',live:'已上线',cancelled:'已取消'}
-      for(const j of jobs){const row=el('div','','cms-job'),doc=this.docs.find(d=>d.id===j.document_id),status=el('p',states[j.state]||j.state);row.append(el('strong',`${doc?.title||j.document_id} · ${j.action==='publish'?'发布':j.action==='trash'?'删除':'撤回'}`),el('p',timestamp(j.created_at),'cms-muted'),status)
+      if(!jobs.length)target.append(el('p','暂无发布记录。','cms-muted'))
+      for(const j of jobs){const row=el('div','','cms-job'),doc=this.docs.find(d=>d.id===j.document_id),status=el('p',states[j.state]||j.state),title=doc&&(doc.kind==='profile'||doc.kind==='academic')?kindLabels[doc.kind]:doc?.title||j.document_id;row.append(el('strong',`${title} · ${j.action==='publish'?'发布':j.action==='trash'?'删除':'撤回'}`),el('p',timestamp(j.created_at),'cms-muted'),status)
         if(j.error)row.append(el('p',j.error))
         const controls=el('div','','cms-inline')
         if(['queued','publishing','failed'].includes(j.state)){
@@ -362,8 +366,8 @@ export class OwnerCMS extends HTMLElement {
       for(const deleted of [false,true]){const section=el('section');section.append(el('h3',deleted?'已回收的图片':'可用图片'));const grid=el('div','','cms-media-grid');section.append(grid);target.append(section);for(const m of media.filter(x=>x.deleted===deleted))await this.mediaCard(grid,m);if(!grid.childElementCount)grid.append(el('p','暂无图片。','cms-muted'))}
     }catch(error){this.notify(errorText(error),true)}
   }
-  private download(name:string,content:string){const blob=new Blob([content],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
-  private exportCurrent(){if(!this.current)return;this.download(`cyril-${this.current.kind}-${this.current.id}.json`,JSON.stringify({version:1,documents:[this.current],media:[]},null,2));this.notify('已导出当前填写内容；未自动发布。')}
+  private download(name:string,content:string){if(this.downloadUrl)URL.revokeObjectURL(this.downloadUrl);this.querySelector('[data-cms-download]')?.remove();this.downloadUrl=URL.createObjectURL(new Blob([content],{type:'application/json;charset=utf-8'}));const a=el('a','下载备份文件','cms-download');a.href=this.downloadUrl;a.download=name;a.dataset.cmsDownload='';this.q('[data-cms-message]').after(a)}
+  private exportCurrent(){if(!this.current)return;this.download(`cyril-${this.current.kind}-${this.current.id}.json`,JSON.stringify({version:1,documents:[this.current],media:[]},null,2));this.notify('已生成当前内容备份，请点击“下载备份文件”保存；未自动发布。')}
   private async exportBackup(){
     if(!await this.leaveEditor())return
     const epoch=this.epoch
@@ -373,7 +377,7 @@ export class OwnerCMS extends HTMLElement {
       const media:Media[]=await this.rpc('cms_media_list'),assets=[];let size=0
       for(const m of media){const {data,error}=await this.client!.storage.from('cms-media').download(`${m.id}.webp`);if(error||!data)throw new Error(`图片 ${m.name} 无法备份，请先检查图片库。`);size+=data.size;if(size>40*1024*1024)throw new Error('完整备份的图片超过 40 MB，请联系维护者导出；也可单独导出当前内容。');assets.push({...m,data:bytesBase64(new Uint8Array(await data.arrayBuffer()))})}
       if(epoch!==this.epoch)return
-      this.download(`cyril-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),documents,media:assets},null,2));this.notify('备份已下载，包含当前内容和图片。历史版本继续保留在后台。')
+      this.download(`cyril-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),documents,media:assets},null,2));this.notify('备份已生成，包含当前内容和图片。请点击“下载备份文件”保存；历史版本继续保留在后台。')
     }catch(error){if(epoch===this.epoch)this.notify(errorText(error),true)}
   }
   private async importFile(file:File){
