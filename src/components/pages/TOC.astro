@@ -66,7 +66,8 @@ const toc = generateToc(headings)
         const sectionStart = headingRect.top
         const sectionEnd = this.headings[index + 1]?.getBoundingClientRect().top ?? contentBottom
         // A collapsed or empty section still has finite progress.
-        const sectionHeight = Math.max(1, sectionEnd - sectionStart - headingRect.height)
+        const titleHeight = /^H[2-6]$/.test(el.tagName) ? headingRect.height : 0
+        const sectionHeight = Math.max(1, sectionEnd - sectionStart - titleHeight)
         const progress = (windowHeight - sectionStart) / sectionHeight
 
         this.headingProgress[el.id] = {
@@ -99,10 +100,6 @@ const toc = generateToc(headings)
       this.eventController = new AbortController()
       const { signal } = this.eventController
       this.contentElement = document.getElementById('content')
-      // Comments have headings of their own; only article content drives its TOC.
-      this.headings = Array.from(this.contentElement?.querySelectorAll<HTMLElement>(
-        'h2[id], h3[id], h4[id], h5[id], h6[id]'
-      ) ?? [])
       this.tocLinks = Array.from(this.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')).map((link) => {
         const fragment = (link.getAttribute('href') || '').slice(1)
         let slug = fragment
@@ -113,6 +110,14 @@ const toc = generateToc(headings)
           slug
         }
       })
+
+      // Only configured anchors enter the TOC. Markdown headings inside user
+      // comments must never become navigation entries or section boundaries.
+      if (this.tocLinks.some(link => link.slug === 'comments')) {
+        this.contentElement = this.contentElement?.closest<HTMLElement>('[data-toc-content]') ?? this.contentElement
+      }
+      this.headings = this.tocLinks.map(link => document.getElementById(link.slug))
+        .filter((element): element is HTMLElement => Boolean(element && this.contentElement?.contains(element)))
 
       this.tocLinks.forEach((link) => {
         link.element.addEventListener('click', (e) => {

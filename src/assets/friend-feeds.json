@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "checkedAt": "2026-10-23T12:12:55.547Z",
+  "feeds": [
+    {
+      "source": "https://axi404.top/",
+      "feed": "https://axi404.top/rss.xml",
+      "status": "ok",
+      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "articles": [
+        {
+          "title": "具身十日谈：飞越奇点，后 Astra 时代的具身智能",
+          "link": "https://axi404.top/blog/embodied-talk-5",
+          "date": "2026-09-14T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Pi Agent 小记",
+          "link": "https://axi404.top/blog/pi-agent",
+          "date": "2026-08-30T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "VRChat 上手纪实",
+          "link": "https://axi404.top/blog/vrchat",
+          "date": "2026-08-11T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "致新生的你/后日谈：极简新生手册",
+          "link": "https://axi404.top/blog/advise-epilogue-3",
+          "date": "2026-08-05T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "大四回忆录",
+          "link": "https://axi404.top/blog/uni-memoir4",
+          "date": "2026-07-27T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记的结束",
+          "link": "https://axi404.top/blog/journal-end",
+          "date": "2026-07-06T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Embodied AI Paper List",
+          "link": "https://axi404.top/blog/eai-papers",
+          "date": "2026-06-08T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二六·四月",
+          "link": "https://axi404.top/blog/journal-2604",
+          "date": "2026-06-01T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Isaac Sim 一百讲（8）：Robot",
+          "link": "https://axi404.top/blog/isaac-8",
+          "date": "2026-05-31T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二六·三月",
+          "link": "https://axi404.top/blog/journal-2603",
+          "date": "2026-05-02T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "再次来到 VLA 的巴别塔/StarVLA 初版技术报告",
+          "link": "https://axi404.top/blog/starvla-v1",
+          "date": "2026-04-22T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二六·二月",
+          "link": "https://axi404.top/blog/journal-2602",
+          "date": "2026-03-31T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "新时代的具身仿真数据引擎",
+          "link": "https://axi404.top/blog/interndataengine",
+          "date": "2026-03-24T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Astrbot/ 夕颜是如何炼成的",
+          "link": "https://axi404.top/blog/astrbot-xiyan",
+          "date": "2026-02-27T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "StarVLA 这段时间以来",
+          "link": "https://axi404.top/blog/about-starvla",
+          "date": "2026-02-24T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "在 Windows 上使用 WSL 进行 Vibe Coding",
+          "link": "https://axi404.top/blog/wsl-coding",
+          "date": "2026-02-15T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二六·一月",
+          "link": "https://axi404.top/blog/journal-2601",
+          "date": "2026-02-08T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Paper Reading: Embodied AI 10",
+          "link": "https://axi404.top/blog/paper-reading-eai10",
+          "date": "2026-02-05T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二五·十二月",
+          "link": "https://axi404.top/blog/journal-2512",
+          "date": "2026-01-15T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "致新生的你/后日谈：价值博弈",
+          "link": "https://axi404.top/blog/advise-epilogue-2",
+          "date": "2026-01-06T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "致新生的你/后日谈：序",
+          "link": "https://axi404.top/blog/advise-epilogue-0",
+          "date": "2026-01-04T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "致新生的你/后日谈：为什么 Vibe Coding 如此重要",
+          "link": "https://axi404.top/blog/advise-epilogue-1",
+          "date": "2026-01-04T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Paper Reading: Embodied AI 9",
+          "link": "https://axi404.top/blog/paper-reading-eai9",
+          "date": "2026-01-03T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "2025 年终总结",
+          "link": "https://axi404.top/blog/2025",
+          "date": "2026-01-01T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "大三回忆录",
+          "link": "https://axi404.top/blog/uni-memoir3",
+          "date": "2025-12-27T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二五·十月",
+          "link": "https://axi404.top/blog/journal-2510",
+          "date": "2025-12-01T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二五·十一月",
+          "link": "https://axi404.top/blog/journal-2511",
+          "date": "2025-12-01T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "月记·二零二五·九月",
+          "link": "https://axi404.top/blog/journal-2509",
+          "date": "2025-11-30T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "具身十日谈：关于仿真以及 InternData A1",
+          "link": "https://axi404.top/blog/embodied-talk-4",
+          "date": "2025-11-23T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Paper Reading: Embodied AI 8",
+          "link": "https://axi404.top/blog/paper-reading-eai8",
+          "date": "2025-11-23T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "具身十日谈：GEN-0 以及后续的 VLA 发展的看法",
+          "link": "https://axi404.top/blog/embodied-talk-3",
+          "date": "2025-11-06T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Paper Reading: Embodied AI 7",
+          "link": "https://axi404.top/blog/paper-reading-eai7",
+          "date": "2025-11-03T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "创建 LeRobot 2.1 数据集",
+          "link": "https://axi404.top/blog/lerobot",
+          "date": "2025-10-29T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "The Dark Side of the AI",
+          "link": "https://axi404.top/blog/dark-side-of-ai",
+          "date": "2025-10-23T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Rclone 简易教程",
+          "link": "https://axi404.top/blog/rclone",
+          "date": "2025-10-20T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "经验分享 PPT",
+          "link": "https://axi404.top/blog/ppt-sharing",
+          "date": "2025-10-14T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "如何在 Astro 中为你的鼠标添加指针动画",
+          "link": "https://axi404.top/blog/cursor-feature",
+          "date": "2025-10-11T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "Paper Reading: Embodied AI 6",
+          "link": "https://axi404.top/blog/paper-reading-eai6",
+          "date": "2025-10-09T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "乘凉，我的保研经验贴",
+          "link": "https://axi404.top/blog/admission",
+          "date": "2025-10-03T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        },
+        {
+          "title": "本科生代表致新生发言",
+          "link": "https://axi404.top/blog/speech-undergraduate",
+          "date": "2025-09-25T00:00:00.000Z",
+          "source": "https://axi404.top/"
+        }
+      ]
+    },
+    {
+      "source": "https://leonwater1.github.io/",
+      "status": "unconfigured",
+      "articles": []
+    },
+    {
+      "source": "https://royzhao.cn/",
+      "feed": "https://royzhao.cn/rss.xml",
+      "status": "ok",
+      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "articles": [
+        {
+          "title": "秋天",
+          "link": "https://royzhao.cn/blog/autumn",
+          "date": "2025-10-31T00:00:00.000Z",
+          "source": "https://royzhao.cn/"
+        }
+      ]
+    },
+    {
+      "source": "https://vys3n.github.io/",
+      "feed": "https://vys3n.github.io/rss.xml",
+      "status": "ok",
+      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "articles": []
+    }
+  ]
+}

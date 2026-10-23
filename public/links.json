@@ -5,22 +5,31 @@
       "desc": "",
       "link_list": [
         {
-          "avatar": "/links/royzhao.jpg",
-          "name": "Roy Zhao",
-          "intro": "royzhao.cn",
-          "link": "https://royzhao.cn/"
-        },
-        {
           "avatar": "/links/axi.webp",
           "name": "Axi",
           "intro": "axi404.top",
-          "link": "https://axi404.top/"
+          "link": "https://axi404.top/",
+          "feed": "https://axi404.top/rss.xml"
         },
         {
           "avatar": "/links/leonwater.webp",
           "name": "Leonwater",
           "intro": "leonwater1.github.io",
           "link": "https://leonwater1.github.io/"
+        },
+        {
+          "avatar": "/links/royzhao.jpg",
+          "name": "Roy Zhao",
+          "intro": "royzhao.cn",
+          "link": "https://royzhao.cn/",
+          "feed": "https://royzhao.cn/rss.xml"
+        },
+        {
+          "name": "VYS3N",
+          "intro": "vys3n.github.io",
+          "link": "https://vys3n.github.io/",
+          "avatar": "/links/vys3n.webp",
+          "feed": "https://vys3n.github.io/rss.xml"
         }
       ]
     }

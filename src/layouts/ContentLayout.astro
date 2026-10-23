@@ -16,7 +16,7 @@ const { meta, highlightColor, ...props } = Astro.props
 
 <PageLayout {meta} {highlightColor} {...props}>
   <main class='content-layout mt-6'>
-    <div class='min-w-0'>
+    <div class='min-w-0' data-toc-content>
       <article>
         {/* Content header */}
         <div id='content-header' class='animate'>
@@ -67,6 +67,10 @@ const { meta, highlightColor, ...props } = Astro.props
       max-height:calc(100dvh - 8rem);
       overflow-y:auto;
       scrollbar-width:thin;
+    }
+    .content-sidebar:has(toc-heading) {
+      height:calc(100vh - 8rem);
+      height:calc(100dvh - 8rem);
     }
     .content-bottom-sidebar { flex-shrink:0; }
   }

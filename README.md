@@ -53,6 +53,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 博客文章 | `src/content/blogs/每篇文章目录/index.mdx` |
 | 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 关于页照片 | `src/assets/photos/cyril-fan-lakeside.webp`，`AboutPhoto.astro` 负责两种语言的响应图片 |
+| 友链与朋友圈 | `public/links.json`；按名称字典序显示，可选 `feed` 填 RSS / Atom URL；头像放 `public/links/`。`npm run sync:friends` 更新 `src/assets/friend-feeds.json`，每次自动构建也会尝试刷新；读取失败时保留构建环境已有的快照 |
 | 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，并同步所有已发布图标目录；版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
 | 贡献图 | `src/lib/contribution-feed.ts` 读取并校验原版日历和动画；`scripts/sync-contribution-snake.mjs` 保存构建快照；`ContributionSnake.astro` 与 `contribution-view.ts` 控制刷新、主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
@@ -60,6 +61,8 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 自动发布 | `.github/workflows/deploy.yml` |
 
 首页、关于等页面的资料有中英文副本；修改个人信息时请同步检查两种语言。
+
+友链页由 `LinksPage.astro` 共用双语布局，包括本站资料复制、申请模板、朋友圈随机阅读 / 分页 / 作者文章与留言。友链申请在留言区由站长查看后手动加入 JSON，不会自动把访客提交的 URL 变成订阅抓取目标。朋友圈只展示文章标题、作者、日期及原文链接，每个来源最多保留 40 篇；没有 RSS 或暂时没有文章的朋友仍正常出现在友链卡片中。
 
 ## GitHub Pages
 

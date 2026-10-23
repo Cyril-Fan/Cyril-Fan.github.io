@@ -175,12 +175,16 @@ place such private account-to-object mappings in the public repository.
 
 ## Threads, paging, and replies
 
-Use `/about` for both languages and the canonical `/blog/<slug>` for both language
+Use `/about` and `/links` for their respective bilingual discussions, and the canonical `/blog/<slug>` for both language
 versions of an article. Thread strings are at most 300 characters; Chinese and
 dots in real slugs are allowed. They must have no whitespace/control characters,
 query/fragment markers, backslashes, `//`, `.`/`..` path segments, or trailing
 slash. This validates route shape, not membership in the static site's article
 catalog. URL encoding must be consistent between page languages.
+
+Migration `202610230007_links_discussion.sql` adds `/links` to the existing route
+validator. Apply it before publishing the links page with comments. It does not
+change RPC grants, authentication, rate limits, moderation or author-email access.
 
 The legacy `comment_list` rows sort by `(created_at DESC, id DESC)`. To fetch the next page, send **both**
 fields from the last row as `p_before` and `p_before_id`; limits range from 1 to

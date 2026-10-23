@@ -2,7 +2,7 @@
 export function commentThread(path: string): string {
   let normalized = path.split(/[?#]/, 1)[0].replace(/^\/en(?=\/)/, '').replace(/\/+$/, '')
   normalized = normalized.replace(/\/index(?:-en)?(?:\.(?:md|mdx))?$/, '')
-  if (normalized === '/about' || /^\/blog\/[^?#]+$/.test(normalized)) return normalized
+  if (normalized === '/about' || normalized === '/links' || /^\/blog\/[^?#]+$/.test(normalized)) return normalized
   throw new Error('Invalid comment thread')
 }
 export type CommentRow = {

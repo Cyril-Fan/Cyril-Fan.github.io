@@ -1,0 +1,71 @@
+---
+const en = Astro.currentLocale === 'en'
+const fields = [
+  ['Name', 'Cyril Fan'],
+  ['Desc', en ? 'A student exploring AI, sharing research and life.' : '一名探索人工智能、记录科研与生活的学生。'],
+  ['Link', 'https://cyril-fan.top/'],
+  ['Avatar', 'https://cyril-fan.top/avatar/avatar.png'],
+  ['RSS', 'https://cyril-fan.top/rss.xml']
+]
+const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
+---
+<link-exchange class='not-prose exchange-panel' data-lang={en ? 'en' : 'zh'}>
+  <p>{en ? 'Select a field to copy it, or copy all the site information at once.' : '点击字段即可复制，也可以一次复制本站的全部信息。'}</p>
+  <dl class='exchange-fields'>
+    {fields.map(([label, value]) => <div><dt>{label}</dt><dd><button type='button' data-copy={value} aria-label={en ? `Copy ${label}` : `复制 ${label}`}>{value}</button></dd></div>)}
+  </dl>
+  <div class='exchange-actions'>
+    <button type='button' data-copy={fields.map(([label, value]) => `${label}: ${value}`).join('\n')}>{en ? 'Copy site information' : '复制本站信息'}</button>
+    <button type='button' data-copy={template}>{en ? 'Copy request template' : '复制申请模板'}</button>
+    <a href='#comments'>{en ? 'Leave a request' : '留言申请'} ↓</a>
+  </div>
+  <p class='exchange-status' data-copy-status role='status' aria-live='polite'></p>
+  <h3>{en ? 'Before requesting a link' : '申请说明'}</h3>
+  <ul>
+    <li>{en ? 'Add this site to your blogroll, then leave your site name, introduction, URL and avatar below.' : '先将本站加入你的友链，再在下方留下网站名称、简介、链接和头像地址。'}</li>
+    <li>{en ? 'Keep your site accessible and share original, lawful content. Requests are reviewed by the site owner.' : '请保持网站可访问，分享原创、合法的内容；申请由站长查看后添加。'}</li>
+    <li>{en ? 'An RSS or Atom feed is optional; it lets your latest posts appear in the reading feed.' : '欢迎附上 RSS / Atom 订阅地址，方便在朋友圈展示你的最新文章。'}</li>
+    <li>{en ? 'Please also leave a message if your URL or avatar changes.' : '网址或头像有变化，也可以在这里留言更新。'}</li>
+  </ul>
+</link-exchange>
+<script>
+  class LinkExchange extends HTMLElement {
+    private controller?: AbortController
+    connectedCallback() {
+      this.controller?.abort()
+      this.controller = new AbortController()
+      const en = this.dataset.lang === 'en'
+      const status = this.querySelector<HTMLElement>('[data-copy-status]')!
+      this.addEventListener('click', async event => {
+        const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-copy]') : null
+        if (!button) return
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy || '')
+          status.textContent = en ? 'Copied to clipboard.' : '已复制到剪贴板。'
+        } catch {
+          status.textContent = en ? 'Clipboard is unavailable. Select and copy the site details above.' : '暂时无法访问剪贴板，请选中上方信息手动复制。'
+        }
+      }, { signal: this.controller.signal })
+    }
+    disconnectedCallback() { this.controller?.abort() }
+  }
+  if (!customElements.get('link-exchange')) customElements.define('link-exchange', LinkExchange)
+</script>
+<style>
+  .exchange-panel { display:block; border:1px solid hsl(var(--border)); border-radius:1rem; padding:1.25rem; background:hsl(var(--muted)/.25); font-size:.9rem; }
+  p { margin:0 0 1rem; color:hsl(var(--muted-foreground)); }
+  .exchange-fields { display:grid; gap:.6rem; margin:1rem 0; }
+  .exchange-fields>div { display:grid; grid-template-columns:3.5rem minmax(0,1fr); gap:.65rem; align-items:baseline; }
+  dt { color:hsl(var(--muted-foreground)); font-size:.8rem; }
+  dd { margin:0; min-width:0; }
+  dd button { width:100%; text-align:start; background:hsl(var(--muted)/.6); border-radius:.4rem; padding:.4rem .6rem; overflow-wrap:anywhere; }
+  button, a { transition:color .2s, background-color .2s; }
+  button:hover, a:hover { color:hsl(var(--primary)); background:hsl(var(--muted)); }
+  :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
+  .exchange-actions { display:flex; flex-wrap:wrap; gap:.65rem; }
+  .exchange-actions>* { border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.5rem .75rem; min-height:2.75rem; display:inline-flex; align-items:center; gap:.35rem; }
+  .exchange-status { min-height:1.4em; margin:.6rem 0; font-size:.8rem; }
+  h3 { font-weight:600; margin:1rem 0 .5rem; }
+  ul { list-style:disc; padding-inline-start:1.25rem; color:hsl(var(--muted-foreground)); }
+  li+li { margin-top:.5rem; }
+</style>

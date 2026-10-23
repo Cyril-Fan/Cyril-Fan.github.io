@@ -12,21 +12,21 @@ const compiled = ts.transpileModule(script, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
 }).outputText
 
-function setup(context, { content = true, reducedMotion = false } = {}) {
-  const links = ['first', 'missing', 'second', 'third'].map((id) =>
+function setup(context, { content = true, reducedMotion = false, includeComments = false } = {}) {
+  const links = ['first', 'missing', 'second', 'third', ...(includeComments ? ['comments'] : [])].map((id) =>
     `<li><div><span data-toc-progress></span><a href="#${id}">${id}</a></div></li>`
   ).join('')
   const dom = new JSDOM(`<!doctype html><main>
     <aside><toc-heading><ul>${links}</ul></toc-heading></aside>
-    <article>${content ? '<div id="content"><h2 id="first">First</h2><h2 id="second">Second</h2><h2 id="third">Third</h2></div>' : ''}</article>
+    <div data-toc-content><article>${content ? '<div id="content"><h2 id="first">First</h2><h2 id="second">Second</h2><h2 id="third">Third</h2></div>' : ''}</article>
     <section id="comments"><h2 id="comment-title">Comments</h2></section>
-  </main>`, { url: 'https://cyril-fan.top/about', runScripts: 'outside-only' })
+    </div></main>`, { url: 'https://cyril-fan.top/about', runScripts: 'outside-only' })
   context.after(() => dom.window.close())
   const { window } = dom
   const frames = new Map()
   const observers = []
   const scrolled = []
-  const geometry = { scrollY: 0, first: 100, second: 1000, third: 1700, bottom: 2100 }
+  const geometry = { scrollY: 0, first: 100, second: 1000, third: 1700, bottom: 2100, comments: 2200, pageBottom: 4000 }
   let nextFrame = 0
   Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
   window.requestAnimationFrame = (callback) => { frames.set(++nextFrame, callback); return nextFrame }
@@ -39,6 +39,10 @@ function setup(context, { content = true, reducedMotion = false } = {}) {
     disconnect() { this.disconnected = true }
   }
   const contentElement = window.document.getElementById('content')
+  window.document.querySelector('[data-toc-content]').getBoundingClientRect = () => new window.DOMRect(0, 100 - geometry.scrollY, 700, geometry.pageBottom - 100)
+  const comments = window.document.getElementById('comments')
+  comments.getBoundingClientRect = () => new window.DOMRect(0, geometry.comments - geometry.scrollY, 700, geometry.pageBottom - geometry.comments)
+  comments.scrollIntoView = options => scrolled.push({id:'comments',options})
   if (contentElement) {
     contentElement.getBoundingClientRect = () => new window.DOMRect(0, 100 - geometry.scrollY, 700, geometry.bottom - 100)
     for (const id of ['first', 'second', 'third']) {
@@ -130,4 +134,19 @@ test('a page without article content remains safe to connect and disconnect', (c
   const { toc } = setup(context, { content: false })
   assert.doesNotThrow(() => toc.updatePositionAndStyle())
   assert.doesNotThrow(() => toc.remove())
+})
+
+test('explicit comment anchor remains active while reading replies and observes their reflow', context => {
+  const { toc, link, progress, geometry, observers, scrolled, flushFrame } = setup(context,{includeComments:true})
+  assert.deepEqual(Array.from(toc.headings,heading=>heading.id),['first','second','third','comments'])
+  assert.equal(observers[0].element.hasAttribute('data-toc-content'),true)
+  geometry.scrollY=2600
+  toc.updatePositionAndStyle()
+  assert.equal(link('comments').getAttribute('aria-current'),'location')
+  const before=Number.parseFloat(progress('comments').style.height)
+  geometry.pageBottom=6000
+  observers[0].callback(); flushFrame()
+  assert.ok(Number.parseFloat(progress('comments').style.height)<before)
+  link('comments').dispatchEvent(new toc.ownerDocument.defaultView.MouseEvent('click',{bubbles:true,cancelable:true,button:0}))
+  assert.equal(scrolled[0].id,'comments')
 })

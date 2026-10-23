@@ -1,0 +1,27 @@
+---
+import CommonPage from '@/layouts/CommonPage.astro'
+import FriendList from './FriendList.astro'
+import LinkExchange from './LinkExchange.astro'
+import FriendFeed from './FriendFeed.astro'
+import Comment from '@/components/advanced/Comment.astro'
+import friendsData from '@/public/links.json'
+const en = Astro.currentLocale === 'en'
+const friends = { id_name:'friends', desc:'', link_list:friendsData.friends.flatMap(group => group.link_list) }
+const headings = [
+  {depth:2,slug:'blogroll',text:en ? 'Blogroll' : '推荐博客'},
+  {depth:2,slug:'apply-links',text:en ? 'Exchange links' : '交换友链'},
+  {depth:2,slug:'small-circle',text:en ? 'Reading feed' : '朋友圈'},
+  {depth:2,slug:'comments',text:en ? 'Conversation' : '留言与交流'}
+]
+---
+<CommonPage title={en ? 'Links' : '友链'} {headings}>
+  <h2 id='blogroll'>{en ? 'Blogroll' : '推荐博客'}<a class='anchor' href='#blogroll'>#</a></h2>
+  <p>{en ? 'Friends and their writing, listed alphabetically by name.' : '朋友们的博客与文字，按名称字典序排列。'}</p>
+  <div class='not-prose'><FriendList list={friends} /></div>
+  <h2 id='apply-links'>{en ? 'Exchange links' : '交换友链'}<a class='anchor' href='#apply-links'>#</a></h2>
+  <LinkExchange />
+  <h2 id='small-circle'>{en ? 'Reading feed' : '朋友圈'}<a class='anchor' href='#small-circle'>#</a></h2>
+  <p>{en ? 'Recent posts from friends’ RSS and Atom feeds. Select an author to see more of their writing.' : '通过 RSS / Atom 订阅读到朋友们的新文章。点击作者，可以浏览更多近期文章。'}</p>
+  <FriendFeed />
+  <Comment slot='bottom' thread='/links' class='mt-6' />
+</CommonPage>
