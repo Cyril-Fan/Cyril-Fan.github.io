@@ -63,6 +63,8 @@ const row = (number, extra = {}) => ({
   parent_nickname: null, parent_deleted: false, author_banned: null, ...extra
 })
 const ok = (data) => ({ data, error: null })
+const emailAction = ui => [...ui.list.querySelectorAll('.comment-menu button')]
+  .find(button => ['查看作者邮箱','View author email'].includes(button.textContent))
 const deferred = () => {
   let resolve
   const promise = new Promise((done) => { resolve = done })
@@ -109,7 +111,7 @@ async function setup(context, language, { identity = guest(), rows = [], configu
     this.dispatchEvent(new window.Event('close'))
   }
 
-  const fixture = { window, identity, rows, calls: [], handlers: {}, signals: [], accountId: 'account-id', accountSequence: 0, avatarFetches: [], revokedAvatarUrls: [] }
+  const fixture = { window, identity, rows, calls: [], handlers: {}, signals: [], confirmedPosts: new Map(), accountId: 'account-id', accountSequence: 0, avatarFetches: [], revokedAvatarUrls: [] }
   window.URL.createObjectURL = () => `blob:avatar-${fixture.accountSequence}`
   window.URL.revokeObjectURL = value => fixture.revokedAvatarUrls.push(value)
   window.fetch = async (...args) => {
@@ -132,11 +134,29 @@ async function setup(context, language, { identity = guest(), rows = [], configu
       return {
         abortSignal(signal) {
           fixture.signals.push(signal)
-          if (fixture.handlers[name]) return Promise.resolve().then(() => fixture.handlers[name](args, signal))
-          if (name === 'comment_me') return Promise.resolve(ok({ ...fixture.identity }))
-          if (name === 'comment_list') return Promise.resolve(ok(fixture.rows))
-          if (name === 'comment_create') return Promise.resolve(ok({ id: row(999).id, is_pending: false }))
-          return Promise.resolve(ok(null))
+          return Promise.resolve().then(() => {
+            if (fixture.handlers[name]) return fixture.handlers[name](args, signal)
+            if (name === 'comment_me') return ok({ ...fixture.identity })
+            if (name === 'comment_thread_list') {
+              if(args.p_focus_id) {
+                const focus=fixture.confirmedPosts.get(args.p_focus_id) ?? fixture.rows.find(item=>item.id===args.p_focus_id)
+                const original=fixture.rows.find(item=>item.id===focus?.root_id)
+                return ok(focus ? [...(original && original.id!==focus.id ? [original] : []),focus] : [])
+              }
+              return ok(fixture.rows)
+            }
+            if (name === 'comment_create') return ok({ id: row(999).id, is_pending: false })
+            return ok(null)
+          }).then(response=>{
+            if(name==='comment_create' && !response.error && response.data?.id) {
+              const parent=fixture.rows.find(item=>item.id===args.p_parent_id)
+              const created_at=new Date().toISOString()
+              fixture.confirmedPosts.set(response.data.id,row(999,{id:response.data.id,body:args.p_body,
+                nickname:fixture.identity.nickname??args.p_nickname,parent_id:args.p_parent_id,is_pending:!!response.data.is_pending,
+                created_at,root_id:parent?.root_id??parent?.id??response.data.id,root_created_at:parent?.root_created_at??parent?.created_at??created_at}))
+            }
+            return response
+          })
         }
       }
     }
@@ -205,6 +225,242 @@ async function setup(context, language, { identity = guest(), rows = [], configu
 }
 
 for (const language of ['zh', 'en']) {
+  test(`${language}: original comments contain all chronological replies including reply-to-reply`, async context => {
+    const first = row(1, { created_at:'2026-10-21T21:46:00Z' })
+    const second = row(2, { created_at:'2026-10-22T21:00:00Z' })
+    const reply = row(3, { parent_id:first.id, root_id:first.id, root_created_at:first.created_at, created_at:'2026-10-22T11:42:00Z', is_admin_author:true })
+    const earlier = row(4, { parent_id:first.id, root_id:first.id, root_created_at:first.created_at, created_at:'2026-10-22T10:00:00Z' })
+    const nested = row(5, { parent_id:reply.id, root_id:first.id, root_created_at:first.created_at, created_at:'2026-10-23T11:00:00Z' })
+    const ui = await setup(context,language,{ rows:[nested,reply,second,earlier,first],identity:member() })
+    assert.deepEqual([...ui.list.children].map(item=>item.id),[`comment-${second.id}`,`comment-${first.id}`])
+    const thread=ui.select(`#comment-${first.id}`)
+    assert.deepEqual([...thread.querySelectorAll(':scope > .comment-thread-replies > .comment-item')].map(item=>item.id),[earlier,reply,nested].map(item=>`comment-${item.id}`))
+    assert.equal(thread.querySelectorAll('.comment-thread-replies .comment-thread-replies').length,0,'All replies share one visual level')
+    assert.equal(ui.select(`#comment-${nested.id} .comment-context a`).getAttribute('href'),`#comment-${reply.id}`)
+    thread.querySelector(':scope > .comment-item-actions > button').click()
+    assert.equal(ui.compose.nextElementSibling,thread.querySelector(':scope > .comment-thread-replies'),'Root composer remains immediately above its replies')
+  })
+
+  test(`${language}: a large thread continues across bounded pages before the next original comment`, async context => {
+    const original=row(1,{created_at:'2026-10-20T00:00:00Z'})
+    const replies=Array.from({length:30},(_,index)=>row(index+2,{parent_id:original.id,root_id:original.id,root_created_at:original.created_at,created_at:new Date(Date.parse(original.created_at)+(index+1)*60000).toISOString()}))
+    const older=row(40,{created_at:'2026-10-19T00:00:00Z'})
+    const firstPage=[original,...replies.slice(0,29)]
+    const ui=await setup(context,language,{rows:firstPage})
+    assert.equal(ui.list.children.length,1)
+    ui.handlers.comment_thread_list=args=>ok(args.p_after_id ? [replies[29],older] : firstPage)
+    ui.select('[data-more]').click()
+    await until(()=>ui.list.querySelectorAll('.comment-item').length===32,'conversation second page')
+    assert.equal(ui.list.children.length,2)
+    assert.equal(ui.select(`#comment-${original.id} .comment-thread-replies`).children.length,30)
+    assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list').at(-1).args.p_after_id,replies[28].id)
+    assert.equal(ui.select('[data-more]').hidden,true)
+  })
+
+  test(`${language}: ordering preserves PostgreSQL microseconds before using the ID tie-breaker`, async context => {
+    const original=row(1,{created_at:'2026-10-20T00:00:00Z'})
+    const earlier=row(3,{parent_id:original.id,root_id:original.id,root_created_at:original.created_at,created_at:'2026-10-21T00:00:00.000001+00:00'})
+    const later=row(2,{parent_id:original.id,root_id:original.id,root_created_at:original.created_at,created_at:'2026-10-21T00:00:00.000002+00:00'})
+    const ui=await setup(context,language,{rows:[original,later,earlier]})
+    assert.deepEqual([...ui.select('.comment-thread-replies').children].map(item=>item.id),[`comment-${earlier.id}`,`comment-${later.id}`])
+  })
+
+  test(`${language}: an unavailable pagination cursor refreshes the visible conversation`, async context => {
+    const first=Array.from({length:30},(_,index)=>row(index+1))
+    const ui=await setup(context,language,{rows:first,identity:member()})
+    ui.handlers.comment_thread_list=args=>args.p_after_id
+      ? {data:null,error:{message:'invalid_cursor'}} : ok(first.slice(0,29))
+    ui.draft('Keep my draft during a cursor refresh')
+    ui.select('[data-more]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && ui.list.querySelectorAll('.comment-item').length===29,'cursor refresh')
+    assert.equal(ui.select('[data-more]').hidden,true)
+    assert.equal(ui.textarea.value,'Keep my draft during a cursor refresh')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list').length,3)
+  })
+
+  test(`${language}: posting after thirty replies uses one bounded focus read without skipping the middle`, async context => {
+    const original=row(1,{created_at:'2026-10-20T00:00:00Z'})
+    const replies=Array.from({length:45},(_,index)=>row(index+2,{parent_id:original.id,root_id:original.id,root_created_at:original.created_at,created_at:new Date(Date.parse(original.created_at)+(index+1)*60000).toISOString()}))
+    const posted=row(999,{body:'My new reply at the end',parent_id:original.id,root_id:original.id,root_created_at:original.created_at,created_at:'2026-10-23T00:00:00Z'})
+    const first=[original,...replies.slice(0,29)]
+    const ui=await setup(context,language,{identity:member(),rows:first})
+    ui.handlers.comment_thread_list=args=>ok(args.p_focus_id ? [original,{...posted,gap_before:true}] : args.p_after_id ? [...replies.slice(29),posted] : first)
+    ui.select(`#comment-${original.id} > .comment-item-actions > button`).click()
+    ui.draft(posted.body); ui.submit()
+    await until(()=>!ui.post.disabled && ui.list.querySelector(`#comment-${posted.id}`),'new reply located')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list').length,3,'Only initial, refresh and one focus read occur')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_create').length,1)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,31)
+    assert.equal(ui.list.querySelectorAll('.comment-thread-gap').length,1)
+    assert.match(ui.status.textContent,language==='en' ? /has been posted/ : /已发布/)
+    const more=ui.select('.comment-thread-gap button')
+    assert.equal(more.disabled,false)
+    more.click()
+    await until(()=>ui.list.querySelectorAll('.comment-item').length===47 && ui.select('[data-list]').getAttribute('aria-busy')==='false','middle replies filled')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list').at(-1).args.p_after_id,first.at(-1).id,'Focus never advances the normal cursor')
+    assert.equal(ui.list.querySelectorAll('.comment-thread-gap').length,0)
+    assert.equal(ui.list.querySelectorAll(`#comment-${posted.id}`).length,1)
+  })
+
+  test(`${language}: a failed focus read confirms the write without suggesting a second submission`, async context => {
+    const first=Array.from({length:30},(_,index)=>row(index+1))
+    const ui=await setup(context,language,{identity:member(),rows:first})
+    ui.handlers.comment_thread_list=args=>args.p_focus_id ? {data:null,error:{message:'Offline'}} : ok(first)
+    ui.draft('Accepted while focus is unavailable'); ui.submit()
+    await until(()=>!ui.post.disabled && ui.calls.some(call=>call.args?.p_focus_id),'focus attempt completed')
+    assert.match(ui.status.textContent,language==='en' ? /was submitted/ : /已提交/)
+    assert.match(ui.status.textContent,language==='en' ? /do not submit it again/ : /无需重复提交/)
+    assert.equal(ui.calls.filter(call=>call.name==='comment_create').length,1)
+    assert.equal(ui.calls.filter(call=>call.args?.p_focus_id).length,1)
+    assert.equal(ui.textarea.value,'')
+  })
+
+  test(`${language}: an account change discards a late focused pending reply`, async context => {
+    const ui=await setup(context,language,{identity:member(),rows:[row(1)]})
+    const focus=deferred()
+    ui.handlers.comment_thread_list=args=>args.p_focus_id ? focus.promise : ok([row(1)])
+    ui.draft('Private pending reply'); ui.submit()
+    await until(()=>ui.calls.some(call=>call.args?.p_focus_id),'focus request started')
+    ui.changeIdentity(member({nickname:'Other account'}))
+    focus.resolve(ok([row(999,{body:'Private pending reply',is_pending:true})]))
+    await until(()=>ui.select('[data-identity-name]').textContent==='Other account' && ui.select('[data-list]').getAttribute('aria-busy')==='false','other account ready')
+    assert.equal(ui.list.textContent.includes('Private pending reply'),false)
+    assert.equal(ui.list.querySelector(`#comment-${row(999).id}`),null)
+  })
+
+  test(`${language}: a silent session change cannot receive the prior account's focused pending reply`, async context => {
+    const ui=await setup(context,language,{identity:member(),rows:[row(1)]})
+    const focus=deferred()
+    ui.handlers.comment_thread_list=args=>args.p_focus_id ? focus.promise : ok([row(1)])
+    ui.draft('Pending text from previous account'); ui.submit()
+    await until(()=>ui.calls.some(call=>call.args?.p_focus_id),'focus requested')
+    ui.accountId='silent-next-account'; ui.identity=member({nickname:'Silent next account'})
+    focus.resolve(ok([row(999,{body:'Pending text from previous account',is_pending:true})]))
+    await until(()=>ui.select('[data-identity-name]').textContent==='Silent next account','silent account recognized')
+    assert.equal(ui.list.textContent.includes('Pending text from previous account'),false)
+    assert.equal(ui.list.querySelector(`#comment-${row(999).id}`),null)
+  })
+
+  test(`${language}: unavailable originals use a neutral placeholder without inventing author context`, async context => {
+    const own=row(1,{root_id:row(1).id,root_created_at:row(1).created_at,root_unavailable:true,is_pending:true,parent_id:null,parent_nickname:null})
+    const ui=await setup(context,language,{identity:member(),rows:[own]})
+    assert.equal(ui.list.querySelectorAll('.comment-unavailable').length,1)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,1)
+    assert.equal(ui.list.querySelectorAll('.comment-context a').length,0)
+    assert.equal(ui.list.querySelector('.comment-item').parentElement.className,'comment-thread-replies')
+  })
+
+  test(`${language}: deleted originals retain their chronological replies`, async context => {
+    const original=row(1,{deleted:true,body:'',created_at:'2026-10-21T00:00:00Z'})
+    const reply=row(2,{parent_id:original.id,root_id:original.id,root_created_at:original.created_at,parent_deleted:true,created_at:'2026-10-22T00:00:00Z'})
+    const ui=await setup(context,language,{rows:[original,reply]})
+    assert.equal(ui.list.children.length,1)
+    assert.ok(ui.select(`#comment-${original.id}`).contains(ui.select(`#comment-${reply.id}`)))
+    assert.match(ui.select(`#comment-${original.id} > .comment-body`).textContent,language==='en' ? /deleted/ : /已删除/)
+  })
+
+  test(`${language}: afternoon and midnight dates always use 00–23 hours`, async context => {
+    const afternoon=new Date(2026,9,23,13,5).toISOString()
+    const midnight=new Date(2026,9,23,0,5).toISOString()
+    const ui=await setup(context,language,{rows:[row(1,{created_at:afternoon}),row(2,{created_at:midnight})]})
+    assert.match(ui.select(`#comment-${row(1).id} time`).textContent,/13:05/)
+    assert.match(ui.select(`#comment-${row(2).id} time`).textContent,/00:05/)
+    assert.doesNotMatch(ui.list.textContent,/\b(?:AM|PM)\b/)
+    assert.equal(ui.select(`#comment-${row(1).id} time`).getAttribute('datetime'),afternoon)
+  })
+
+  test(`${language}: author email is fetched only through the owner menu and cleared at refresh`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    ui.handlers.comment_author_email=()=>ok('private-author@example.invalid')
+    assert.equal(ui.calls.some(call=>call.name==='comment_author_email'),false)
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+    emailAction(ui).click()
+    await until(()=>ui.list.textContent.includes('private-author@example.invalid'),'owner email display')
+    assert.deepEqual(ui.calls.find(call=>call.name==='comment_author_email').args,{p_thread:'/blog/dom-regression',p_comment_id:row(1).id})
+    assert.equal(ui.select('[data-author-email]').getAttribute('role'),'status')
+    const refresh=deferred()
+    ui.handlers.comment_thread_list=()=>refresh.promise
+    ui.select('[data-refresh]').click()
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+    refresh.resolve(ok([row(1)]))
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false','refresh after email')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_author_email').length,1,'Refreshing never fetches email automatically')
+  })
+
+  test(`${language}: ordinary and guest viewers have no author email action`, async context => {
+    for(const identity of [guest(),member()]) {
+      const ui=await setup(context,language,{identity,rows:[row(1,{can_delete:identity.can_post})]})
+      assert.equal(emailAction(ui),undefined)
+      assert.equal(ui.list.querySelector('[data-author-email]'),null)
+      assert.equal(ui.calls.some(call=>call.name==='comment_author_email'),false)
+    }
+  })
+
+  test(`${language}: sign-out clears a displayed email immediately even if its refresh fails`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    ui.handlers.comment_author_email=()=>ok('private-author@example.invalid')
+    emailAction(ui).click()
+    await until(()=>ui.list.querySelector('[data-author-email]'),'email before logout')
+    const refresh=deferred(); ui.handlers.comment_thread_list=()=>refresh.promise
+    ui.changeIdentity(guest())
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+    assert.equal(emailAction(ui),undefined)
+    refresh.resolve({data:null,error:{message:'Offline'}})
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false','failed logout read')
+    assert.equal(ui.list.textContent.includes('private-author@example.invalid'),false)
+  })
+
+  test(`${language}: account switches discard an in-flight author email and never restore it`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    const response=deferred(); ui.handlers.comment_author_email=()=>response.promise
+    emailAction(ui).click()
+    await until(()=>ui.calls.some(call=>call.name==='comment_author_email'),'email request started')
+    ui.changeIdentity(member())
+    response.resolve(ok('old-owner-private@example.invalid'))
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false','new account load')
+    assert.equal(ui.list.textContent.includes('old-owner-private@example.invalid'),false)
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+    ui.changeIdentity(member({is_admin:true}))
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && emailAction(ui),'owner returns')
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+  })
+
+  test(`${language}: silent account changes are checked again before displaying email`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    const response=deferred(); ui.handlers.comment_author_email=()=>response.promise
+    emailAction(ui).click()
+    await until(()=>ui.calls.some(call=>call.name==='comment_author_email'),'email request starts')
+    ui.accountId='silently-replaced'; ui.identity=member({nickname:'New reader'})
+    response.resolve(ok('previous-account@example.invalid'))
+    await until(()=>ui.select('[data-identity-name]').textContent==='New reader','silent account replaced')
+    assert.equal(ui.list.textContent.includes('previous-account@example.invalid'),false)
+    assert.equal(emailAction(ui),undefined)
+  })
+
+  test(`${language}: lost administrator authority clears prior email and pending content`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1),row(2,{is_pending:true,body:'Pending confidential text'})]})
+    ui.handlers.comment_author_email=()=>ok('first-author@example.invalid')
+    emailAction(ui).click(); await until(()=>ui.list.querySelector('[data-author-email]'),'first email')
+    ui.handlers.comment_author_email=()=>({data:null,error:{message:'admin_required'}})
+    emailAction(ui).click()
+    await until(()=>ui.status.dataset.error==='true','revoked email authorization')
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+    assert.equal(ui.list.textContent.includes('Pending confidential text'),false)
+    assert.equal(emailAction(ui),undefined)
+  })
+
+  test(`${language}: refresh invalidates a late email response`, async context => {
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    const response=deferred(); ui.handlers.comment_author_email=()=>response.promise
+    emailAction(ui).click(); await until(()=>ui.calls.some(call=>call.name==='comment_author_email'),'email request')
+    ui.select('[data-refresh]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false','refresh completion')
+    response.resolve(ok('stale-response@example.invalid')); await flush()
+    assert.equal(ui.list.querySelector('[data-author-email]'),null)
+  })
+}
+
+for (const language of ['zh', 'en']) {
   test(`${language}: anonymous auth submit stays enabled while comment submit is disabled`, async (context) => {
     const ui = await setup(context, language)
     assert.equal(ui.panel.querySelector('[data-submit]'), ui.authSubmit, 'The test must retain the real nested selector collision')
@@ -258,7 +514,7 @@ for (const language of ['zh', 'en']) {
     assert.ok(ui.list.querySelectorAll('button').length > 0)
     ui.draft('Private draft must not survive confirmed logout')
     const response = deferred()
-    ui.handlers.comment_list = () => response.promise
+    ui.handlers.comment_thread_list = () => response.promise
     ui.changeIdentity(guest())
     assert.equal(ui.post.disabled, true)
     assert.equal(ui.list.querySelectorAll('button').length, 0)
@@ -274,7 +530,7 @@ for (const language of ['zh', 'en']) {
 
   test(`${language}: acknowledged write and failed refresh get a distinct status`, async (context) => {
     const ui = await setup(context, language, { identity: member() })
-    ui.handlers.comment_list = () => ({ data: null, error: { message: 'Offline after write' } })
+    ui.handlers.comment_thread_list = () => ({ data: null, error: { message: 'Offline after write' } })
     ui.draft('Already accepted by the server')
     ui.submit()
     await until(() => !ui.textarea.disabled && ui.status.dataset.error === 'true', 'write with failed list refresh')
@@ -293,7 +549,7 @@ for (const language of ['zh', 'en']) {
     await flush()
     assert.equal(ui.calls.some((call) => call.name === 'comment_delete'), false)
     findDelete().click()
-    ui.handlers.comment_list = () => ({ data: null, error: { message: 'Offline after deletion' } })
+    ui.handlers.comment_thread_list = () => ({ data: null, error: { message: 'Offline after deletion' } })
     dialog.close('confirm')
     await until(() => ui.calls.some((call) => call.name === 'comment_delete') && !ui.textarea.disabled, 'confirmed delete completion')
     const deletion = ui.calls.find((call) => call.name === 'comment_delete')
@@ -373,15 +629,14 @@ for (const language of ['zh', 'en']) {
   test(`${language}: earlier-page loading uses the cursor and deduplicates overlapping rows`, async (context) => {
     const firstPage = Array.from({ length: 30 }, (_, index) => row(index + 1))
     const ui = await setup(context, language, { rows: firstPage })
-    assert.equal(ui.list.children.length, 30)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length, 30)
     assert.equal(ui.select('[data-more]').hidden, false)
-    ui.handlers.comment_list = () => ok([firstPage.at(-1), row(31), row(32)])
+    ui.handlers.comment_thread_list = () => ok([firstPage.at(-1), row(31), row(32)])
     ui.select('[data-more]').click()
-    await until(() => ui.list.children.length === 32, 'deduplicated second page')
-    const request = ui.calls.filter((call) => call.name === 'comment_list').at(-1).args
-    assert.equal(request.p_before, firstPage.at(-1).created_at)
-    assert.equal(request.p_before_id, firstPage.at(-1).id)
-    assert.equal(new Set([...ui.list.children].map((item) => item.id)).size, 32)
+    await until(() => ui.list.querySelectorAll('.comment-item').length === 32, 'deduplicated second page')
+    const request = ui.calls.filter((call) => call.name === 'comment_thread_list').at(-1).args
+    assert.equal(request.p_after_id, firstPage.at(-1).id)
+    assert.equal(new Set([...ui.list.querySelectorAll('.comment-item')].map((item) => item.id)).size, 32)
     assert.equal(ui.select('[data-more]').hidden, true)
   })
 
@@ -541,9 +796,9 @@ for (const language of ['zh', 'en']) {
     const original = Array.from({ length: 32 }, (_, index) => row(index + 1, { nickname: 'Reader', parent_id: index === 30 ? row(1).id : null, parent_nickname: index === 30 ? 'Reader' : null }))
     const ui = await setup(context, language, { identity: member(), rows: original.slice(0, 30) })
     let renamed = false
-    ui.handlers.comment_list = args => ok((args.p_before_id ? original.slice(30) : original.slice(0, 30)).map(item => ({ ...item, nickname: renamed ? 'New name' : item.nickname, parent_nickname: item.parent_id && renamed ? 'New name' : item.parent_nickname })))
+    ui.handlers.comment_thread_list = args => ok((args.p_after_id ? original.slice(30) : original.slice(0, 30)).map(item => ({ ...item, nickname: renamed ? 'New name' : item.nickname, parent_nickname: item.parent_id && renamed ? 'New name' : item.parent_nickname })))
     ui.select('[data-more]').click()
-    await until(() => ui.list.children.length === 32, 'earlier rows loaded')
+    await until(() => ui.list.querySelectorAll('.comment-item').length === 32, 'earlier rows loaded')
     replyTo(ui, 32).click()
     ui.draft('Reply draft')
     ui.select('[data-profile-edit]').click()
@@ -551,7 +806,7 @@ for (const language of ['zh', 'en']) {
     ui.handlers.comment_profile_update = args => { renamed = true; ui.identity = member({ nickname: args.p_nickname }); return ok(ui.identity) }
     ui.select('[data-profile-save]').click()
     await until(() => !ui.textarea.disabled && ui.status.textContent.includes(label('昵称已更新', 'Nickname updated')), 'profile and paginated rows refreshed')
-    assert.equal(ui.list.children.length, 32)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length, 32)
     assert.ok([...ui.list.querySelectorAll('.comment-item-header strong')].every(name => name.textContent === 'New name'))
     assert.match(ui.select(`#comment-${row(31).id} .comment-context`).textContent, /New name/)
     assert.equal(ui.compose.parentElement.id, `comment-${row(32).id}`)
@@ -650,7 +905,7 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.select('comment-auth [data-guest]').hidden, true)
     assert.equal(ui.window.document.activeElement, ui.select('[data-sign-in]'))
     const response = deferred()
-    ui.handlers.comment_list = () => response.promise
+    ui.handlers.comment_thread_list = () => response.promise
     ui.select('[data-refresh]').click()
     assert.equal(ui.select('[data-empty]').hidden, true)
     assert.match(ui.status.textContent, language === 'en' ? /loading/i : /正在加载/)
@@ -787,13 +1042,13 @@ for (const language of ['zh', 'en']) {
   test(`${language}: a guest reply selected on an earlier page remains loaded after sign-in`, async context => {
     const firstPage=Array.from({length:30},(_,index)=>row(index+1))
     const ui = await setup(context, language, { rows:firstPage })
-    ui.handlers.comment_list = args => ok(args.p_before ? [row(31)] : firstPage)
+    ui.handlers.comment_thread_list = args => ok(args.p_after_id ? [row(31)] : firstPage)
     ui.select('[data-more]').click()
-    await until(() => ui.list.children.length===31 && ui.select('[data-list]').getAttribute('aria-busy')==='false','earlier guest page')
+    await until(() => ui.list.querySelectorAll('.comment-item').length===31 && ui.select('[data-list]').getAttribute('aria-busy')==='false','earlier guest page')
     ui.select(`#comment-${row(31).id} .comment-item-actions > button`).click()
     ui.changeIdentity(member())
     await until(() => !ui.post.disabled && ui.compose.parentElement.id===`comment-${row(31).id}`,'earlier reply target after sign-in')
-    assert.equal(ui.list.children.length,31)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,31)
     assert.equal(ui.select('[data-login-reply]').hidden,true)
   })
 
@@ -801,10 +1056,10 @@ for (const language of ['zh', 'en']) {
     const ui = await setup(context, language, { rows: [row(1)] })
     loginReply(ui).click()
     const firstRead = deferred()
-    ui.handlers.comment_list = () => firstRead.promise
+    ui.handlers.comment_thread_list = () => firstRead.promise
     ui.changeIdentity(member({ nickname: 'First account' }))
     await flush()
-    delete ui.handlers.comment_list
+    delete ui.handlers.comment_thread_list
     ui.changeIdentity(member({ nickname: 'Second account' }))
     await until(() => !ui.post.disabled && ui.select('[data-identity-name]').textContent === 'Second account', 'second sign-in account')
     firstRead.resolve(ok([row(1)]))
@@ -860,13 +1115,13 @@ for (const language of ['zh', 'en']) {
     const ui=await setup(context,language,{identity:member({is_admin:true}),rows:oldRows})
     ui.identity=member()
     const publicRows=Array.from({length:30},(_,index)=>row(index+2))
-    ui.handlers.comment_list=args=>ok(args.p_before ? [row(32)] : publicRows)
+    ui.handlers.comment_thread_list=args=>ok(args.p_after_id ? [row(32)] : publicRows)
     ui.select('[data-more]').click()
     await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && ui.select('[data-admin]').hidden,'silent role removal refresh')
     assert.equal(ui.list.querySelector(`#comment-${row(1).id}`),null)
     assert.equal(ui.list.querySelectorAll('.comment-menu').length,0,'Old administrator delete and ban controls disappear')
-    assert.equal(ui.list.children.length,31,'The requested earlier page remains included after permission refresh')
-    assert.equal(ui.calls.filter(call=>call.name==='comment_list' && !call.args.p_before).length,2)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,31,'The requested earlier page remains included after permission refresh')
+    assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list' && !call.args.p_after_id).length,2)
   })
 
   test(`${language}: a session account changed without an auth event cannot retain earlier private rows or a reply target`, async context => {
@@ -876,10 +1131,10 @@ for (const language of ['zh', 'en']) {
     ui.draft('Private text and reply target from the old account')
     ui.identity=member({nickname:'Second reader'})
     ui.accountId='different-session-account'
-    ui.handlers.comment_list=()=>ok([row(31)])
+    ui.handlers.comment_thread_list=()=>ok([row(31)])
     ui.select('[data-more]').click()
     await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && ui.select('[data-identity-name]').textContent==='Second reader','silent account replacement')
-    assert.equal(ui.list.children.length,1)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,1)
     assert.equal(ui.list.querySelector(`#comment-${row(1).id}`),null)
     assert.equal(ui.list.querySelectorAll('.comment-menu').length,0)
     assert.equal(ui.select('[data-reply]').hidden,true)
@@ -891,13 +1146,13 @@ for (const language of ['zh', 'en']) {
     const oldRows=Array.from({length:30},(_,index)=>row(index+1,{can_delete:true}))
     const ui=await setup(context,language,{identity:member(),rows:oldRows})
     ui.identity=guest()
-    ui.handlers.comment_list=()=>ok([row(31)])
+    ui.handlers.comment_thread_list=()=>ok([row(31)])
     ui.select('[data-more]').click()
     await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false' && !ui.select('[data-login-prompt]').hidden,'silently revoked sign-in')
     assert.equal(ui.post.disabled,true)
     assert.equal(ui.compose.hidden,true)
     assert.equal(ui.list.querySelectorAll('.comment-menu').length,0)
-    assert.equal(ui.list.children.length,1)
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,1)
   })
 
   test(`${language}: a rejected unknown-account session check fails closed without an unhandled rejection`, async context => {

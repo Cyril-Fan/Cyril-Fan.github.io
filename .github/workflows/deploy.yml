@@ -5,7 +5,8 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '17 20 * * *'
+    # Attempt an hourly refresh. GitHub may delay or skip scheduled runs.
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
@@ -30,7 +31,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:database
-      - run: npm run build
+      - name: Refresh contributions and build the site
+        run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify the generated contribution bundle
+        run: node --test tests/contribution-snake.test.mjs tests/github-calendar.test.mjs
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist

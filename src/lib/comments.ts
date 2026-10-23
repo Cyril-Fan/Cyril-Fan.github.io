@@ -1,5 +1,5 @@
 import { getCommentClient, type CommentAuthChangeDetail } from './comment-auth'
-import { commentError, type CommentRow, type CommentMe } from './comment-utils'
+import { commentError, groupCommentRows, type CommentRow, type CommentMe } from './comment-utils'
 import { prepareCommentAvatar, commentAvatarUrl, captureAvatarAuthorization, saveCommentAvatar, removeCommentAvatar, commentAvatarMessage } from './comment-avatar'
 import { renderCommentMarkdown } from './comment-markdown'
 
@@ -22,6 +22,10 @@ export class SiteComments extends HTMLElement {
   private avatarOperation?: AbortController
   private avatarWorking: 'prepare' | 'save' | 'remove' | null = null
   private rows: CommentRow[] = []
+  private focusedRows: CommentRow[] = []
+  private authorEmails = new Map<string, string | null>()
+  private emailOperation?: AbortController
+  private emailGeneration = 0
   private me = guestIdentity()
   private parent: CommentRow | null = null
   private loginReply: { row: CommentRow; accountId: string | null } | null = null
@@ -134,6 +138,7 @@ export class SiteComments extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.clearAuthorEmails()
     this.resetAvatarEditor()
     this.lifetime?.abort(); this.lifetime=undefined; this.generation++; this.accountVersion++
     this.busy=false; this.loading=false; this.loginReply=null
@@ -215,12 +220,15 @@ export class SiteComments extends HTMLElement {
     this.el<HTMLInputElement>('[data-moderation]').disabled=this.busy
     this.el<HTMLButtonElement>('[data-cancel-reply]').disabled=this.busy
     this.querySelectorAll<HTMLButtonElement>('[data-list] .comment-item-actions button').forEach(button=>{button.disabled=this.busy})
+    this.querySelectorAll<HTMLButtonElement>('[data-list] .comment-thread-gap button').forEach(button=>{button.disabled=this.busy || this.loading})
     this.el<HTMLButtonElement>('[data-refresh]').disabled=this.loading || this.busy
     this.el<HTMLButtonElement>('[data-more]').disabled=this.loading || this.busy
     ;(this.me.can_post ? this.el('[data-compose]') : this.el('[data-status-home]')).append(this.el('[data-status]'))
   }
 
   private clearPermissions() {
+    this.clearAuthorEmails()
+    this.focusedRows=[]
     this.resetAvatarEditor()
     this.me=guestIdentity(); this.identityReady=false
     this.rows=this.rows.filter(row=>!row.is_pending).map(row=>({...row,can_delete:false,author_banned:null}))
@@ -229,6 +237,8 @@ export class SiteComments extends HTMLElement {
 
   private async load(more=false,preservePages=false,minimumPages=1): Promise<boolean> {
     if (!this.client || !this.lifetime) return false
+    this.clearAuthorEmails()
+    if(!more) this.focusedRows=[]
     const generation=++this.generation
     const targetPages=Math.max(minimumPages,preservePages ? Math.max(1,Math.ceil(this.rows.length/30)) : 1)
     const last=more ? this.rows.at(-1) : null
@@ -237,10 +247,11 @@ export class SiteComments extends HTMLElement {
     this.el('[data-empty]').hidden=true
     if(!this.rows.length) this.status(this.t('正在加载留言…','Loading comments…'))
     try {
-      const fetchPage=(cursor?:CommentRow|null)=>this.client!.rpc('comment_list',{p_thread:this.dataset.thread,p_before:cursor?.created_at??null,p_before_id:cursor?.id??null,p_limit:30}).abortSignal(this.signal())
+      const fetchPage=(cursor?:CommentRow|null)=>this.client!.rpc('comment_thread_list',{p_thread:this.dataset.thread,p_after_id:cursor?.id??null,p_limit:30}).abortSignal(this.signal())
       const [identity,result,session]=await Promise.all([this.client.rpc('comment_me').abortSignal(this.signal()),fetchPage(last),this.client.auth.getSession()])
       if(generation!==this.generation || !this.isConnected) return false
       if(identity.error) throw identity.error
+      if(more && result.error?.message==='invalid_cursor') return await this.load(false,true)
       if(result.error) throw result.error
       if(session.error) throw session.error
       const nextMe=(Array.isArray(identity.data) ? identity.data[0] : identity.data) as CommentMe
@@ -274,6 +285,7 @@ export class SiteComments extends HTMLElement {
       this.identityReady=true
       if(!this.canChangeAvatar()) this.resetAvatarEditor()
       this.rows=more ? [...this.rows,...next.filter(row=>!this.rows.some(old=>old.id===row.id))] : next
+      this.focusedRows=this.focusedRows.filter(row=>!this.rows.some(loaded=>loaded.id===row.id))
       const resumeReply=this.loginReply && this.me.can_post && this.accountId && (this.loginReply.accountId===null || this.loginReply.accountId===this.accountId)
       if(resumeReply) {this.parent=this.loginReply!.row; this.loginReply=null}
       if(this.me.banned) this.loginReply=null
@@ -323,61 +335,90 @@ export class SiteComments extends HTMLElement {
     const selection=focusedInput ? [focusedInput.selectionStart,focusedInput.selectionEnd] : null
     this.el('[data-compose-home]').append(compose)
     const list=this.el('[data-list]'); list.replaceChildren()
-    const loadedIds=new Set(this.rows.map(row=>row.id))
-    for(const row of this.rows) {
-      const item=this.node('li',undefined,`comment-item${row.parent_id ? ' comment-item-reply' : ''}`); item.id=`comment-${row.id}`
-      const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
-      const displayName=this.rowName(row)
-      this.renderAvatar(avatar,displayName,row.is_admin_author,row.avatar_path)
-      const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',displayName))
-      if(row.is_admin_author) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
-      if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
-      const time=this.node('time',new Intl.DateTimeFormat(this.en?'en':'zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(new Date(row.created_at)))
-      time.dateTime=row.created_at; header.append(time); item.append(header)
-      if(row.parent_id) {
-        const context=this.node('p',undefined,'comment-context')
-        const loadedParent=this.rows.find(parent=>parent.id===row.parent_id)
-        const label=`${this.t('回复','Reply to')} ${row.parent_deleted ? this.t('已删除的留言','a deleted comment') : loadedParent ? this.rowName(loadedParent) : row.parent_nickname??this.t('留言','a comment')}`
-        if(loadedIds.has(row.parent_id)) {const link=this.node('a',label); link.href=`#comment-${row.parent_id}`; context.append(link)}
-        else context.textContent=label
-        item.append(context)
-      }
-      const body=this.node('div',undefined,'comment-body comment-markdown')
-      if(row.deleted) body.textContent=this.t('此评论已删除','This comment has been deleted.')
-      else renderCommentMarkdown(body,row.body,this.en,row.id)
-      item.append(body)
-      const actions=this.node('div',undefined,'comment-item-actions')
-      const action=(container:HTMLElement,label:string,run:()=>void)=>{
-        const button=this.node('button',label); button.type='button'; button.disabled=this.busy
-        button.addEventListener('click',()=>{
-          if(this.busy) return
-          this.querySelectorAll<HTMLDetailsElement>('.comment-menu[open]').forEach(menu=>{menu.open=false})
-          run()
-        },{signal:this.lifetime!.signal}); container.append(button)
-      }
-      if(!row.deleted && this.me.can_post) action(actions,this.t('回复','Reply'),()=>this.setReply(row,true))
-      else if(!row.deleted && this.identityReady && !this.me.banned && !this.accountId) action(actions,this.t('登录后回复','Sign in to reply'),()=>{
-        this.loginReply={row,accountId:null}; this.updateControls()
-        this.el('comment-auth').dispatchEvent(new CustomEvent('comment-auth-open'))
-      })
-      if(this.me.is_admin && row.is_pending) action(actions,this.t('审核通过','Approve'),()=>void this.mutate('comment_review',{p_id:row.id,p_approve:true}))
-      if((!row.deleted && row.can_delete) || this.me.is_admin) {
-        const menu=this.node('details',undefined,'comment-menu')
-        const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t(`${displayName} 的留言：更多操作`,`More actions for ${displayName}’s comment`))
-        summary.addEventListener('click',event=>{if(this.busy) event.preventDefault()},{signal:this.lifetime!.signal})
-        menu.append(summary)
-        const choices=this.node('div',undefined,'comment-menu-choices')
-        if(!row.deleted && row.can_delete) action(choices,this.t('删除','Delete'),()=>void this.removeComment(row,false))
-        if(this.me.is_admin) {
-          action(choices,this.t('清理整串','Remove thread'),()=>void this.removeComment(row,true))
-          if(!row.is_admin_author) action(choices,row.author_banned ? this.t('解除封禁','Unban author') : this.t('封禁作者','Ban author'),()=>void this.ban(row))
+    const displayedRows=[...this.rows,...this.focusedRows]
+    const loadedIds=new Set(displayedRows.map(row=>row.id))
+    for(const group of groupCommentRows(displayedRows)) {
+      const thread=this.node('li',undefined,'comment-thread')
+      thread.dataset.threadRoot=group.id
+      const replies=this.node('ol',undefined,'comment-thread-replies')
+      if(!group.root) thread.append(this.node('p',this.t('原留言暂不可见','The original comment is unavailable.'),'comment-unavailable'))
+      for(const row of [...(group.root ? [group.root] : []),...group.replies]) {
+        const isRoot=row===group.root
+        const item=isRoot ? thread : this.node('li')
+        item.classList.add('comment-item'); if(!isRoot) item.classList.add('comment-item-reply')
+        item.id=`comment-${row.id}`
+        const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
+        const displayName=this.rowName(row)
+        this.renderAvatar(avatar,displayName,row.is_admin_author,row.avatar_path)
+        const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',displayName))
+        if(row.is_admin_author) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
+        if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
+        const time=this.node('time',new Intl.DateTimeFormat(this.en?'en':'zh-CN',{dateStyle:'medium',timeStyle:'short',hourCycle:'h23'}).format(new Date(row.created_at)))
+        time.dateTime=row.created_at; header.append(time); item.append(header)
+        if(row.parent_id) {
+          const context=this.node('p',undefined,'comment-context')
+          const loadedParent=displayedRows.find(parent=>parent.id===row.parent_id)
+          const label=`${this.t('回复','Reply to')} ${row.parent_deleted ? this.t('已删除的留言','a deleted comment') : loadedParent ? this.rowName(loadedParent) : row.parent_nickname??this.t('留言','a comment')}`
+          if(loadedIds.has(row.parent_id)) {const link=this.node('a',label); link.href=`#comment-${row.parent_id}`; context.append(link)}
+          else context.textContent=label
+          item.append(context)
         }
-        menu.append(choices); actions.append(menu)
+        const body=this.node('div',undefined,'comment-body comment-markdown')
+        if(row.deleted) body.textContent=this.t('此评论已删除','This comment has been deleted.')
+        else renderCommentMarkdown(body,row.body,this.en,row.id)
+        item.append(body)
+        const actions=this.node('div',undefined,'comment-item-actions')
+        const action=(container:HTMLElement,label:string,run:()=>void)=>{
+          const button=this.node('button',label); button.type='button'; button.disabled=this.busy
+          button.addEventListener('click',()=>{
+            if(this.busy) return
+            this.querySelectorAll<HTMLDetailsElement>('.comment-menu[open]').forEach(menu=>{menu.open=false})
+            run()
+          },{signal:this.lifetime!.signal}); container.append(button)
+        }
+        if(!row.deleted && this.me.can_post) action(actions,this.t('回复','Reply'),()=>this.setReply(row,true))
+        else if(!row.deleted && this.identityReady && !this.me.banned && !this.accountId) action(actions,this.t('登录后回复','Sign in to reply'),()=>{
+          this.loginReply={row,accountId:null}; this.updateControls()
+          this.el('comment-auth').dispatchEvent(new CustomEvent('comment-auth-open'))
+        })
+        if(this.me.is_admin && row.is_pending) action(actions,this.t('审核通过','Approve'),()=>void this.mutate('comment_review',{p_id:row.id,p_approve:true}))
+        if((!row.deleted && row.can_delete) || this.me.is_admin) {
+          const menu=this.node('details',undefined,'comment-menu')
+          const summary=this.node('summary',this.t('更多','More')); summary.setAttribute('aria-label',this.t(`${displayName} 的留言：更多操作`,`More actions for ${displayName}’s comment`))
+          summary.addEventListener('click',event=>{if(this.busy) event.preventDefault()},{signal:this.lifetime!.signal})
+          menu.append(summary)
+          const choices=this.node('div',undefined,'comment-menu-choices')
+          if(!row.deleted && row.can_delete) action(choices,this.t('删除','Delete'),()=>void this.removeComment(row,false))
+          if(this.me.is_admin) {
+            action(choices,this.t('查看作者邮箱','View author email'),()=>void this.showAuthorEmail(row))
+            action(choices,row.parent_id || row.root_unavailable ? this.t('清理此条及其回复','Remove comment and replies') : this.t('清理整串','Remove thread'),()=>void this.removeComment(row,true))
+            if(!row.is_admin_author) action(choices,row.author_banned ? this.t('解除封禁','Unban author') : this.t('封禁作者','Ban author'),()=>void this.ban(row))
+          }
+          menu.append(choices); actions.append(menu)
+        }
+        item.append(actions)
+        if(this.me.is_admin && this.authorEmails.has(row.id)) {
+          const address=this.authorEmails.get(row.id)
+          const email=this.node('p',address ? this.t('作者邮箱（仅站长可见）：','Author email (owner only): ')+address : this.t('此作者账户已不可用','This author account is unavailable.'),'comment-author-email')
+          email.dataset.authorEmail=''; email.setAttribute('aria-label',this.t('作者邮箱，仅站长可见','Author email, visible only to the site owner'))
+          email.setAttribute('role','status')
+          item.append(email)
+        }
+        if(!isRoot) {
+          if(row.gap_before) {
+            const gap=this.node('li',undefined,'comment-thread-gap')
+            gap.append(this.node('p',this.t('已定位刚发布的回复，中间还有回复尚未加载。','Your posted reply is shown below; earlier replies still need to load.')))
+            action(gap,this.t('加载中间回复','Load earlier replies'),()=>void this.load(true))
+            replies.append(gap)
+          }
+          replies.append(item)
+        }
       }
-      item.append(actions); list.append(item)
+      if(replies.children.length) thread.append(replies)
+      list.append(thread)
     }
     if(this.parent) {
-      const current=this.rows.find(row=>row.id===this.parent!.id)
+      const current=displayedRows.find(row=>row.id===this.parent!.id)
       this.replyUnavailable=!current || current.deleted || !this.me.can_post
       // Keep the target explicit until cancellation; never silently turn a reply into a root post.
       this.parent=current && !current.deleted ? current : {...this.parent,body:'',deleted:true}
@@ -389,12 +430,65 @@ export class SiteComments extends HTMLElement {
   private placeComposer() {
     const compose=this.el<HTMLFormElement>('[data-compose]')
     const parentItem=this.parent && !this.replyUnavailable ? this.querySelector<HTMLElement>(`#comment-${this.parent.id}`) : null
-    ;(parentItem??this.el('[data-compose-home]')).append(compose)
+    if(parentItem) parentItem.insertBefore(compose,parentItem.querySelector(':scope > .comment-thread-replies'))
+    else this.el('[data-compose-home]').append(compose)
     compose.classList.toggle('comment-compose-reply',!!parentItem)
     this.el('[data-reply]').hidden=!this.parent
     this.el('[data-reply] span').textContent=this.replyUnavailable ? this.t('原留言已无法回复。草稿已保留，可取消回复后发布新留言。','This comment is no longer available for replies. Your draft is kept; cancel the reply to post a new comment.') : this.parent ? `${this.t('正在回复','Replying to')} ${this.rowName(this.parent)}` : ''
     this.el('[data-reply-excerpt]').textContent=this.parent ? this.parent.body.slice(0,120) : ''
     this.el<HTMLButtonElement>('[data-compose] [data-submit]').textContent=this.parent ? this.t('发布回复','Post reply') : this.t('发布留言','Post comment')
+  }
+  private clearAuthorEmails() {
+    this.emailGeneration++; this.emailOperation?.abort(); this.emailOperation=undefined
+    this.authorEmails.clear()
+    this.querySelectorAll('[data-author-email]').forEach(node=>node.remove())
+  }
+  private async locatePostedComment(id:string,lifetime:AbortController|undefined,account:number) {
+    if(!this.client || !this.current(lifetime,account)) return false
+    const accountId=this.accountId
+    try {
+      const {data,error}=await this.client.rpc('comment_thread_list',{
+        p_thread:this.dataset.thread,p_after_id:this.rows.at(-1)?.id??null,p_limit:30,p_focus_id:id
+      }).abortSignal(this.signal())
+      if(!this.current(lifetime,account)) return false
+      if(error) throw error
+      const session=await this.client.auth.getSession()
+      if(!this.current(lifetime,account)) return false
+      if(session.error) throw session.error
+      const nextId=session.data.session?.user.id??null
+      if(nextId!==accountId) {this.authChanged(nextId); return false}
+      const rows=(data??[]) as CommentRow[]
+      if(!rows.some(row=>row.id===id)) return false
+      this.focusedRows=rows.filter(row=>!this.rows.some(loaded=>loaded.id===row.id))
+      this.render(); this.el('[data-empty]').hidden=true
+      return true
+    } catch {return false}
+  }
+  private async showAuthorEmail(row:CommentRow) {
+    if(!this.client || !this.identityReady || !this.me.is_admin || this.busy || this.loading) return
+    this.emailOperation?.abort()
+    const operation=new AbortController(), generation=++this.emailGeneration
+    this.emailOperation=operation
+    const lifetime=this.lifetime, account=this.accountVersion, accountId=this.accountId
+    const current=()=>this.current(lifetime,account) && generation===this.emailGeneration && this.me.is_admin
+    this.status(this.t('正在读取作者邮箱…','Loading author email…'))
+    try {
+      const {data,error}=await this.client.rpc('comment_author_email',{p_thread:this.dataset.thread,p_comment_id:row.id})
+        .abortSignal(AbortSignal.any([this.signal(),operation.signal]))
+      if(!current()) return
+      if(error) throw error
+      const session=await this.client.auth.getSession()
+      if(!current()) return
+      if(session.error) throw session.error
+      const nextId=session.data.session?.user.id??null
+      if(nextId!==accountId) {this.authChanged(nextId); return}
+      this.authorEmails.set(row.id,typeof data==='string' ? data : null)
+      this.render(); this.status('')
+    } catch(error) {
+      if(!current()) return
+      this.clearPermissions()
+      this.status(commentError(error as Error,this.en),true)
+    } finally {if(generation===this.emailGeneration) this.emailOperation=undefined}
   }
   private setReply(row:CommentRow|null,focus=false) {
     if(row && (this.busy || !this.me.can_post || row.deleted)) return
@@ -518,7 +612,7 @@ export class SiteComments extends HTMLElement {
   private async saveProfile() {
     if(this.busy || !this.client || !this.me.can_post || this.me.is_admin) return
     const nickname=this.el<HTMLInputElement>('[name=nickname]').value.trim()
-    if(!nickname || nickname.length>40 || /[\u0000-\u001f\u007f]/.test(nickname)) {
+    if(!nickname || nickname.length>40 || Array.from(nickname).some(character=>character.charCodeAt(0)<32 || character.charCodeAt(0)===127)) {
       this.status(commentError({message:'invalid_nickname'},this.en),true); this.el<HTMLInputElement>('[name=nickname]').focus(); return
     }
     const lifetime=this.lifetime, account=this.accountVersion
@@ -556,8 +650,12 @@ export class SiteComments extends HTMLElement {
       this.requestId=null; this.setReply(null)
       const loaded=await this.load(false,true)
       if(!this.current(lifetime,account)) return
-      this.status(loaded ? (data?.is_pending ? this.t('已提交，审核通过后公开。','Submitted for review.') : this.t('留言已发布。','Your comment has been posted.')) : this.t('留言已提交，但列表刷新失败。请点击刷新，无需重复提交。','Your comment was submitted, but the list could not refresh. Refresh the list; you do not need to post again.'),!loaded)
-      this.el('[data-status]').scrollIntoView?.({block:'nearest'})
+      const shown=loaded && (this.rows.some(row=>row.id===data?.id) || (typeof data?.id==='string' && await this.locatePostedComment(data.id,lifetime,account)))
+      if(!this.current(lifetime,account)) return
+      this.status(!loaded ? this.t('留言已提交，但列表刷新失败。请点击刷新，无需重复提交。','Your comment was submitted, but the list could not refresh. Refresh the list; you do not need to post again.')
+        : !shown ? this.t('留言已提交，但暂时无法定位。请刷新或继续加载查看，无需重复提交。','Your comment was submitted, but could not be located yet. Refresh or load more to view it; do not submit it again.')
+        : data?.is_pending ? this.t('已提交，审核通过后公开。','Submitted for review.') : this.t('留言已发布。','Your comment has been posted.'),!loaded || !shown)
+      ;(shown ? this.querySelector(`#comment-${data.id}`) : this.el('[data-status]'))?.scrollIntoView?.({block:'nearest'})
     } catch(error) {if(this.current(lifetime,account)) this.status(commentError(error as Error,this.en),true)}
     finally {if(this.current(lifetime,account)) {this.busy=false; this.updateControls()}}
   }
@@ -572,7 +670,8 @@ export class SiteComments extends HTMLElement {
   private async removeComment(row:CommentRow,branch:boolean) {
     if(this.busy) return
     const lifetime=this.lifetime, account=this.accountVersion
-    const approved=await this.confirm(branch?this.t('清理整串讨论？','Remove this entire thread?'):this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将被隐藏，正文会清空，无法恢复。','This comment and all its replies will be hidden and their content cleared. This cannot be undone.'):this.t('正文会清空并显示删除占位，其他人的回复会保留。此操作无法恢复。','The content will be cleared and replaced with a deletion notice. Other people’s replies stay. This cannot be undone.'))
+    const branchTitle=row.parent_id || row.root_unavailable ? this.t('清理这条留言及其回复？','Remove this comment and its replies?') : this.t('清理整串讨论？','Remove this entire thread?')
+    const approved=await this.confirm(branch?branchTitle:this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将被隐藏，正文会清空，无法恢复。','This comment and all its replies will be hidden and their content cleared. This cannot be undone.'):this.t('正文会清空并显示删除占位，其他人的回复会保留。此操作无法恢复。','The content will be cleared and replaced with a deletion notice. Other people’s replies stay. This cannot be undone.'))
     if(approved && this.current(lifetime,account)) await this.mutate('comment_delete',{p_id:row.id,p_branch:branch})
   }
   private async ban(row:CommentRow) {

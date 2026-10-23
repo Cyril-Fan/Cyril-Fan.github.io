@@ -50,7 +50,7 @@ const en = lang === 'en'
       </fieldset>
     </form>
     <p class='mt-3 text-xs leading-relaxed text-muted-foreground'>
-      {en ? 'Reading is open to everyone. Posting requires a verified email. Your email is used for your account and is not shown with comments.' : '阅读评论无需登录，发布评论需验证邮箱。邮箱用于账户验证，不随评论公开。'}
+      {en ? 'Reading is open to everyone. Posting requires a verified email. Your email is private; only the signed-in site owner can view it when managing comments.' : '阅读评论无需登录，发布评论需验证邮箱。邮箱不公开，只有已登录的站长可在管理留言时查看。'}
       <a class='underline underline-offset-4' href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a>
     </p>
   </div>

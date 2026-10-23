@@ -13,8 +13,40 @@ frequency limits while preserving all other validation, then
 `202610190005_profile_avatars.sql`. A deployment on `004` needs only `005`,
 which adds ordinary-user avatar slots, the dedicated Storage bucket and its
 ownership policies, and current avatar fields on the comment RPCs.
+An existing deployment on `005` next needs
+`202610230006_threaded_comments_admin_email.sql`. This adds two read-only RPCs;
+it does not rewrite comments, profiles, administrator membership, or the legacy
+`comment_list`. Apply `006` before publishing the frontend that calls the new
+conversation reader. Existing browser tabs can keep using the old reader.
 Do not rerun or edit an already-applied migration. The migrations expect the real Supabase Auth
 and Storage schemas; **never apply `tests/database/bootstrap.sql` to Supabase**.
+
+### Deploying 006 to the existing site
+
+1. Select the existing Supabase project `qztlbyahaabkedmvlxwu` in the SQL Editor.
+   Confirm that migrations through `005` are present. Run the read-only checks in
+   `verify_006.sql`; the two new-function checks are false before installation.
+2. Run the complete contents of
+   `migrations/202610230006_threaded_comments_admin_email.sql` once as the existing
+   database migration owner. It is one transaction with an explicit schema-cache
+   notification. It creates only the two new functions and their execution grants;
+   there is no data rewrite, account creation, administrator grant, or table policy
+   change. Do not paste any local test bootstrap or fixture into the real project.
+3. Run `verify_006.sql` again. All function/grant/privacy checks must be true. The
+   check impersonates no account and returns no comment text or author email.
+4. Only after that succeeds, publish the matching frontend. The old `comment_list`
+   and existing comments remain available to older browser tabs. A frontend rollback
+   can continue using `comment_list` without removing the new database functions.
+5. With the existing owner session, open an author's menu and request its email;
+   verify that sign-out removes it. In a separate ordinary/anonymous session, verify
+   that no email menu exists, list responses contain no email, and a direct call to
+   the email RPC is rejected. Use existing comments; no production test posts are
+   necessary. The SQL Editor runs as the database owner, so its grant checks do not
+   replace these authenticated API checks.
+
+Local migration tests cover old `005` data, reply order and pagination, deleted and
+unavailable originals, all existing authorization checks, and the new private-email
+RPC. They do not establish that `006` has been applied to the production project.
 
 ## Project setup
 
@@ -49,7 +81,7 @@ and Storage schemas; **never apply `tests/database/bootstrap.sql` to Supabase**.
 
 All functions are `SECURITY DEFINER` with an empty `search_path`, fully qualified
 private storage references, and explicit execution grants. Only `comment_me`
-and `comment_list` allow the anonymous role. Validation failures use SQLSTATE
+and the two list readers allow the anonymous role. Validation failures use SQLSTATE
 `P0001` and the fixed message literals below. Bad JSON/UUID syntax and API-level
 token validation failures can also be rejected before an RPC executes.
 
@@ -58,6 +90,8 @@ token validation failures can also be rejected before an RPC executes.
 | `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled,avatar_key,avatar_path}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges, including null avatar fields. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false` and retains its own avatar fields for removal. Administrator names are always `Cyril Fan`, including before their first post; their avatar fields are null because the frontend uses the site's fixed portrait. |
 | `comment_profile_update(p_nickname)` | Same JSON as `comment_me`. Requires the caller's verified, active, unbanned session. Updates only that caller's profile; a user ID cannot be supplied. Admin input is ignored in favor of `Cyril Fan`. |
 | `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned,avatar_path}`. Comment and parent names use current profiles, including historical comments and deletion placeholders. The avatar path also follows the current profile/object, and is null for administrators, missing objects and banned authors. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
+| `comment_thread_list(p_thread,p_after_id=null,p_limit=30,p_focus_id=null)` | JSON array with the same public comment fields plus `{root_id,root_created_at,root_unavailable}`. Original comments sort newest first; every reply in the same conversation, including replies to replies, follows its original in chronological order with an ID tie-breaker. Normal calls return at most `p_limit` individual comments (1–100), never an unbounded tree. The last normal-page comment ID continues the stream. Optional focus mode returns only the requested visible comment and its visible original/anchor (at most two rows; limit must be at least two), with `gap_before` indicating visible replies omitted between the normal cursor and target. It never changes the normal paging cursor. An unavailable original is replaced by an anchor derived only from a visible comment; its private fields and invisible parent IDs are omitted. Email is never returned, even to the owner. |
+| `comment_author_email(p_thread,p_comment_id)` | Current author email or null for an unavailable account. Requires the verified, active, unbanned administrator session before looking up the comment. Only comments in the requested article that have not been hidden are eligible. Anonymous execution is revoked; ordinary authenticated users are rejected by `require_actor(true)`. No email snapshot is stored in comment tables. The frontend calls this only from the owner's “View author email” menu, keeps the result in page memory, and clears it when refreshing, signing out, changing accounts, losing permissions or disconnecting. |
 | `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized thread, body, and parent. Nickname is mutable metadata and does not affect retries. An existing profile wins over a stale form; the supplied name initializes a missing profile. Admins may omit the nickname value (`null`) and always publish as `Cyril Fan`. |
 | `comment_delete(p_id,p_branch=false)` | Void. Author clears only their own body; banned authors retain this right. Admin can clear any one body or set `p_branch=true` to erase and hide that comment and all descendants in the same thread. |
 | `comment_ban(p_comment_id,p_banned)` | Void, admin only. Resolves the author privately from a comment ID. Ban blocks posting using existing tokens; unban restores it. Cannot ban an admin. Existing published comments remain visible. |
@@ -147,13 +181,38 @@ query/fragment markers, backslashes, `//`, `.`/`..` path segments, or trailing
 slash. This validates route shape, not membership in the static site's article
 catalog. URL encoding must be consistent between page languages.
 
-Rows sort by `(created_at DESC, id DESC)`. To fetch the next page, send **both**
+The legacy `comment_list` rows sort by `(created_at DESC, id DESC)`. To fetch the next page, send **both**
 fields from the last row as `p_before` and `p_before_id`; limits range from 1 to
 100. Reply rows include a visible parent's nickname/deletion state even when
 that parent falls outside the current page. The client can show that context
 without having fetched the entire discussion. Depth is at most eight replies
 below a root. New replies to a deleted or hidden comment are rejected; existing
 replies survive an author's deletion.
+
+The current frontend uses `comment_thread_list`. It groups all loaded replies
+under their original, with only one level of visual indentation and a link to
+the actual replied-to comment when it is loaded. A 30-comment response can end
+partway through a conversation; “Load more comments and replies” continues that
+same conversation before moving to the next original. New replies do not bump
+an old original above newer originals. Times use the reader's local time zone
+and the `h23` hour cycle in both languages (00:00–23:59).
+
+After an acknowledged post, the frontend refreshes the loaded pages. If the new
+comment lies beyond those pages, one focus read fetches only that comment and its
+original/visible anchor, then scrolls to the submitted comment. An explicit gap
+notice offers to load omitted replies; subsequent pages still continue from the
+last normal-page cursor, so intermediate comments are not skipped. The frontend
+does not automatically fetch an unbounded number of pages. If the focus read
+fails, the message confirms the successful submission and asks the reader to
+refresh or load more, without submitting again. Account changes discard late
+focus responses, including private pending comments.
+
+If a cursor is no longer visible after moderation, the frontend refreshes the
+loaded pages instead of appending a page from an invalid position. A former
+administrator can retain visibility of their own pending replies beneath an
+invisible original: the reader groups those visible replies under a neutral
+placeholder using only a visible comment's ID and timestamp. It never exposes
+the unavailable original's content, author, timestamp or count of hidden replies.
 
 Soft deletion clears the stored body permanently and keeps only the nickname,
 timestamp, relationships, and hashes needed for abuse prevention/idempotency.

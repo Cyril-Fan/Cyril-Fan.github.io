@@ -17,11 +17,22 @@ try {
   const migrations = (await readdir(migrationsPath)).filter((name) => name.endsWith('.sql')).sort();
   if (!migrations.length) throw new Error('No database migrations found.');
   let upgradeAssertions = 0;
+  let threadUpgradeAssertions = 0;
   for (const migration of migrations) {
     const profileUpgrade = migration === '202610190003_current_profile_names.sql';
     if (profileUpgrade) {
       stage = 'profile upgrade fixtures on existing migrations';
       await db.exec(await readFile(path.join(here, 'profile-upgrade-seed.sql'), 'utf8'));
+    }
+    const threadUpgrade = migration === '202610230006_threaded_comments_admin_email.sql';
+    if (threadUpgrade) {
+      stage = '006 installation checks before migration';
+      const before = await db.exec(await readFile(path.join(root, 'supabase/verify_006.sql'), 'utf8'));
+      if (before[0]?.rows[0]?.conversation_reader_present !== false || before[0]?.rows[0]?.owner_email_reader_present !== false) {
+        throw new Error('006 pre-installation checks did not report missing functions.');
+      }
+      stage = 'conversation upgrade fixtures on existing 005';
+      await db.exec(await readFile(path.join(here, 'thread-upgrade-seed.sql'), 'utf8'));
     }
     stage = `migration ${migration}`;
     await db.exec(await readFile(path.join(migrationsPath, migration), 'utf8'));
@@ -32,6 +43,18 @@ try {
         .find((row) => Object.hasOwn(row, 'upgrade_assertions_passed'))?.upgrade_assertions_passed ?? 0);
       if (upgradeAssertions < 7) throw new Error('Profile upgrade assertions did not complete.');
     }
+    if (threadUpgrade) {
+      stage = 'conversation upgrade assertions';
+      const results = await db.exec(await readFile(path.join(here, 'thread-upgrade-assertions.sql'), 'utf8'));
+      threadUpgradeAssertions = Number(results.flatMap((result) => result.rows ?? [])
+        .find((row) => Object.hasOwn(row, 'thread_upgrade_assertions_passed'))?.thread_upgrade_assertions_passed ?? 0);
+      if (threadUpgradeAssertions !== 5) throw new Error('Conversation upgrade assertions did not complete.');
+    }
+  }
+  stage = '006 installation checks after migration';
+  const installation = await db.exec(await readFile(path.join(root, 'supabase/verify_006.sql'), 'utf8'));
+  if (installation.flatMap(result => result.rows ?? []).some(row => Object.values(row).some(value => value !== true))) {
+    throw new Error('006 installation/grant checks failed.');
   }
   stage = 'security regression';
   const results = await db.exec(await readFile(path.join(here, 'security-regression.sql'), 'utf8'));
@@ -45,7 +68,12 @@ try {
   const avatarAssertions = Number(avatarResults.flatMap((result) => result.rows ?? [])
     .find((row) => Object.hasOwn(row, 'avatar_assertions_passed'))?.avatar_assertions_passed ?? 0);
   if (avatarAssertions < 40) throw new Error('Avatar storage RLS assertions did not complete.');
-  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + avatarAssertions} real PostgreSQL assertions passed (${upgradeAssertions} on existing 001/002 data; ${avatarAssertions} on avatar metadata/RLS).`);
+  stage = 'conversation ordering and private author email regression';
+  const threadResults = await db.exec(await readFile(path.join(here, 'thread-regression.sql'), 'utf8'));
+  const threadAssertions = Number(threadResults.flatMap((result) => result.rows ?? [])
+    .find((row) => Object.hasOwn(row, 'thread_assertions_passed'))?.thread_assertions_passed ?? 0);
+  if (threadAssertions < 45) throw new Error('Conversation assertions did not complete.');
+  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions).`);
   console.log('PGlite uses one backend. Multi-connection lock contention is not exercised by this suite.');
   console.log('Avatar tests model Storage metadata only; real JPEG upload, MIME/size enforcement and CDN caching require integration checks.');
 } catch (error) {

@@ -85,12 +85,12 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
     {/* Set highlight color */}
     <style define:vars={{ highlightColor }}>
       :global(.highlight) {
-        color: var(--highlightColor, hsl(var(--primary) / var(--tw-text-opacity))) !important;
+        color: var(--highlightColor, hsl(var(--primary) / var(--tw-text-opacity, 1))) !important;
       }
       :global(.highlight-bg) {
         background-color: var(
           --highlightColor,
-          hsl(var(--primary) / var(--tw-text-opacity))
+          hsl(var(--primary) / var(--tw-text-opacity, 1))
         ) !important;
       }
 

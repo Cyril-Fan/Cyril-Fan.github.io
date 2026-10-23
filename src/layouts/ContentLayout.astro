@@ -11,45 +11,63 @@ interface Props {
   back?: string
 }
 
-const { meta, highlightColor, back = '/', ...props } = Astro.props
+const { meta, highlightColor, ...props } = Astro.props
 ---
 
 <PageLayout {meta} {highlightColor} {...props}>
-  <main class='mt-6 items-start gap-x-10 lg:flex'>
-    {/* Sidebar */}
-    <aside
-      class='animate top-24 w-60 shrink-0 overflow-y-auto max-lg:hidden lg:sticky lg:order-2'
-      style='height:calc(100vh - 8rem);'
-      id='sidebar'
-    >
-      <slot name='sidebar' />
+  <main class='content-layout mt-6'>
+    <div class='min-w-0'>
+      <article>
+        {/* Content header */}
+        <div id='content-header' class='animate'>
+          <slot name='header' />
+        </div>
+
+        {/* Content */}
+        <div
+          id='content'
+          class={cn('max-w-none animate mt-8', integ.typography.class)}
+        >
+          <slot />
+        </div>
+      </article>
+
+      <div class='mt-14 min-w-0 text-muted-foreground'>
+        <slot name='bottom' />
+      </div>
+    </div>
+
+    {/* This column spans both the article and comments, giving a short TOC room to stick. */}
+    <aside class='content-side-column'>
+      <div class='sidebar-track'>
+        <div class='content-sidebar animate' id='sidebar'>
+          <slot name='sidebar' />
+        </div>
+      </div>
+      <div class='content-bottom-sidebar'>
+        <slot name='bottom-sidebar' />
+      </div>
     </aside>
-
-    <article class='min-w-0 grow'>
-      {/* Content header */}
-      <div id='content-header' class='animate'>
-        <slot name='header' />
-      </div>
-
-      {/* Content */}
-      <div
-        id='content'
-        class={cn('max-w-none animate mt-8', integ.typography.class)}
-      >
-        <slot />
-      </div>
-    </article>
   </main>
-
-  <div class='mt-6 items-start gap-x-10 lg:flex'>
-    {/* Bottom */}
-    <div class='mt-8 min-w-0 flex-1 text-muted-foreground'>
-      <slot name='bottom' />
-    </div>
-    <div class='w-60 shrink-0 max-lg:hidden'>
-      <slot name='bottom-sidebar' />
-    </div>
-  </div>
 
   <BackToTop header='content-header' content='content' />
 </PageLayout>
+
+<style>
+  .content-side-column { display:none; }
+
+  @media (min-width:1024px) {
+    .content-layout { display:grid; grid-template-columns:minmax(0, 1fr) 15rem; column-gap:2.5rem; }
+    .content-side-column { display:flex; min-width:0; flex-direction:column; }
+    .sidebar-track { flex:1; min-height:0; }
+    .content-sidebar {
+      position:sticky;
+      top:6rem;
+      max-height:calc(100vh - 8rem);
+      max-height:calc(100dvh - 8rem);
+      overflow-y:auto;
+      scrollbar-width:thin;
+    }
+    .content-bottom-sidebar { flex-shrink:0; }
+  }
+</style>

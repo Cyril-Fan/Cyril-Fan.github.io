@@ -3,6 +3,7 @@ import PageLayout from '@/layouts/CommonPage.astro'
 import { Button, Icon } from '@/components/user'
 import config from '@/site-config'
 import Comment from '@/components/advanced/Comment.astro'
+import AboutPhoto from '@/components/about/AboutPhoto.astro'
 
 const headings = [
   { depth: 2, slug: 'about-me', text: 'About Me' },
@@ -13,6 +14,7 @@ const headings = [
 
 <PageLayout title='About' {headings}>
   <h2 id='about-me'>About Me<a class='anchor' href='#about-me'>#</a></h2>
+  <AboutPhoto />
   <p>Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. Welcome to my personal website.</p>
   <p>I enjoy exploring artificial intelligence through research and hands-on projects. This is where I share what I learn and think about.</p>
 

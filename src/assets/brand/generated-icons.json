@@ -3,27 +3,32 @@
     "rel": "icon",
     "type": "image/x-icon",
     "sizes": "16x16 32x32 48x48",
-    "href": "/favicon/9f40ebae58fd/favicon.ico"
+    "href": "/favicon/ab8d598f58d1/favicon.ico"
   },
   {
     "rel": "icon",
     "type": "image/png",
     "sizes": "32x32",
-    "href": "/favicon/9f40ebae58fd/icon-32.png"
+    "href": "/favicon/ab8d598f58d1/icon-32.png"
   },
   {
     "rel": "icon",
     "type": "image/svg+xml",
     "sizes": "any",
-    "href": "/favicon/9f40ebae58fd/icon.svg"
+    "href": "/favicon/ab8d598f58d1/icon.svg"
   },
   {
     "rel": "apple-touch-icon",
     "sizes": "180x180",
-    "href": "/favicon/9f40ebae58fd/apple-touch-icon.png"
+    "href": "/favicon/ab8d598f58d1/apple-touch-icon.png"
+  },
+  {
+    "rel": "mask-icon",
+    "color": "#64748b",
+    "href": "/favicon/ab8d598f58d1/safari-pinned-tab.svg"
   },
   {
     "rel": "manifest",
-    "href": "/favicon/9f40ebae58fd/site.webmanifest"
+    "href": "/favicon/ab8d598f58d1/site.webmanifest"
   }
 ]

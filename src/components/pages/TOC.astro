@@ -15,21 +15,21 @@ const { headings, class: className, ...props } = Astro.props
 const toc = generateToc(headings)
 ---
 
-<toc-heading class={className} {...props}>
+<toc-heading class={className} role='navigation' aria-label={Astro.currentLocale === 'en' ? 'Table of contents' : '文章目录'} {...props}>
   <h2 class='font-semibold'>{Astro.currentLocale === 'en' ? 'CONTENTS' : '目录'}</h2>
   <ul class='mt-4 text-card-foreground'>
     {toc.map((heading) => <TOCHeading heading={heading} />)}
   </ul>
 </toc-heading>
 
-<script>
-  // This script tag is useful only if you want to display the TOC alongside the blog post...
-  // ... and highlight the section that the user is currently reading through.
-  // Feel free to remove this tag if you don't need this type of functionality.
+<style>
+  toc-heading { display:block; }
+</style>
 
+<script>
   interface TOCLink {
     element: HTMLAnchorElement
-    progressBar: HTMLElement
+    progressBar: HTMLElement | null
     slug: string
   }
 
@@ -42,57 +42,52 @@ const toc = generateToc(headings)
     headings: HTMLElement[] = []
     tocLinks: TOCLink[] = []
     headingProgress: Record<string, HeadingProgress> = {}
+    private contentElement: HTMLElement | null = null
+    private eventController?: AbortController
+    private resizeObserver?: ResizeObserver
+    private animationFrame: number | null = null
 
-    constructor() {
-      super()
-
-      // Initialize the headings and tocLinks
-      this.headings = Array.from(
-        document.querySelectorAll('article h2, article h3, article h4, article h5, article h6')
-      )
-      this.tocLinks = Array.from(this.querySelectorAll('a[href^="#"]')).map((link) => ({
-        element: link as HTMLAnchorElement,
-        progressBar: link.previousElementSibling as HTMLElement,
-        slug: (link.getAttribute('href') || '').substring(1)
-      }))
+    private requestUpdate = () => {
+      if (this.animationFrame !== null) return
+      this.animationFrame = window.requestAnimationFrame(() => {
+        this.animationFrame = null
+        if (this.isConnected) this.updatePositionAndStyle()
+      })
     }
 
     updatePositionAndStyle = () => {
+      if (!this.contentElement) return
       const windowHeight = window.innerHeight
-      const contentEl = document.querySelector('#content') as HTMLElement
-      const contentTop = contentEl?.getBoundingClientRect().top + window.scrollY || 0
-      const postOffset = (contentEl?.offsetHeight || 0) + contentTop
+      const contentBottom = this.contentElement.getBoundingClientRect().bottom
+      this.headingProgress = {}
 
       this.headings.forEach((el, index) => {
-        const elTop = el.getBoundingClientRect().top + window.scrollY
-        const nextHeadingTop = this.headings[index + 1]
-          ? this.headings[index + 1].getBoundingClientRect().top + window.scrollY
-          : postOffset
-        const range = [elTop - window.scrollY, nextHeadingTop - window.scrollY - el.offsetHeight]
-        const progress = (windowHeight - range[0]) / (range[1] - range[0])
+        const headingRect = el.getBoundingClientRect()
+        const sectionStart = headingRect.top
+        const sectionEnd = this.headings[index + 1]?.getBoundingClientRect().top ?? contentBottom
+        // A collapsed or empty section still has finite progress.
+        const sectionHeight = Math.max(1, sectionEnd - sectionStart - headingRect.height)
+        const progress = (windowHeight - sectionStart) / sectionHeight
 
         this.headingProgress[el.id] = {
-          inView: range[0] < windowHeight && range[1] > 0,
+          inView: sectionStart < windowHeight && sectionEnd > 0,
           progress: Math.max(0, Math.min(1, progress))
         }
       })
 
+      const currentSlug = this.headings.find((heading) => this.headingProgress[heading.id]?.inView)?.id
       this.tocLinks.forEach(({ element: el, progressBar: bar, slug }, i) => {
-        const { inView, progress } = this.headingProgress[slug]
-        if (this.headingProgress[slug]) {
-          el.classList.toggle('highlight', inView)
-          el.classList.toggle('highlight-bg-translucent', inView)
-          el.classList.toggle(
-            'rounded-t-2xl',
-            inView && (i == 0 || !this.headingProgress[this.tocLinks[i - 1]?.slug].inView)
-          )
-          el.classList.toggle(
-            'rounded-b-2xl',
-            inView &&
-              (i == this.tocLinks.length - 1 ||
-                !this.headingProgress[this.tocLinks[i + 1]?.slug].inView)
-          )
-          bar.classList.toggle('readed', !inView && progress == 1)
+        const { inView, progress } = this.headingProgress[slug] ?? { inView: false, progress: 0 }
+        const previousSlug = this.tocLinks[i - 1]?.slug
+        const nextSlug = this.tocLinks[i + 1]?.slug
+        el.classList.toggle('highlight', inView)
+        el.classList.toggle('highlight-bg-translucent', inView)
+        el.classList.toggle('rounded-t-2xl', inView && !(previousSlug && this.headingProgress[previousSlug]?.inView))
+        el.classList.toggle('rounded-b-2xl', inView && !(nextSlug && this.headingProgress[nextSlug]?.inView))
+        if (slug === currentSlug) el.setAttribute('aria-current', 'location')
+        else el.removeAttribute('aria-current')
+        if (bar) {
+          bar.classList.toggle('readed', !inView && progress === 1)
           bar.classList.toggle('highlight-bg', inView)
           bar.style.setProperty('height', `${progress * 90}%`)
         }
@@ -100,35 +95,60 @@ const toc = generateToc(headings)
     }
 
     connectedCallback() {
-      // Smooth scroll
-      this.tocLinks.forEach((link) => {
-        link.element.addEventListener('click', (e) => {
-          e.preventDefault()
-          // Push the history to add the hash at the end of the URL
-          const directHeading = this.headings.find((heading) => heading.id === link.slug)
-          if (directHeading) {
-            // Push the history to add the hash at the end of the URL
-            history.pushState(
-              null,
-              directHeading.textContent || '',
-              link.element.getAttribute('href')
-            )
-            directHeading.scrollIntoView({
-              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-                ? 'auto'
-                : 'smooth'
-            })
-          } else {
-            console.warn(`No heading found for slug: ${link.slug}`)
-          }
-        })
+      this.disconnectedCallback()
+      this.eventController = new AbortController()
+      const { signal } = this.eventController
+      this.contentElement = document.getElementById('content')
+      // Comments have headings of their own; only article content drives its TOC.
+      this.headings = Array.from(this.contentElement?.querySelectorAll<HTMLElement>(
+        'h2[id], h3[id], h4[id], h5[id], h6[id]'
+      ) ?? [])
+      this.tocLinks = Array.from(this.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')).map((link) => {
+        const fragment = (link.getAttribute('href') || '').slice(1)
+        let slug = fragment
+        try { slug = decodeURIComponent(fragment) } catch { /* Keep malformed fragments harmless. */ }
+        return {
+          element: link,
+          progressBar: link.parentElement?.querySelector<HTMLElement>('[data-toc-progress]') ?? null,
+          slug
+        }
       })
 
-      // Initial first and listen to scroll event
-      setInterval(this.updatePositionAndStyle, 100)
-      window.addEventListener('scroll', this.updatePositionAndStyle)
+      this.tocLinks.forEach((link) => {
+        link.element.addEventListener('click', (e) => {
+          if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+          const directHeading = this.headings.find((heading) => heading.id === link.slug)
+          if (!directHeading) return
+          e.preventDefault()
+          const fragment = link.element.getAttribute('href') || ''
+          if (window.location.hash !== fragment) history.pushState(null, '', fragment)
+          directHeading.scrollIntoView({
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+          })
+          this.requestUpdate()
+        }, { signal })
+      })
+
+      window.addEventListener('scroll', this.requestUpdate, { passive: true, signal })
+      window.addEventListener('resize', this.requestUpdate, { passive: true, signal })
+      window.addEventListener('load', this.requestUpdate, { once: true, signal })
+      this.contentElement?.addEventListener('load', this.requestUpdate, { capture: true, signal })
+      if (this.contentElement && typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(this.requestUpdate)
+        this.resizeObserver.observe(this.contentElement)
+      }
+      this.updatePositionAndStyle()
+    }
+
+    disconnectedCallback() {
+      this.eventController?.abort()
+      this.eventController = undefined
+      this.resizeObserver?.disconnect()
+      this.resizeObserver = undefined
+      if (this.animationFrame !== null) window.cancelAnimationFrame(this.animationFrame)
+      this.animationFrame = null
     }
   }
 
-  customElements.define('toc-heading', TOC)
+  if (!customElements.get('toc-heading')) customElements.define('toc-heading', TOC)
 </script>

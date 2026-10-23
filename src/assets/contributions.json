@@ -1,8 +1,17 @@
 {
   "source": "https://github.com/Cyril-Fan",
-  "syncedAt": "2026-10-20T13:44:53.681Z",
-  "light": "/contributions/snake-light-db2fcea66669.svg",
-  "lightStatic": "/contributions/snake-light-db2fcea66669-static.svg",
-  "dark": "/contributions/snake-dark-91be55813d59.svg",
-  "darkStatic": "/contributions/snake-dark-91be55813d59-static.svg"
+  "dataSource": "https://api.github.com/graphql",
+  "fetchedAt": "2026-10-23T04:08:46.217Z",
+  "checkedAt": "2026-10-23T04:08:46.217Z",
+  "dataThrough": "2026-10-23",
+  "dataHash": "a3d6d727ecb96a48845e051ddfb5bbf35ab5c3f954672a011b582580bbcd4374",
+  "rendererVersion": "calendar-snake-1",
+  "width": 880,
+  "height": 192,
+  "cycleDurationMs": 11540,
+  "routeSteps": 116,
+  "light": "/contributions/snake-light-13ec2df39c1b.svg",
+  "lightStatic": "/contributions/snake-light-13ec2df39c1b-static.svg",
+  "dark": "/contributions/snake-dark-bad2695e80d0.svg",
+  "darkStatic": "/contributions/snake-dark-bad2695e80d0-static.svg"
 }

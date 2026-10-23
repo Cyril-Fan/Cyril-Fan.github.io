@@ -54,8 +54,8 @@ const en = Astro.currentLocale === 'en'
         </p>
         <p class='home-intro text-muted-foreground'>
           {en
-            ? 'Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents, and enjoy exploring AI through research and hands-on projects.'
-            : '你好，我是范星宇，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI 智能体，喜欢通过研究和动手实践探索人工智能。'}
+            ? 'Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I’m interested in deep learning, multimodal large language models, and AI agents.'
+            : '你好，我是范星宇，吉林大学软件工程本科生。我的研究兴趣是深度学习、多模态大语言模型与 AI 智能体。'}
         </p>
         <Button title={en ? 'More about me' : '更多关于我'} class='w-fit self-end' href={en ? '/en/about' : '/about'} style='ahead' />
       </Section>
@@ -83,7 +83,7 @@ const en = Astro.currentLocale === 'en'
   .profile-heading { display:flex; flex-direction:row; align-items:center; gap:1.5rem; }
   .profile-avatar { width:7rem; height:7rem; object-fit:cover; }
   .home-content { display:flex; width:100%; min-width:0; flex-direction:column; gap:2.5rem; }
-  .home-intro { line-height:1.9; text-wrap:pretty; }
+  .home-intro { line-height:1.9; text-align:justify; text-align-last:start; text-wrap:pretty; }
   .role-spoiler { display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; }
   .role-spoiler span { opacity:0; transition:opacity .18s ease; }
   .role-spoiler[aria-expanded='true'] span, .role-spoiler:focus-visible span { opacity:1; }

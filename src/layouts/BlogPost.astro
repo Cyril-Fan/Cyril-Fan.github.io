@@ -40,7 +40,7 @@ const socialImage = heroImage
     : heroImage.src.src
   : '/avatar/avatar.png'
 const articleDate = updatedDate?.toISOString() ?? publishDate.toISOString()
-const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-text-opacity))'
+const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-text-opacity, 1))'
 ---
 
 <PageLayout

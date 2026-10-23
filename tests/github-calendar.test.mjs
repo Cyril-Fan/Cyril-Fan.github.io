@@ -1,19 +1,6 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import vm from 'node:vm'
-import ts from 'typescript'
-
-const compile = source => ts.transpileModule(source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }
-}).outputText
-const source = readFileSync(new URL('../src/lib/github-contributions.ts', import.meta.url), 'utf8')
-const load = fetch => {
-  const context = { exports: {}, fetch, setTimeout, clearTimeout, AbortController }
-  vm.runInNewContext(compile(source), context)
-  return context.exports
-}
-const { normalizeContributions, contributionWeeks } = load()
+import { contributionCells, contributionWeeks, isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
 const fixture = (start = '2025-10-19') => {
   const begin = Date.parse(`${start}T00:00:00Z`)
   const contributions = Array.from({ length: 367 }, (_, index) => ({
@@ -73,22 +60,34 @@ test('Sunday-first weeks preserve every day exactly once, including leap day and
   assert.equal(JSON.stringify(weeks.flat().filter(Boolean)), JSON.stringify(input.contributions))
 })
 
-test('both locales share one build request and malformed user paths never reach the network', async () => {
-  let calls = 0
-  const api = load(async () => { calls++; return { ok: true, json: async () => fixture() } })
-  const [a, b] = await Promise.all([api.fetchContributions('Cyril-Fan'), api.fetchContributions('Cyril-Fan')])
-  assert.equal(calls, 1)
-  assert.equal(a, b)
-  for (const user of ['../other', 'x?y=all', 'name/other', '', 'a'.repeat(40)]) assert.equal(await api.fetchContributions(user), null)
-  assert.equal(calls, 1)
+test('a complete year can still be stale or from the future; UTC midnight has a one-day allowance', () => {
+  const calendar = normalizeContributions(fixture())
+  assert.equal(isCurrentContributionCalendar(calendar, new Date('2026-10-20T23:59:59Z')), true)
+  assert.equal(isCurrentContributionCalendar(calendar, new Date('2026-10-21T00:00:01Z')), true)
+  assert.equal(isCurrentContributionCalendar(calendar, new Date('2026-10-22T00:00:00Z')), false)
+  assert.equal(isCurrentContributionCalendar(calendar, new Date('2026-10-19T23:59:59Z')), false)
 })
 
-test('unavailable or invalid upstream data yields an honest empty state', async () => {
-  for (const fetch of [
-    async () => { throw new Error('Offline') },
-    async () => ({ ok: false }),
-    async () => ({ ok: true, json: async () => ({ contributions: [], total: { lastYear: 0 } }) })
-  ]) assert.equal(await load(fetch).fetchContributions('Cyril-Fan'), null)
+test('zero contribution counts and zero color levels must agree', () => {
+  for (const [count, level] of [[0, 1], [3, 0]]) {
+    const input = fixture()
+    input.contributions[0] = { ...input.contributions[0], count, level }
+    input.total.lastYear = input.contributions.reduce((sum, day) => sum + day.count, 0)
+    assert.equal(normalizeContributions(input), null)
+  }
+})
+
+test('render coordinates preserve leap days, partial weeks and each GitHub color level', () => {
+  const input = fixture('2023-08-01')
+  const cells = contributionCells(input.contributions)
+  assert.equal(cells.length, input.contributions.length)
+  cells.forEach((cell, index) => {
+    assert.equal(cell.date, input.contributions[index].date)
+    assert.equal(cell.count, input.contributions[index].count)
+    assert.equal(cell.level, input.contributions[index].level)
+    assert.equal(cell.y, new Date(`${cell.date}T00:00:00Z`).getUTCDay())
+    assert.equal(cell.x, Math.floor((index + 2) / 7))
+  })
 })
 
 

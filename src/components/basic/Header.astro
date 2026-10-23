@@ -55,7 +55,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     >
     </div> -->
   <a
-    class='header-brand z-30 min-w-0 text-xl font-semibold group-[.not-top]:ms-2 sm:group-[.not-top]:ms-3'
+    class='header-brand z-30 min-w-0 text-xl font-medium group-[.not-top]:ms-2 sm:group-[.not-top]:ms-3'
     style='transition:margin-inline 0.3s'
     href={getLocalizedUrl(Astro.currentLocale, '/')}
     aria-label={english ? `${brandTitle} home` : `${brandTitle}，返回首页`}>{brandTitle}</a
@@ -71,7 +71,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     >
       <div class='flex flex-col items-center justify-center md:flex-row'>
         {
-          (config.header?.menu || []).map((item: any) => {
+          (config.header?.menu || []).map((item) => {
             const isBlogMenu = item.link === '/blog/all'
             if (isBlogMenu && categories.length > 0) {
               return (
@@ -88,14 +88,17 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
                   <div class='dropdown-menu absolute right-0 top-full mt-0 w-48 rounded-xl border border-border bg-background/80 shadow-lg backdrop-blur-md dark:bg-muted/80 md:left-0 md:right-auto' style='z-index: 9999;'>
                     <div class='py-1'>
                       {categories.map((category) => (
-                        <a
-                          href={getLocalizedUrl(Astro.currentLocale, `/blog/${category.slug}`)}
-                          aria-current={getAriaCurrent(`/blog/${category.slug}`)}
-                          data-all-posts={category.slug === 'all' || undefined}
-                          class='category-link block px-4 py-2 text-sm transition-colors hover:bg-background/60 hover:text-primary dark:hover:bg-muted/60'
-                        >
-                          {category.name}
-                        </a>
+                        <>
+                          <a
+                            href={getLocalizedUrl(Astro.currentLocale, `/blog/${category.slug}`)}
+                            aria-current={getAriaCurrent(`/blog/${category.slug}`)}
+                            data-all-posts={category.slug === 'all' || undefined}
+                            class='category-link block px-4 py-2 text-sm transition-colors hover:bg-background/60 hover:text-primary dark:hover:bg-muted/60'
+                          >
+                            {category.name}
+                          </a>
+                          {category.slug === 'all' && <hr class='category-divider' />}
+                        </>
                       ))}
                     </div>
                   </div>
@@ -250,10 +253,16 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
 </script>
 
 <style>
+  .category-divider {
+    margin: 0 .75rem;
+    border: 0;
+    border-top: 1px dashed hsl(var(--border));
+  }
   .category-link[data-all-posts] {
-    border-bottom:1px dashed hsl(var(--border));
-    margin-bottom:.3rem;
-    padding-bottom:.8rem;
+    padding-block: .75rem;
+  }
+  .category-divider + .category-link {
+    padding-top: .75rem;
   }
   .header-brand {
     padding-inline-end: .65rem;
@@ -266,6 +275,8 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   }
 
   header-component {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    font-weight: 500;
     transition:
       padding 0.3s,
       transform 0.3s,
@@ -306,7 +317,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
  
 
   /* header menu */
-  @media (max-width: 768px) {
+  @media (max-width: 767.98px) {
     #headerExpandConetent {
       grid-template-rows: 0fr;
       transition:
@@ -411,7 +422,13 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   }
 
   /* Mobile dropdown adjustments */
-  @media (max-width: 768px) {
+  @media (max-width: 767.98px) {
+    .category-divider {
+      width: 7rem;
+      margin-inline-start: auto;
+      margin-inline-end: 0;
+      opacity: .6;
+    }
     .menu-item-with-dropdown {
       display: flex;
       flex-direction: column;

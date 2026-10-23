@@ -70,7 +70,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
     <div class='comment-list-heading'><h3>{en ? 'Recent comments' : '最近留言'}</h3><button type='button' data-refresh>{en ? 'Refresh' : '刷新'}</button></div>
     <ol data-list class='comment-list'></ol>
     <p data-empty hidden class='comment-empty'>{en ? 'No comments yet. Be the first to say hello.' : '这里还很安静，来留下第一声问候吧。'}</p>
-    <button type='button' data-more hidden>{en ? 'Load earlier comments' : '加载更早的留言'}</button>
+    <button type='button' data-more hidden>{en ? 'Load more comments and replies' : '加载更多留言与回复'}</button>
   </div>
   <noscript>{en ? 'JavaScript is needed to load comments. You can also contact me by email.' : '留言功能需要启用 JavaScript，也可通过邮箱联系我。'}</noscript>
   <dialog aria-labelledby='comment-confirm-title'><form method='dialog'>
@@ -103,6 +103,11 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
   site-comments .comment-list { padding:0; list-style:none; }
   site-comments .comment-item { border-top:1px solid hsl(var(--border)); padding:1.15rem 0; overflow-wrap:anywhere; scroll-margin-top:6rem; }
   site-comments .comment-item-reply { margin-left:clamp(.75rem,3vw,2.25rem); }
+  site-comments .comment-thread-replies { list-style:none; padding:0; margin:.75rem 0 0; }
+  site-comments .comment-thread > .comment-thread-replies > .comment-item:last-child { padding-bottom:0; }
+  site-comments .comment-unavailable { color:hsl(var(--muted-foreground)); padding:.75rem 0; font-size:.875rem; }
+  site-comments .comment-author-email { font-size:.8rem; color:hsl(var(--muted-foreground)); overflow-wrap:anywhere; }
+  site-comments .comment-thread-gap { margin:.75rem 0 .75rem clamp(.75rem,3vw,2.25rem); padding:.5rem .8rem; border-left:2px dashed hsl(var(--border)); color:hsl(var(--muted-foreground)); font-size:.875rem; }
   site-comments .comment-item-header { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
   site-comments .comment-item-header strong { font-weight:600; }
   site-comments .comment-body { line-height:1.8; min-width:0; overflow-wrap:anywhere; }

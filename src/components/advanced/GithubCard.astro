@@ -70,7 +70,7 @@ const [owner, repoName] = repo.split('/')
   .loading .gh-text {
     color: transparent;
     border-radius: calc(var(--radius) - 3px);
-    background-color: hsl(var(--primary-foreground) / var(--tw-text-opacity));
+    background-color: hsl(var(--primary-foreground) / var(--tw-text-opacity, 1));
     animation: pulsate 2s infinite linear;
     user-select: none;
   }

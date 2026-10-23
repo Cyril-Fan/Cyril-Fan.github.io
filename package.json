@@ -13,7 +13,7 @@
     "preview": "astro preview",
     "sync": "astro sync",
     "check": "astro check",
-    "test": "node --test tests/comment-auth.test.mjs tests/comment-avatar.test.mjs tests/comment-markdown.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs tests/branding.test.mjs tests/contribution-snake.test.mjs tests/github-calendar.test.mjs",
+    "test": "node --test tests/comment-auth.test.mjs tests/comment-avatar.test.mjs tests/comment-markdown.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs tests/branding.test.mjs tests/contribution-snake.test.mjs tests/github-calendar.test.mjs tests/toc.test.mjs",
     "test:database": "node tests/database/run-security.mjs",
     "test:content": "node scripts/check-content-migration.mjs",
     "astro": "astro",

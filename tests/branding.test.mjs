@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import sharp from 'sharp'
-import { brandSvg, iconMarkup, iconPrefix, rasterSvg } from '../scripts/branding.mjs'
+import { brandSvg, iconMarkup, iconPrefix, iconRecipe, getBrandVersion, rasterSvg, maskSvg } from '../scripts/branding.mjs'
 import { verifyDocument } from '../scripts/verify-site-output.mjs'
 
 test('browser and mobile raster icons have transparent exteriors and visible star shapes', async () => {
@@ -15,6 +15,15 @@ test('browser and mobile raster icons have transparent exteriors and visible sta
     }
     assert.ok(data.some((value, index) => index % 4 === 3 && value > 200))
   }
+})
+
+test('raster recipe changes invalidate every versioned browser icon', () => {
+  const current = getBrandVersion(brandSvg, iconRecipe)
+  assert.notEqual(getBrandVersion(brandSvg, { ...iconRecipe, rasterColor: '#000000' }), current)
+  assert.notEqual(getBrandVersion(brandSvg, { ...iconRecipe, density: 144 }), current)
+  assert.notEqual(getBrandVersion(brandSvg.replace('30.5', '31.5'), iconRecipe), current)
+  assert.match(maskSvg, /fill:#000/)
+  assert.doesNotMatch(maskSvg, /<rect\b|prefers-color-scheme/)
 })
 
 test('a future page cannot build with a stale icon, missing icon, or remote executable script', () => {

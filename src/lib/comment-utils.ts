@@ -10,8 +10,37 @@ export type CommentRow = {
   deleted: boolean; can_delete: boolean; is_admin_author: boolean; is_pending: boolean;
   parent_nickname: string | null; parent_deleted: boolean; author_banned: boolean | null;
   avatar_path?: string | null;
+  root_id?: string; root_created_at?: string; root_unavailable?: boolean; gap_before?: boolean;
 }
 export type CommentMe = { nickname: string | null; can_post: boolean; is_admin: boolean; banned: boolean; moderation_enabled: boolean; avatar_key?: string | null; avatar_path?: string | null }
+const commentTimestamp = (value: string) => {
+  // PostgreSQL timestamps retain microseconds; Date.parse alone truncates them
+  // and could reorder two replies written within the same millisecond.
+  const fraction = value.match(/T\d{2}:\d{2}:\d{2}\.(\d+)/)?.[1] ?? ''
+  return Date.parse(value) * 1000 + Number(fraction.padEnd(6, '0').slice(3, 6))
+}
+export function groupCommentRows(rows: CommentRow[]) {
+  const byId = new Map(rows.map(row => [row.id, row]))
+  const groups = new Map<string, { id: string; created_at: string; root: CommentRow | null; replies: CommentRow[] }>()
+  for (const row of rows) {
+    let root = row
+    const visited = new Set([row.id])
+    while (!row.root_id && root.parent_id && byId.has(root.parent_id) && !visited.has(root.parent_id)) {
+      visited.add(root.parent_id); root = byId.get(root.parent_id)!
+    }
+    const id = row.root_id ?? root.parent_id ?? root.id
+    let group = groups.get(id)
+    if (!group) {
+      group = { id, created_at: row.root_created_at ?? root.created_at, root: null, replies: [] }
+      groups.set(id, group)
+    }
+    if (row.id === id && !row.root_unavailable && !row.parent_id) group.root = row
+    else group.replies.push(row)
+  }
+  const compare = (a: CommentRow, b: CommentRow) => commentTimestamp(a.created_at) - commentTimestamp(b.created_at) || a.id.localeCompare(b.id)
+  return [...groups.values()].sort((a, b) => commentTimestamp(b.created_at) - commentTimestamp(a.created_at) || b.id.localeCompare(a.id))
+    .map(group => ({ ...group, replies: group.replies.sort(compare) }))
+}
 export function commentError(error: { message?: string; code?: string }, en: boolean): string {
   const code = error.message ?? ''
   const messages: Record<string, [string, string]> = {
@@ -35,7 +64,8 @@ export function commentError(error: { message?: string; code?: string }, en: boo
     comment_author_missing: ['该留言作者的账号已不存在。', 'This comment’s author account no longer exists.'],
     not_found: ['留言已不存在或不可见，请刷新。', 'This comment is no longer available. Please refresh.'],
     invalid_content: ['请检查昵称和内容长度，并移除控制字符或过多链接。', 'Check the nickname and comment length, and remove control characters or excessive links.'],
-    invalid_thread: ['留言区地址无效，请刷新页面。', 'This discussion address is invalid. Please refresh.']
+    invalid_thread: ['留言区地址无效，请刷新页面。', 'This discussion address is invalid. Please refresh.'],
+    invalid_cursor: ['留言列表已变化，请刷新后继续阅读。', 'The conversation has changed. Refresh to continue reading.']
   }
   const found = Object.keys(messages).find(key => code.toLowerCase().includes(key))
   return found ? messages[found][en ? 1 : 0] : (en ? 'The comment service is unavailable. Please retry shortly; your draft is kept on this page.' : '留言服务暂时无法连接，请稍后重试；草稿仍保留在此页。')

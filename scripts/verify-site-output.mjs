@@ -21,7 +21,7 @@ export function verifyDocument(html, route) {
     const referrer = root.querySelector('meta[name="referrer"]')?.getAttribute('content')
     assert.ok(['no-referrer', 'strict-origin-when-cross-origin'].includes(referrer), `${route}: missing referrer policy`)
   }
-  const links = root.querySelectorAll('link').filter(link => /(?:^|\s)(?:icon|apple-touch-icon|manifest)(?:\s|$)/.test(link.getAttribute('rel') || ''))
+  const links = root.querySelectorAll('link').filter(link => /(?:^|\s)(?:icon|apple-touch-icon|mask-icon|manifest)(?:\s|$)/.test(link.getAttribute('rel') || ''))
   assert.equal(links.length, iconLinks.length, `${route}: use the shared SiteIcons component for every page`)
   for (const expected of iconLinks) {
     const found = links.find(link => link.getAttribute('rel') === expected.rel && link.getAttribute('href') === expected.href)
@@ -63,6 +63,20 @@ export async function verifySiteOutput(directory) {
   await walk(directory)
   assert.ok(count > 0, 'No built pages found to verify')
   for (const icon of iconLinks) await access(join(directory, icon.href))
+  // Catch a stale root fallback even if all page-level icon links are current.
+  for (const [fallback, current] of [
+    ['favicon.ico', 'favicon.ico'],
+    ['favicon.svg', 'icon.svg'],
+    ['favicon/favicon.ico', 'favicon.ico'],
+    ['favicon/favicon.svg', 'icon.svg'],
+    ['apple-touch-icon.png', 'apple-touch-icon.png'],
+    ['apple-touch-icon-precomposed.png', 'apple-touch-icon.png'],
+    ['favicon/apple-touch-icon.png', 'apple-touch-icon.png'],
+    ['favicon/maskable-512.png', 'icon-512.png'],
+    ['site.webmanifest', 'site.webmanifest']
+  ]) {
+    assert.deepEqual(await readFile(join(directory, fallback)), await readFile(join(directory, iconPrefix, current)), `Stale icon fallback: ${fallback}`)
+  }
   const manifest = JSON.parse(await readFile(join(directory, iconPrefix, 'site.webmanifest'), 'utf8'))
   for (const icon of manifest.icons) {
     assert.ok(icon.src.startsWith(`${iconPrefix}/`), 'Manifest contains a stale icon URL')

@@ -16,6 +16,7 @@ const safeCurrentLocale = (currentLocale === 'zh' || currentLocale === 'en') ? c
 
 // 计算目标语言
 const targetLocale = safeCurrentLocale === 'zh' ? 'en' : 'zh'
+const switchLabel = safeCurrentLocale === 'en' ? 'Switch to Chinese' : '切换到 English'
 
 // 获取当前页面路径（不包含语言前缀）
 const currentPath = Astro.url.pathname
@@ -56,11 +57,11 @@ if (targetUrl !== '/' && targetUrl.endsWith('/')) {
 <a
   id="language-switch-btn"
   class="box-content rounded-md border p-1.5 transition-colors hover:bg-border md:group-[.not-top]:rounded-xl"
-  title={`切换到${languages[targetLocale]}`}
+  title={switchLabel}
   href={targetUrl}
   hreflang={targetLocale}
 >
-  <span class="sr-only">{`切换到${languages[targetLocale]}`}</span>
+  <span class="sr-only">{switchLabel}</span>
   <div class="flex items-center gap-1">
     <Icon name="earth" class="size-4" />
     <span class="text-xs font-medium">{languages[safeCurrentLocale]}</span>

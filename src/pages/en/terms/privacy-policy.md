@@ -1,14 +1,14 @@
 ---
 layout: '@/layouts/IndividualPage.astro'
 title: 'Privacy'
-description: 'Updated 2026-10-20'
+description: 'Updated 2026-10-23'
 language: 'English'
 back: '/en/terms/list'
 ---
 
 Pages are hosted on GitHub Pages, without independent visitor tracking. When comments are enabled, Supabase handles authentication and the comment database, and Resend sends account verification and password recovery emails. A “being prepared” notice means that the page has not connected to the comment service.
 
-Public comments can be read without an account. Registration sends your email and password over an encrypted connection to Supabase Auth; passwords are not stored in the comment tables. Your email is used for verification, sign-in, recovery and necessary account communication, and is not shown publicly. Resend processes recipient addresses and account emails, without marketing messages from this website. The owner can manage accounts in the service dashboard. Visitors only see nicknames, comments, reply relationships, dates and owner or moderation labels. Do not post information you wish to keep private.
+Public comments can be read without an account. Registration sends your email and password over an encrypted connection to Supabase Auth; passwords are not stored in the comment tables. Your email is used for verification, sign-in, recovery and necessary account communication, and is not shown publicly. Only the signed-in site owner with active administrator permissions can request a comment author's current account email from the management menu, for comment management and necessary contact. Other visitors and registered users cannot read it. Emails are not copied into comment content, public lists or avatar addresses. Resend processes recipient addresses and account emails, without marketing messages from this website. The owner can also manage accounts in the service dashboard. Visitors only see nicknames, comments, reply relationships, dates and owner or moderation labels. Do not post information you wish to keep private.
 
 Your public nickname belongs to your account profile. Saving a new nickname updates how your earlier comments and reply references are displayed; other open pages show the change after refreshing. Nicknames need not be unique. The system-assigned “Site owner” badge identifies the owner, whose display name is fixed as Cyril Fan.
 
@@ -22,7 +22,7 @@ Deleting your comment clears its content and leaves a deletion notice, nickname,
 
 Your light or dark theme preference is stored locally in your browser for future visits. Site search queries a static index in your browser; this website has no backend that receives your search terms.
 
-Contribution animations are synced from the owner's public GitHub profile repository at build time. Light, dark and still versions are served by this website, as are the scripts for image zoom and Markdown. Hosting and external resource providers receive the information needed to complete network requests. See the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for GitHub's practices. External links lead to websites with their own practices.
+The contribution calendar and animations are generated together from the owner's GitHub contribution data at build time. Light, dark and still versions are served by this website; viewing the chart does not send a visitor's query to GitHub. Image zoom and Markdown scripts are also served by this website. Hosting and external resource providers receive the information needed to complete network requests. See the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for GitHub's practices. External links lead to websites with their own practices.
 
 Providers receive network information needed to deliver and protect their services, which may include IP and device information. The comment API does not publish those details. See the [Supabase Privacy Policy](https://supabase.com/privacy) and [Resend Privacy Policy](https://resend.com/legal/privacy-policy).
 

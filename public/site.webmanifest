@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "范星宇 · Cyril Fan",
+  "short_name": "Cyril Fan",
+  "icons": [
+    {
+      "src": "/favicon/ab8d598f58d1/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon/ab8d598f58d1/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon/ab8d598f58d1/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "display": "browser"
+}
