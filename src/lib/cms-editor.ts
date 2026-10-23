@@ -43,6 +43,7 @@ export class OwnerCMS extends HTMLElement {
   private pendingRequest?:{id:string;revision:number;action:string;request:string}
   private publishing=false
   private jobsTimer?:number
+  private confirmCancel?:()=>void
   private q<T extends HTMLElement=HTMLElement>(selector:string):T { return this.querySelector<T>(selector)! }
   private notify(message:string,error=false){const p=this.q('[data-cms-message]');p.textContent=message;p.dataset.error=String(error)}
   private get dirty(){return !!this.current&&JSON.stringify(this.current.payload)!==this.saved}
@@ -67,6 +68,7 @@ export class OwnerCMS extends HTMLElement {
   }
   disconnectedCallback(){this.abort?.abort();this.abort=undefined;this.clearPrivate()}
   private clearPrivate(){
+    this.confirmCancel?.()
     this.epoch++;this.userId=null;this.current=null;this.saved='';this.docs=[];this.previews.clear();this.pendingRequest=undefined;this.publishing=false
     window.clearTimeout(this.timer);window.clearTimeout(this.jobsTimer);this.saving=undefined
     for(const url of this.privateUrls.values())URL.revokeObjectURL(url)
@@ -117,7 +119,7 @@ export class OwnerCMS extends HTMLElement {
   private async leaveEditor():Promise<boolean>{
     if(!this.dirty)return true
     if(await this.save())return true
-    return window.confirm('当前更改尚未保存。仍要离开并放弃这些更改吗？')
+    return this.confirmAction('当前更改尚未保存。离开会放弃这些更改。','放弃并离开')
   }
   private async open(id:string){if(!await this.leaveEditor())return;try{this.current=await this.rpc('cms_get',{p_id:id});this.saved=JSON.stringify(this.current!.payload);this.renderEditor();this.renderList()}catch(error){this.notify(errorText(error),true)}}
   private async create(){
@@ -168,7 +170,7 @@ export class OwnerCMS extends HTMLElement {
       }
       if(f.type==='list'){
         const wrap=el('section');wrap.append(el('h3',f.label));const items=el('div');wrap.append(items)
-        const render=()=>{items.replaceChildren();model[f.key].forEach((item:Payload,i:number)=>{const row=el('div','','cms-row');this.renderFields(row,f.fields!,item,[...key,String(i)]);const controls=el('div','','cms-inline');controls.append(button('上移',()=>{if(i>0){[model[f.key][i-1],model[f.key][i]]=[item,model[f.key][i-1]];render();this.changed()}}),button('下移',()=>{if(i<model[f.key].length-1){[model[f.key][i],model[f.key][i+1]]=[model[f.key][i+1],item];render();this.changed()}}),button('删除此项',()=>{if(window.confirm('从当前草稿中移除这一项？可在历史版本恢复。')){model[f.key].splice(i,1);render();this.changed()}}));row.append(controls);items.append(row)})}
+        const render=()=>{items.replaceChildren();model[f.key].forEach((item:Payload,i:number)=>{const row=el('div','','cms-row');this.renderFields(row,f.fields!,item,[...key,String(i)]);const controls=el('div','','cms-inline');controls.append(button('上移',()=>{if(i>0){[model[f.key][i-1],model[f.key][i]]=[item,model[f.key][i-1]];render();this.changed()}}),button('下移',()=>{if(i<model[f.key].length-1){[model[f.key][i],model[f.key][i+1]]=[model[f.key][i+1],item];render();this.changed()}}),button('删除此项',async()=>{if(await this.confirmAction('从当前草稿中移除这一项，可在历史版本恢复。','确认移除条目')){model[f.key].splice(i,1);render();this.changed()}}));row.append(controls);items.append(row)})}
         render();wrap.append(button(`添加${f.label}`,()=>{if(model[f.key].length>=60)return this.notify('每组最多 60 项。',true);model[f.key].push(Object.fromEntries(f.fields!.map(x=>[x.key,''])));render();this.changed()}));parent.append(wrap);continue
       }
       const wrap=el('div'),label=el('label',f.label);label.htmlFor=id;wrap.append(label)
@@ -235,11 +237,26 @@ export class OwnerCMS extends HTMLElement {
     }
     void this.resolvePreviewImages(target)
   }
-  private async discard(){if(!this.current)return;if(!window.confirm('放弃当前未保存的更改，重新读取上次保存的内容？'))return;window.clearTimeout(this.timer);if(this.saving)await this.saving;if(this.current.revision){this.saved=JSON.stringify(this.current.payload);await this.open(this.current.id)}else{this.current=null;this.saved='';this.q('[data-editor]').replaceChildren(el('div','草稿已放弃。','cms-empty'))}}
+  private async discard(){if(!this.current)return;window.clearTimeout(this.timer);if(!await this.confirmAction('放弃当前未保存的更改，重新读取上次保存的内容。','放弃未保存更改')){if(this.dirty)this.scheduleSave();return}if(this.saving)await this.saving;if(this.current.revision){this.saved=JSON.stringify(this.current.payload);await this.open(this.current.id)}else{this.current=null;this.saved='';this.q('[data-editor]').replaceChildren(el('div','草稿已放弃。','cms-empty'))}}
   private async duplicate(){if(!this.current||!await this.save())return;const old=this.current;this.current={id:crypto.randomUUID(),kind:old.kind,revision:0,payload:clone(old.payload)};if(old.kind==='post'){this.current.payload.slug='';this.current.payload.zh.title=`${old.payload.zh.title}（副本）`.slice(0,60)}else this.current.payload.name=`${old.payload.name}（副本）`;this.saved='';this.renderEditor();this.notify('副本为私有草稿，请修改后保存。')}
-  private async trash(){if(!this.current)return;if(this.current.published_payload){await this.publish('trash');return}if(!window.confirm('将这项草稿移入回收站？之后可以恢复。'))return;if(!await this.save())return;try{this.current=await this.rpc('cms_trash',{p_id:this.current.id,p_revision:this.current.revision,p_deleted:true});this.saved=JSON.stringify(this.current!.payload);this.renderEditor();await this.refresh();this.notify('已移入回收站。')}catch(error){this.notify(errorText(error),true)}}
+  private async trash(){if(!this.current)return;if(this.current.published_payload){await this.publish('trash');return}if(!await this.confirmAction('将这项草稿移入回收站，之后可以恢复。','确认移入回收站'))return;if(!await this.save())return;try{this.current=await this.rpc('cms_trash',{p_id:this.current.id,p_revision:this.current.revision,p_deleted:true});this.saved=JSON.stringify(this.current!.payload);this.renderEditor();await this.refresh();this.notify('已移入回收站。')}catch(error){this.notify(errorText(error),true)}}
   private async restore(){if(!this.current)return;try{this.current=await this.rpc('cms_trash',{p_id:this.current.id,p_revision:this.current.revision,p_deleted:false});this.saved=JSON.stringify(this.current!.payload);await this.switchView(this.current!.kind);this.notify('已恢复为草稿，尚未发布。')}catch(error){this.notify(errorText(error),true)}}
   private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog-body]');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
+  private confirmAction(message:string,label='确认'):Promise<boolean>{
+    this.confirmCancel?.()
+    const epoch=this.epoch,dialog=el('dialog','','cms-dialog cms-confirm'),title=el('h2',label),controls=el('div','','cms-inline')
+    dialog.setAttribute('aria-label',label);dialog.append(title,el('p',message),controls);this.append(dialog)
+    return new Promise(resolve=>{
+      let settled=false
+      const finish=(accepted:boolean)=>{if(settled)return;settled=true;this.confirmCancel=undefined;dialog.close();dialog.remove();resolve(accepted&&epoch===this.epoch)}
+      const cancel=button('取消',()=>finish(false))
+      controls.append(cancel,button(label,()=>finish(true),'cms-primary'))
+      this.confirmCancel=()=>finish(false)
+      dialog.addEventListener('cancel',event=>{event.preventDefault();finish(false)})
+      dialog.addEventListener('close',()=>finish(false))
+      dialog.showModal();cancel.focus()
+    })
+  }
   private async history(){
     if(!this.current?.revision){this.notify('先保存一次草稿，就能查看历史版本。');return}const id=this.current.id,body=this.dialog('历史版本'),epoch=this.epoch
     const load=async(before=2147483647)=>{try{const versions=await this.rpc('cms_history',{p_id:id,p_before:before});if(epoch!==this.epoch)return;for(const v of versions){const row=el('div','','cms-job');row.append(el('p',`版本 ${v.revision} · ${timestamp(v.created_at)}${v.deleted?' · 回收站':''}`),button('查看 / 恢复',async()=>{try{const historical=await this.rpc('cms_get',{p_id:id,p_version:v.revision});if(epoch!==this.epoch)return;const area=this.dialog(`版本 ${v.revision}`);area.append(el('p','恢复会生成新的草稿版本，已上线内容不会立即改变。','cms-muted'));const pre=el('pre',JSON.stringify(historical.payload,null,2));pre.style.cssText='max-height:45vh;overflow:auto;white-space:pre-wrap;font-size:.75rem';area.append(pre,button('恢复为草稿',async()=>{if(this.current?.id!==id)return;this.current.payload=clone(historical.payload);this.q<HTMLDialogElement>('dialog').close();this.renderEditor();await this.save();this.notify('历史内容已恢复为草稿，请预览后发布。')},'cms-primary'))}catch(error){this.notify(errorText(error),true)}}));body.append(row)}if(versions.length===30)body.append(button('加载更早版本',()=>load(versions.at(-1).revision)))}catch(error){body.append(el('p',errorText(error)))}}
@@ -253,7 +270,7 @@ export class OwnerCMS extends HTMLElement {
     const epoch=this.epoch
     try{if(action==='publish')validatePayload(d.kind,d.payload,true)}catch(error){this.notify(errorText(error),true);this.publishing=false;return}
     const label=action==='publish'?'发布这项内容':action==='unpublish'?'从网站撤回这项内容':'从网站下架并移入回收站'
-    if(!window.confirm(`${label}？网站将在构建完成后更新。${action!=='publish'?' 已公开内容可能保留在 Git 历史中。':''}`)){this.publishing=false;return}
+    if(!await this.confirmAction(`${label}：${documentTitle(d)}。网站将在构建完成后更新，其他草稿保持私有。${action!=='publish'?' 已公开内容可能保留在 Git 历史中。':''}`,action==='publish'?'确认发布':action==='unpublish'?'确认撤回':'确认下架并回收')){this.publishing=false;return}
     const controls=Array.from(this.querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLTextAreaElement>('[data-cms-shell] button,[data-cms-shell] input,[data-cms-shell] textarea')).filter(x=>!x.disabled)
     controls.forEach(x=>x.disabled=true)
     try{
@@ -292,10 +309,10 @@ export class OwnerCMS extends HTMLElement {
         if(j.error)row.append(el('p',j.error))
         const controls=el('div','','cms-inline')
         if(['queued','publishing','failed'].includes(j.state)){
-          controls.append(button('继续 / 重试',async()=>{try{await this.invoke(j.id,'publish');await this.refresh()}catch(error){this.notify(errorText(error),true)}}),button('取消此任务',async()=>{if(!window.confirm('取消尚未提交的发布任务？若提交已完成，会显示真实状态。'))return;try{await this.invoke(j.id,'cancel');await this.refresh()}catch(error){this.notify(errorText(error),true)}}))
+          controls.append(button('继续 / 重试',async()=>{try{await this.invoke(j.id,'publish');await this.refresh()}catch(error){this.notify(errorText(error),true)}}),button('取消此任务',async()=>{if(!await this.confirmAction('取消尚未提交的发布任务。若提交已完成，会显示真实状态。','确认取消任务'))return;try{await this.invoke(j.id,'cancel');await this.refresh()}catch(error){this.notify(errorText(error),true)}}))
         }
         if(j.state==='committed')controls.append(button('刷新部署状态',async()=>{try{const result=await this.invoke(j.id,'status');if(result.state==='live')await this.renderJobs();else{status.textContent=result.deploy?.conclusion&&result.deploy.conclusion!=='success'?`部署未成功（${result.deploy.conclusion}），网站保留上一版本。`:'正在等待部署完成，请稍后刷新。';if(result.deploy?.url){const a=el('a','查看构建详情 ↗');a.href=result.deploy.url;a.target='_blank';a.rel='noopener noreferrer';row.append(a)}}}catch(error){this.notify(errorText(error),true)}}))
-        if(j.state==='committed')controls.append(button('重新部署',async()=>{if(!window.confirm('重新构建这次已经提交的内容？不会发布其他草稿。'))return;try{await this.invoke(j.id,'redeploy');await this.renderJobs();this.notify('已重新触发部署。')}catch(error){this.notify(errorText(error),true)}}))
+        if(j.state==='committed')controls.append(button('重新部署',async()=>{if(!await this.confirmAction('重新构建这次已经提交的内容，其他草稿保持私有。','确认重新部署'))return;try{await this.invoke(j.id,'redeploy');await this.renderJobs();this.notify('已重新触发部署。')}catch(error){this.notify(errorText(error),true)}}))
         if(j.state==='live')controls.append(el('span','✓ 正式站已确认','cms-muted'))
         row.append(controls);target.append(row)
       }

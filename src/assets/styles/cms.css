@@ -73,6 +73,8 @@
 .cms-dialog-close { float:right; margin:0 0 .5rem .5rem; }
 .cms-dialog h2 { font-size:1.2rem; font-weight:650; margin-bottom:1rem; }
 .cms-dialog p { line-height:1.7; margin:.5rem 0; }
+.cms-confirm { width:min(30rem,calc(100vw - 2rem)); }
+.cms-confirm .cms-inline { justify-content:flex-end; margin-top:1.5rem; }
 .cms-job { padding:1rem 0; border-bottom:1px solid hsl(var(--border)); font-size:.85rem; }
 .cms-job p { margin:.4rem 0; overflow-wrap:anywhere; }
 .cms-job a { color:hsl(var(--primary)); }

@@ -74,8 +74,16 @@ test('saving while typing retains the newer text instead of replacing it',async 
 })
 test('duplicate publish clicks create one job and switch to deployment history',async t=>{
   const ui=await setup(t);await ui.click('新建文章');for(const [name,value] of Object.entries({slug:'new-note','zh.title':'New note','zh.description':'Description','zh.body':'Body',publishDate:'2026-10-18'}))ui.fill(name,value)
-  const publish=ui.find('发布');publish.click();publish.click();await tick();await tick();assert.equal(ui.jobs.length,1);assert.match(ui.root.querySelector('[data-editor]').textContent,/等待部署/)
+  const publish=ui.find('发布');publish.click();publish.click();await tick();assert.equal(ui.jobs.length,0);await ui.click('确认发布');await tick();assert.equal(ui.jobs.length,1);assert.match(ui.root.querySelector('[data-editor]').textContent,/等待部署/)
+})
+
+test('cancelling publication keeps the saved draft and creates no job',async t=>{
+  const ui=await setup(t);await ui.click('友链');ui.root.querySelector('[data-list] button').click();await tick();await ui.click('发布');assert.ok(ui.root.querySelector('.cms-confirm')?.open);await ui.click('取消');assert.equal(ui.jobs.length,0);assert.equal(ui.root.querySelector('.cms-confirm'),null);assert.ok(ui.find('发布'))
+})
+
+test('sign-out cancels pending publication confirmation',async t=>{
+  const ui=await setup(t);await ui.click('友链');ui.root.querySelector('[data-list] button').click();await tick();await ui.click('发布');ui.role('guest');await tick();assert.equal(ui.root.querySelector('.cms-confirm'),null);assert.equal(ui.jobs.length,0);assert.equal(ui.root.querySelector('[data-cms-shell]').hidden,true)
 })
 test('draft trash has a reverse action and restoring does not publish',async t=>{
-  const ui=await setup(t);await ui.click('新建文章');ui.fill('zh.title','Reversible');await ui.click('保存草稿');await ui.click('移入回收站');assert.ok(ui.find('恢复到草稿'));await ui.click('恢复到草稿');const d=[...ui.docs.values()].find(d=>d.payload.zh?.title==='Reversible');assert.equal(d.deleted,false);assert.equal(ui.jobs.length,0)
+  const ui=await setup(t);await ui.click('新建文章');ui.fill('zh.title','Reversible');await ui.click('保存草稿');await ui.click('移入回收站');await ui.click('确认移入回收站');assert.ok(ui.find('恢复到草稿'));await ui.click('恢复到草稿');const d=[...ui.docs.values()].find(d=>d.payload.zh?.title==='Reversible');assert.equal(d.deleted,false);assert.equal(ui.jobs.length,0)
 })
