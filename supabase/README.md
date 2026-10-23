@@ -99,8 +99,9 @@ token validation failures can also be rejected before an RPC executes.
 | `comment_review(p_id,p_approve)` | Void, admin only. Approve a pending record after its parent is published, or reject by erasing/hiding the selected branch. Rejection cannot be undone. |
 | `comment_avatar_is_owner(p_name,p_allow_banned=false)` | Boolean Storage-policy helper, authenticated role only. Checks the current verified session against the caller's private profile and exact fixed object name. `true` for the second argument permits a banned author to read/remove their own avatar; INSERT/UPDATE policies always use `false`. It never grants access by nickname, email, Auth metadata or Storage `owner_id`. The frontend need not call it. |
 
-The frontend must display `body` and `nickname` as **plain text**. Do not put them
-into `innerHTML`. A deleted row's body is the empty string and should render a
+The frontend must display `nickname` as **plain text** and pass `body` only through
+the site's audited Markdown sanitization/rendering pipeline. Never insert raw
+comment content through `innerHTML`. A deleted row's body is the empty string and should render a
 localized deletion placeholder. There is no edit/restore RPC.
 
 ## Display names
