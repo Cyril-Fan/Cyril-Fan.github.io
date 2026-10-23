@@ -91,3 +91,37 @@ export async function refreshFriendFeeds(friends, previous = {}, { fetcher = fet
   }))
   return { version: 1, checkedAt, feeds: results }
 }
+
+/** A newly checked feed may still contain old articles after a fetch failure.
+ * Pick fallback data per source's actual last success, not global check time. */
+export function mergeFriendSnapshots(friends, local = {}, published = {}, now = Date.now()) {
+  const feeds = friends.filter(friend => friend.feed).map(friend => {
+    const candidates = [local, published].flatMap(snapshot => Array.isArray(snapshot?.feeds)
+      ? snapshot.feeds.filter(feed => feed?.source === friend.link && feed.feed === friend.feed &&
+        Number.isFinite(Date.parse(feed.lastSuccessAt)) && Date.parse(feed.lastSuccessAt) <= now + 300000)
+      : [])
+    const best = candidates.sort((a,b) => Date.parse(b.lastSuccessAt) - Date.parse(a.lastSuccessAt))[0]
+    return best ? { source:friend.link, feed:friend.feed, lastSuccessAt:best.lastSuccessAt,
+      articles:normalizeArticles(Array.isArray(best.articles) ? best.articles.slice(0,40) : [], friend, now) } : { source:friend.link, feed:friend.feed, articles:[] }
+  })
+  return { feeds }
+}
+
+export async function fetchPublishedFriendSnapshot({ fetcher = fetch, origin = 'https://cyril-fan.top' } = {}) {
+  const response = await fetcher(`${origin}/data/friend-feeds.json`, { cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer', redirect:'error', signal:AbortSignal.timeout(15000) })
+  if (!response.ok || !response.body) throw new Error('Published friend snapshot unavailable')
+  const reader = response.body.getReader(), chunks = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.length
+      if (size > 2_000_000) throw new Error('Published friend snapshot too large')
+      chunks.push(Buffer.from(value))
+    }
+  } finally { await reader.cancel() }
+  const data = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  if (data?.version !== 1 || !Array.isArray(data.feeds) || data.feeds.length > 100) throw new Error('Invalid published friend snapshot')
+  return data
+}

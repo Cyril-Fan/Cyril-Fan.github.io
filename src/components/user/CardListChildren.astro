@@ -28,3 +28,9 @@ const { main = false, children } = Astro.props
     })
   }
 </ul>
+
+<style>
+  a { transition:color .18s ease; }
+  a:hover, a:focus-visible { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
+  a:focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; border-radius:.2rem; }
+</style>

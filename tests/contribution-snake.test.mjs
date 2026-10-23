@@ -7,8 +7,8 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import ts from 'typescript'
 import { JSDOM } from 'jsdom'
-import { syncContributionSnake, verifyContributionBundle } from '../scripts/sync-contribution-snake.mjs'
-import { calendarHash, fetchContributionBundle, validateProfileSnake, PROFILE_REF } from '../src/lib/contribution-feed.ts'
+import { syncContributionSnake, verifyContributionBundle, refreshContributionSnapshot } from '../scripts/sync-contribution-snake.mjs'
+import { calendarHash, fetchContributionBundle, fetchPublishedContributionBundle, validatePublishedContributionBundle, validateProfileSnake, PROFILE_REF } from '../src/lib/contribution-feed.ts'
 import * as calendarHelpers from '../src/lib/github-contributions.ts'
 
 const read = file => readFileSync(new URL(file, import.meta.url), 'utf8')
@@ -96,7 +96,7 @@ test('failed refresh never overwrites the complete local fallback', async contex
 
 const code=ts.transpileModule(read('../src/lib/contribution-view.ts'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText
 const flush=async()=>{for(let i=0;i<12;i++) await Promise.resolve();await new Promise(setImmediate)}
-function view(context,{en=false,remote=async()=>null,reduced=false,decode=async()=>{}}={}) {
+function view(context,{en=false,remote=async()=>null,published=async()=>{throw Error('offline')},reduced=false,decode=async()=>{}}={}) {
   const cells=Array.from({length:10},(_,i)=>`<rect class="contribution-day level-0" role="button" data-date="2026-10-${String(i+1).padStart(2,'0')}" data-count="${i}" tabindex="${i===9?0:-1}" aria-label="day ${i}: ${i} contributions"></rect>`).join('')
   const dom=new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><div class="snake-animated"><img class="snake-light" src="/old-light.svg"><img class="snake-dark" src="/old-dark.svg"></div><div class="contribution-calendar"><svg>${cells}</svg></div></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
   context.after(()=>dom.window.close())
@@ -109,11 +109,61 @@ function view(context,{en=false,remote=async()=>null,reduced=false,decode=async(
   window.URL.revokeObjectURL=url=>revoked.push(url)
   window.HTMLImageElement.prototype.decode=decode
   const module={exports:{}}
-  window.Function('require','module','exports',code)(name=>name.includes('contribution-feed')?{fetchContributionBundle:remote,REFRESH_INTERVAL_MS:300000}:calendarHelpers,module,module.exports)
+  window.Function('require','module','exports',code)(name=>name.includes('contribution-feed')?{fetchContributionBundle:remote,fetchPublishedContributionBundle:published,REFRESH_INTERVAL_MS:300000}:calendarHelpers,module,module.exports)
   window.customElements.define('contribution-snake',module.exports.ContributionSnake)
   const host=window.document.querySelector('contribution-snake')
   return {window,host,media,revoked,button:host.querySelector('button'),cells:[...host.querySelectorAll('[data-date]')],input:host.querySelector('input'),output:host.querySelector('output')}
 }
+
+test('published bundles stay anonymous, accept honestly dated history and reject mixed or hostile SVGs',async()=>{
+  const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
+  const oldNow=new Date(now.getTime()+10*86400000)
+  const result=await fetchPublishedContributionBundle({now:oldNow,fetcher:async(url,options)=>{
+    assert.equal(url,'/data/contributions.json'); assert.equal(options.credentials,'omit'); assert.equal(options.cache,'no-store')
+    assert.equal(options.headers,undefined)
+    return response({version:1,...bundle})
+  }})
+  assert.equal(result.fetchedAt,bundle.fetchedAt)
+  for(const invalid of [
+    {...bundle,dataHash:'0'.repeat(64)}, {...bundle,dark:light}, {...bundle,sourceCommit:'../../unsafe'},
+    {...bundle,light:light.replace('</svg>','<script>alert(1)</script></svg>')},
+    {...bundle,fetchedAt:new Date(oldNow.getTime()+86400000).toISOString()}
+  ]) await assert.rejects(validatePublishedContributionBundle({version:1,...invalid},oldNow))
+})
+
+test('an upstream outage keeps the latest fully verified deployed snapshot without blocking the site',async context=>{
+  const directory=await mkdtemp(join(tmpdir(),'contribution-tests-')), root=pathToFileURL(directory+sep)
+  context.after(async()=>{
+    const target=resolve(directory); assert.equal(dirname(target),resolve(tmpdir())); assert.ok(basename(target).startsWith('contribution-tests-'))
+    await rm(target,{recursive:true,force:true})
+  })
+  await syncContributionSnake({root,now,fetcher:feed().fetcher,token:''})
+  const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
+  const deployed={version:1,...bundle,fetchedAt:new Date(Date.parse(bundle.fetchedAt)+60000).toISOString(),sourceCommit:'a'.repeat(40)}
+  const later=new Date(now.getTime()+10*86400000)
+  await refreshContributionSnapshot({root,now:later,retry:false,token:'',fetcher:async url=>{
+    if(url==='https://cyril-fan.top/data/contributions.json') return response(deployed)
+    throw Error('GitHub rate limited')
+  }})
+  const result=await verifyContributionBundle({root,now:later,requireFresh:false})
+  assert.equal(result.snapshot.fetchedAt,deployed.fetchedAt)
+  assert.equal(result.snapshot.sourceCommit,deployed.sourceCommit)
+  await assert.rejects(verifyContributionBundle({root,now:later}))
+  const publicBundle=JSON.parse(await readFile(new URL('public/data/contributions.json',root),'utf8'))
+  assert.equal(publicBundle.fetchedAt,deployed.fetchedAt,'Do not replace data time with the failed check time')
+  assert.equal(publicBundle.light,light);assert.equal(publicBundle.dark,dark)
+  await refreshContributionSnapshot({root,now:later,retry:false,token:'',fetcher:async()=>{throw Error('All upstreams offline')}})
+  assert.equal((await verifyContributionBundle({root,now:later,requireFresh:false})).snapshot.sourceCommit,deployed.sourceCommit)
+})
+
+test('the visible graph can refresh from the published same-origin bundle after GitHub throttles it',async context=>{
+  const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
+  const ui=view(context,{remote:async()=>{throw Error('rate limited')},published:async()=>bundle,reduced:true})
+  await flush()
+  assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,`${calendar.total} 次贡献`)
+  assert.equal(ui.host.querySelectorAll('[data-date]').length,calendar.contributions.length)
+  assert.equal(ui.host.dataset.playing,'false')
+})
 for(const en of [false,true]) test(`${en?'en':'zh'}: keyboard, hover, date picker, reduced motion and reconnection remain usable`,async context=>{
   const ui=view(context,{en,reduced:true})
   assert.equal(ui.host.dataset.playing,'false');assert.equal(ui.button.hidden,false)

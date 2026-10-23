@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
-import { calendarHash, fetchContributionBundle, MAX_SOURCE_AGE_MS, RENDERER, validateProfileSnake } from '../src/lib/contribution-feed.ts'
+import { calendarHash, fetchContributionBundle, fetchPublishedContributionBundle, MAX_SOURCE_AGE_MS, RENDERER, validateProfileSnake } from '../src/lib/contribution-feed.ts'
 
 const defaultRoot = new URL('../', import.meta.url)
 async function writeJson(file, data) {
@@ -11,10 +11,7 @@ async function writeJson(file, data) {
   await rename(temporary, file)
 }
 
-export async function syncContributionSnake({ root = defaultRoot, token = process.env.GITHUB_TOKEN, ...options } = {}) {
-  // No writes until the profile calendar and original animations agree.
-  const bundle = await fetchContributionBundle({ ...options, token })
-  if (!bundle) throw new Error('Missing contribution bundle')
+async function saveBundle(bundle, root) {
   const directory = new URL('public/contributions/', root)
   await mkdir(directory, { recursive: true })
   await mkdir(new URL('src/assets/', root), { recursive: true })
@@ -36,8 +33,17 @@ export async function syncContributionSnake({ root = defaultRoot, token = proces
     contributions: bundle.calendar.contributions, total: { lastYear: bundle.calendar.total }
   })
   await writeJson(new URL('src/assets/contributions.json', root), metadata)
+  await mkdir(new URL('public/data/', root), { recursive:true })
+  await writeJson(new URL('public/data/contributions.json', root), { version:1, ...bundle })
   console.log(`[contributions] GitHub profile ${bundle.sourceCommit.slice(0, 7)}: ${bundle.calendar.total} contributions; original Platane/snk animation, ${bundle.duration}ms.`)
   return metadata
+}
+
+export async function syncContributionSnake({ root = defaultRoot, token = process.env.GITHUB_TOKEN, ...options } = {}) {
+  // No writes until the profile calendar and original animations agree.
+  const bundle = await fetchContributionBundle({ ...options, token })
+  if (!bundle) throw new Error('Missing contribution bundle')
+  return saveBundle(bundle, root)
 }
 
 export async function verifyContributionBundle({ root = defaultRoot, now = new Date(), requireFresh = true } = {}) {
@@ -46,7 +52,8 @@ export async function verifyContributionBundle({ root = defaultRoot, now = new D
   const calendar = normalizeContributions(snapshot)
   if (!calendar || snapshot.dataHash !== await calendarHash(calendar) || metadata.dataHash !== snapshot.dataHash || metadata.fetchedAt !== snapshot.fetchedAt || metadata.dataThrough !== calendar.contributions.at(-1).date || metadata.rendererVersion !== RENDERER || metadata.sourceCommit !== snapshot.sourceCommit) throw new Error('Contribution bundle identity mismatch')
   const age = now.getTime() - Date.parse(snapshot.fetchedAt)
-  if (requireFresh && (!isCurrentContributionCalendar(calendar, now) || !Number.isFinite(age) || age < -300_000 || age > MAX_SOURCE_AGE_MS)) throw new Error('Contribution bundle is stale')
+  if (!Number.isFinite(age) || age < -300_000 || !/^[a-f0-9]{40}$/.test(metadata.sourceCommit)) throw new Error('Invalid contribution snapshot identity or timestamp')
+  if (requireFresh && (!isCurrentContributionCalendar(calendar, now) || age > MAX_SOURCE_AGE_MS)) throw new Error('Contribution bundle is stale')
   for (const theme of ['light', 'dark']) {
     const path = metadata[theme]
     if (!new RegExp(`^/contributions/snake-${theme}-[a-f0-9]{12}\\.svg$`).test(path)) throw new Error('Invalid contribution asset path')
@@ -58,4 +65,32 @@ export async function verifyContributionBundle({ root = defaultRoot, now = new D
   return { snapshot, metadata, calendar }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await syncContributionSnake()
+/** Keep the newest complete version. Neither rate limits nor a half-published
+ * profile should block publishing unrelated articles, RSS or fixes. */
+export async function refreshContributionSnapshot({ root = defaultRoot, fetcher = fetch, now = new Date(), token = process.env.GITHUB_TOKEN,
+  publishedOrigin = 'https://cyril-fan.top', retry = true } = {}) {
+  let best
+  try {
+    const { snapshot, metadata, calendar } = await verifyContributionBundle({ root, now, requireFresh:false })
+    best = { sourceCommit:metadata.sourceCommit, fetchedAt:snapshot.fetchedAt, checkedAt:metadata.checkedAt || snapshot.fetchedAt,
+      dataThrough:metadata.dataThrough, dataHash:metadata.dataHash, width:metadata.width, height:metadata.height, duration:metadata.cycleDurationMs,
+      calendar, light:await readFile(new URL(`public${metadata.light}`, root),'utf8'), dark:await readFile(new URL(`public${metadata.dark}`, root),'utf8') }
+  } catch { /* A remote verified bundle can repair a missing local snapshot. */ }
+  const select = bundle => {
+    if (bundle && (!best || Date.parse(bundle.fetchedAt) >= Date.parse(best.fetchedAt))) best = bundle
+  }
+  try { select(await fetchPublishedContributionBundle({ fetcher, now, origin:publishedOrigin })) }
+  catch { console.warn('[contributions] Published fallback unavailable; retaining the verified local snapshot if needed.') }
+  let refreshed = false
+  for (let attempt=0; attempt<(retry ? 2 : 1); attempt++) {
+    try { select(await fetchContributionBundle({ fetcher, now, token })); refreshed = true; break }
+    catch {
+      if (retry && attempt === 0) await new Promise(resolve => setTimeout(resolve, 750))
+    }
+  }
+  if (!best) throw new Error('No complete verified contribution snapshot is available')
+  if (!refreshed) console.warn(`[contributions] GitHub refresh unavailable. Keeping the complete snapshot from ${best.fetchedAt}; its original date is preserved.`)
+  return saveBundle(best, root)
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) await refreshContributionSnapshot()

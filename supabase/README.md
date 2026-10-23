@@ -290,6 +290,26 @@ controls against account farming.
 
 ## Run the actual SQL regression
 
+The anonymous page-view counter is separate from comment accounts. Apply
+`migrations/202610230008_site_page_views.sql` after the existing migrations.
+It creates private `site_private.traffic` / `view_receipts` tables and two narrow
+public RPCs: `read_site_stats()` and `record_page_view(p_request_id uuid)`.
+Browser roles cannot read receipt rows, set a total, or delete traffic history.
+The increment is serialized by a row lock; reusing the same request ID is
+idempotent. No IP, account, user agent, referring URL or visited path is stored.
+Request IDs older than one day are pruned during later traffic, at most hourly.
+The public counter has a global budget of 300 new views/minute and 50,000/day
+(UTC) to bound anonymous writes and receipt growth. It is an approximate PV
+counter, not a unique-person or abuse-proof analytics system. Changing the
+frontend or redeploying does not reset its accumulated value. Migration 008 is
+safe to reapply without resetting the counter.
+
+The counter frontend always uses the public project key independently of Auth;
+it never sends the owner's or a visitor's sign-in token. Public data permissions
+follow Supabase's [database function guidance](https://supabase.com/docs/guides/database/functions).
+The `traffic-regression.sql` suite tests private-table denial, atomic increments,
+retry deduplication, cleanup and volume budgets inside the disposable database.
+
 The test creates a fresh in-memory PostgreSQL backend through PGlite. Auth mocks
 exist only there. It applies all production migrations in order, changes to actual `anon`
 and `authenticated` roles, and runs SQL assertions for grants, private storage,

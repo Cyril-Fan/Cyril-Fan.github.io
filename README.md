@@ -4,11 +4,13 @@ Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://git
 
 正式域名配置为 **[cyril-fan.top](https://cyril-fan.top/)**，公开源码仓库为 **[Cyril-Fan/Cyril-Fan.github.io](https://github.com/Cyril-Fan/Cyril-Fan.github.io)**。域名解析、GitHub Pages 部署和 HTTPS 状态应以控制台与实际访问结果为准。
 
+**想修改内容但不知道在哪里？先看 [网站内容位置地图](SITE-CONTENT-MAP.md)。** 它按首页、照片、友链、评论、图标、数据和发布配置逐项列出维护入口；写文章另见 [写作指南](CONTENT-GUIDE.md)。
+
 ## 首版内容
 
 - 中文默认页面与英文基础页面：首页、研究、项目、关于、友链。
 - 站内搜索、明暗主题、手机适配、分类、标签、RSS，以及与 GitHub 主页同步的浅／深色贡献蛇动画。关闭动画后切换为同尺寸的真实贡献日历，支持悬停、点击、键盘及日期查询。
-- 暂无公开文章、论文、项目或友链时显示空状态；独立访客统计关闭。
+- 暂无公开文章、论文、项目或友链时显示空状态；主页底部展示匿名全站访问次数（PV），不按独立人数追踪。
 - 关于页与文章留言支持已验证邮箱的密码账户，中英文共用讨论，支持 CommonMark、GFM、公式与发布前预览。原始 HTML 按文本显示，外部图片经点击后加载。配置与验收见 [COMMENTS-SETUP.md](./COMMENTS-SETUP.md)。
 
 ## 本地开发
@@ -33,7 +35,7 @@ npm run preview
 
 构建与浏览器共用 `contribution-feed.ts`：先读取 `Cyril-Fan/Cyril-Fan` 的 main 提交号，再按这个固定提交获取日历、浅色 SVG 和深色 SVG。校验日历连续性、总数、时间、资料仓库的 `snake_calendar_hash`、每个 SVG 格子的坐标与实际颜色等级。直接保留 GitHub 主页的原版 Platane/snk 动画，不再使用本站自写寻路。资料工作流生成到一半、读取失败或文件不一致时，不替换完整版本。
 
-网站工作流每小时尝试更新构建快照。浏览器在首页可见时另检查最新资料提交，每个页面最多每 5 分钟一次；两个新图解码完成后，才同时更新动画、日历和总数。更新失败保留当前快照，不影响静态日历查询。浏览器请求不带本站登录凭据或页面地址，CI 的短期 token 只发给 GitHub API。GitHub 数据与任务队列仍可能延迟；悬停贡献总数可查看数据日期及 24 小时制更新时间。
+网站工作流每小时尝试更新构建快照。浏览器在首页可见时另检查最新资料提交，每个页面最多每 5 分钟一次；两个新图解码完成后，才同时更新动画、日历和总数。GitHub 不可用时会读取本站最新发布的完整快照；构建也优先恢复线上较新的整包，再尝试 GitHub。失败不会伪造更新日期或把新版本换回旧版本，超过 36 小时会提示延迟，不影响静态日历查询。浏览器请求不带本站登录凭据或页面地址，CI 的短期 token 只发给 GitHub API。GitHub 数据、任务队列和 CDN 仍可能延迟；悬停贡献总数可查看数据日期及 24 小时制更新时间。
 
 修改框架或文章处理插件后，可运行 `npm run test:content`：用临时中英文文章检查 MDX、公式、代码、图片、回退页面、草稿、搜索与 RSS，完成后移除临时内容，产物位于忽略提交的 `.content-check-dist/`。检查时不要同时编辑对应的 `migration-*` 临时内容目录。执行 `npm audit` 检查完整依赖树，生产依赖可另运行 `npm audit --omit=dev`。
 
@@ -53,7 +55,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 博客文章 | `src/content/blogs/每篇文章目录/index.mdx` |
 | 主页头像 | `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 关于页照片 | `src/assets/photos/cyril-fan-lakeside.webp`，`AboutPhoto.astro` 负责两种语言的响应图片 |
-| 友链与朋友圈 | `public/links.json`；按名称字典序显示，可选 `feed` 填 RSS / Atom URL；头像放 `public/links/`。`npm run sync:friends` 更新 `src/assets/friend-feeds.json`，每次自动构建也会尝试刷新；读取失败时保留构建环境已有的快照 |
+| 友链与朋友圈 | `public/links.json`；按名称字典序显示，可选 `feed` 填 RSS / Atom URL；头像放 `public/links/`。`npm run sync:friends` 更新 `src/assets/friend-feeds.json` 和公开 JSON，每次构建也会尝试刷新；失败时按每个源的成功日期恢复本地或线上较新的内容 |
 | 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，并同步所有已发布图标目录；版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
 | 贡献图 | `src/lib/contribution-feed.ts` 读取并校验原版日历和动画；`scripts/sync-contribution-snake.mjs` 保存构建快照；`ContributionSnake.astro` 与 `contribution-view.ts` 控制刷新、主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |
@@ -63,6 +65,8 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 首页、关于等页面的资料有中英文副本；修改个人信息时请同步检查两种语言。
 
 友链页由 `LinksPage.astro` 共用双语布局，包括本站资料复制、申请模板、朋友圈随机阅读 / 分页 / 作者文章与留言。友链申请在留言区由站长查看后手动加入 JSON，不会自动把访客提交的 URL 变成订阅抓取目标。朋友圈只展示文章标题、作者、日期及原文链接，每个来源最多保留 40 篇；没有 RSS 或暂时没有文章的朋友仍正常出现在友链卡片中。
+
+页面长时间打开时，朋友圈每 10 分钟检查本站快照，文章变化后提示在新标签页查看；可见的评论区每分钟检查列表变化，只提示刷新，不覆盖草稿。建站天数按上海日期每分钟更新。全站 PV 由独立匿名请求写入 Supabase，主页总数每分钟刷新；本地预览不计数。完整更新频率及局限见[内容位置地图](SITE-CONTENT-MAP.md#动态数据多久更新)。
 
 ## GitHub Pages
 

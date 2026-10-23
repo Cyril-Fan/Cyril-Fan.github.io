@@ -14,6 +14,8 @@ export class SiteComments extends HTMLElement {
   private accountId: string | null | undefined
   private busy = false
   private loading = false
+  private checkingUpdates = false
+  private lastUpdateCheck = 0
   private identityReady = false
   private editingProfile = false
   private avatarEditorOpen = false
@@ -62,6 +64,7 @@ export class SiteComments extends HTMLElement {
     const options = { signal:this.lifetime.signal }
     this.el('form[data-compose]').addEventListener('submit',event=>{event.preventDefault(); void this.submit()},options)
     this.el('[data-refresh]').addEventListener('click',()=>void this.load(false,true),options)
+    this.el('[data-apply-update]').addEventListener('click',()=>void this.load(false,true),options)
     this.el('[data-more]').addEventListener('click',()=>void this.load(true),options)
     this.el('[data-cancel-reply]').addEventListener('click',()=>this.setReply(null,true),options)
     this.el('[data-cancel-login-reply]').addEventListener('click',()=>{
@@ -135,6 +138,9 @@ export class SiteComments extends HTMLElement {
       this.pendingConfirmation=null
     },options)
     void this.load(false,true)
+    const updateTimer=window.setInterval(()=>void this.checkForUpdates(),60000)
+    this.lifetime.signal.addEventListener('abort',()=>window.clearInterval(updateTimer),{once:true})
+    document.addEventListener('visibilitychange',()=>void this.checkForUpdates(),options)
   }
 
   disconnectedCallback() {
@@ -222,11 +228,13 @@ export class SiteComments extends HTMLElement {
     this.querySelectorAll<HTMLButtonElement>('[data-list] .comment-item-actions button').forEach(button=>{button.disabled=this.busy})
     this.querySelectorAll<HTMLButtonElement>('[data-list] .comment-thread-gap button').forEach(button=>{button.disabled=this.busy || this.loading})
     this.el<HTMLButtonElement>('[data-refresh]').disabled=this.loading || this.busy
+    this.el<HTMLButtonElement>('[data-apply-update]').disabled=this.loading || this.busy
     this.el<HTMLButtonElement>('[data-more]').disabled=this.loading || this.busy
     ;(this.me.can_post ? this.el('[data-compose]') : this.el('[data-status-home]')).append(this.el('[data-status]'))
   }
 
   private clearPermissions() {
+    this.el('[data-update-note]').hidden=true
     this.clearAuthorEmails()
     this.focusedRows=[]
     this.resetAvatarEditor()
@@ -285,6 +293,7 @@ export class SiteComments extends HTMLElement {
       this.identityReady=true
       if(!this.canChangeAvatar()) this.resetAvatarEditor()
       this.rows=more ? [...this.rows,...next.filter(row=>!this.rows.some(old=>old.id===row.id))] : next
+      if(!more) {this.el('[data-update-note]').hidden=true; this.lastUpdateCheck=Date.now()}
       this.focusedRows=this.focusedRows.filter(row=>!this.rows.some(loaded=>loaded.id===row.id))
       const resumeReply=this.loginReply && this.me.can_post && this.accountId && (this.loginReply.accountId===null || this.loginReply.accountId===this.accountId)
       if(resumeReply) {this.parent=this.loginReply!.row; this.loginReply=null}
@@ -304,6 +313,22 @@ export class SiteComments extends HTMLElement {
         this.loading=false; this.updateControls(); this.el('[data-list]').setAttribute('aria-busy','false')
       }
     }
+  }
+
+  /** A read-only freshness hint: never rerender a conversation under a reader,
+   * close a menu, move a reply editor, or replace a draft automatically. */
+  private async checkForUpdates() {
+    if(!this.client || !this.lifetime || document.hidden || this.busy || this.loading || this.checkingUpdates || !this.identityReady || Date.now()-this.lastUpdateCheck<60000) return
+    const bounds=this.getBoundingClientRect()
+    if(bounds.bottom<0 || bounds.top>window.innerHeight) return
+    this.checkingUpdates=true; this.lastUpdateCheck=Date.now()
+    const lifetime=this.lifetime, account=this.accountVersion, generation=this.generation
+    try {
+      const {data,error}=await this.client.rpc('comment_thread_list',{p_thread:this.dataset.thread,p_after_id:null,p_limit:30}).abortSignal(this.signal())
+      if(!this.current(lifetime,account) || generation!==this.generation || error || !Array.isArray(data)) return
+      if(JSON.stringify(data)!==JSON.stringify(this.rows.slice(0,30))) this.el('[data-update-note]').hidden=false
+    } catch { /* Keep existing comments and private drafts usable while offline. */ }
+    finally {this.checkingUpdates=false}
   }
 
   private node<K extends keyof HTMLElementTagNameMap>(tag:K,text?:string,className?:string) {

@@ -1,5 +1,6 @@
 ---
 import snapshot from '@/assets/friend-feeds.json'
+import { createHash } from 'node:crypto'
 import links from '@/public/links.json'
 interface Article { title: string; link: string; date: string; source: string }
 interface Feed { source: string; status: string; lastSuccessAt?: string | null; articles: Article[] }
@@ -11,9 +12,10 @@ const sourceMap = new Map(friends.map(friend => [friend.link, friend]))
 const readable = feeds.filter(feed => feed.status === 'ok').length
 const stale = feeds.some(feed => feed.status === 'unavailable')
 const lastUpdated = snapshot.checkedAt as string | null
+const revision = createHash('sha256').update(JSON.stringify(feeds.map(feed => ({ source:feed.source, articles:feed.articles })))).digest('hex')
 const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', { timeZone:'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(lastUpdated)) : null
 ---
-<friend-feed class='not-prose' data-lang={en ? 'en' : 'zh'}>
+<friend-feed class='not-prose' data-lang={en ? 'en' : 'zh'} data-revision={revision} data-checked={lastUpdated}>
   {articles.length > 0 ? <>
     <section class='random-card' data-random-panel hidden aria-label={en ? 'Random read' : '随机阅读'}>
       <span class='feed-eyebrow'>{en ? 'Random read' : '随便读读'}</span>
@@ -38,6 +40,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
     <p data-feed-status class='feed-meta' role='status' aria-live='polite'></p>
   </> : <p class='feed-empty'>{en ? 'No recent posts are available yet. You can still explore the blogs above.' : '暂时没有可展示的文章，欢迎先逛逛上面的博客。'}</p>}
   <div class='feed-summary'>
+    <span data-feed-update hidden role='status'>{en ? 'New reading-feed content is available. ' : '朋友圈有更新。'}<a target='_blank' rel='noopener noreferrer'>{en ? 'Open the latest feed in a new tab ↗' : '在新标签页查看最新版 ↗'}</a></span>
     <span>{en ? `${friends.length} blogs · ${readable} feeds available · ${articles.length} recent posts` : `${friends.length} 位朋友 · ${readable} 个订阅可用 · ${articles.length} 篇近期文章`}</span>
     {updateTime && <span>{en ? 'Last checked: ' : '上次检查：'}<time datetime={lastUpdated!}>{updateTime}</time> (UTC+8)</span>}
     {stale && <span>{en ? 'Some feeds are temporarily unavailable; saved posts remain available.' : '部分订阅暂时无法更新，已保留上次可用的文章。'}</span>}
@@ -49,12 +52,14 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   </dialog>
 </friend-feed>
 <script>
+  import { watchFriendFeed } from '../../lib/friend-feed-refresh'
   class FriendFeed extends HTMLElement {
     private controller?: AbortController
     connectedCallback() {
       this.controller?.abort()
       this.controller = new AbortController()
       const { signal } = this.controller
+      watchFriendFeed(this, signal)
       const en = this.dataset.lang === 'en'
       const cards = [...this.querySelectorAll<HTMLElement>('[data-feed-article]')]
       const dialog = this.querySelector<HTMLDialogElement>('dialog')!

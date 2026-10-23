@@ -73,7 +73,11 @@ try {
   const threadAssertions = Number(threadResults.flatMap((result) => result.rows ?? [])
     .find((row) => Object.hasOwn(row, 'thread_assertions_passed'))?.thread_assertions_passed ?? 0);
   if (threadAssertions < 45) throw new Error('Conversation assertions did not complete.');
-  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions).`);
+  stage = 'anonymous page-view privacy and retry regression';
+  const trafficResults = await db.exec(await readFile(path.join(here, 'traffic-regression.sql'), 'utf8'));
+  const trafficAssertions = Number(trafficResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'traffic_assertions_passed'))?.traffic_assertions_passed ?? 0);
+  if (trafficAssertions < 20) throw new Error('Traffic assertions did not complete.');
+  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions + trafficAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions; ${trafficAssertions} on anonymous page views).`);
   console.log('PGlite uses one backend. Multi-connection lock contention is not exercised by this suite.');
   console.log('Avatar tests model Storage metadata only; real JPEG upload, MIME/size enforcement and CDN caching require integration checks.');
 } catch (error) {

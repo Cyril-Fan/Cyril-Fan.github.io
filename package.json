@@ -13,7 +13,7 @@
     "preview": "astro preview",
     "sync": "astro sync",
     "check": "astro check",
-    "test": "node --test tests/comment-auth.test.mjs tests/comment-avatar.test.mjs tests/comment-markdown.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs tests/branding.test.mjs tests/icon-cache.test.mjs tests/contribution-snake.test.mjs tests/github-calendar.test.mjs tests/toc.test.mjs tests/friends.test.mjs",
+    "test": "node --test tests/comment-auth.test.mjs tests/comment-avatar.test.mjs tests/comment-markdown.test.mjs tests/comments-ui.test.mjs tests/theme.test.mjs tests/branding.test.mjs tests/icon-cache.test.mjs tests/contribution-snake.test.mjs tests/github-calendar.test.mjs tests/toc.test.mjs tests/friends.test.mjs tests/site-traffic.test.mjs",
     "test:database": "node tests/database/run-security.mjs",
     "test:content": "node scripts/check-content-migration.mjs",
     "astro": "astro",
@@ -25,7 +25,8 @@
     "yijiansilian": "npm run quality",
     "clean": "rm -rf .astro .vercel dist .wrangler",
     "clean:all": "npm run clean && rm -rf node_modules",
-    "sync:friends": "node scripts/sync-friend-feeds.mjs"
+    "sync:friends": "node scripts/sync-friend-feeds.mjs",
+    "avatar:friend": "node scripts/import-friend-avatar.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.6",

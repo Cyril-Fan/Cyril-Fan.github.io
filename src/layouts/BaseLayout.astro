@@ -501,5 +501,13 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
       })
     </script>
 
+    <script>
+      import { installSiteTraffic } from '../lib/site-traffic'
+      installSiteTraffic({
+        url:import.meta.env.PUBLIC_SUPABASE_URL || '',
+        key:import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '',
+        production:import.meta.env.PROD
+      })
+    </script>
   </body>
 </html>

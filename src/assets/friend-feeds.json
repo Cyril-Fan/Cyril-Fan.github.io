@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "checkedAt": "2026-10-23T12:12:55.547Z",
+  "checkedAt": "2026-10-23T13:32:37.622Z",
   "feeds": [
     {
       "source": "https://axi404.top/",
       "feed": "https://axi404.top/rss.xml",
       "status": "ok",
-      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "lastSuccessAt": "2026-10-23T13:32:37.622Z",
       "articles": [
         {
           "title": "具身十日谈：飞越奇点，后 Astra 时代的具身智能",
@@ -259,7 +259,7 @@
       "source": "https://royzhao.cn/",
       "feed": "https://royzhao.cn/rss.xml",
       "status": "ok",
-      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "lastSuccessAt": "2026-10-23T13:32:37.622Z",
       "articles": [
         {
           "title": "秋天",
@@ -272,9 +272,10 @@
     {
       "source": "https://vys3n.github.io/",
       "feed": "https://vys3n.github.io/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-23T12:12:55.547Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-23T13:27:25.818Z",
       "articles": []
     }
-  ]
+  ],
+  "revision": "f357dca1b6e92367ac47e7c3429fa3e6855a54ffac9f38816f31e2dac238bb49"
 }

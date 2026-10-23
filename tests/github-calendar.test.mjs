@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { contributionCells, contributionWeeks, isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
+import { siteDaysOnline } from '../src/lib/site-days.ts'
 const fixture = (start = '2025-10-19') => {
   const begin = Date.parse(`${start}T00:00:00Z`)
   const contributions = Array.from({ length: 367 }, (_, index) => ({
@@ -88,6 +89,13 @@ test('render coordinates preserve leap days, partial weeks and each GitHub color
     assert.equal(cell.y, new Date(`${cell.date}T00:00:00Z`).getUTCDay())
     assert.equal(cell.x, Math.floor((index + 2) / 7))
   })
+})
+
+test('site days follow Shanghai midnight, independent of build or visitor time zone',()=>{
+  assert.equal(siteDaysOnline('2026-10-18',new Date('2026-10-23T15:59:59Z')),5)
+  assert.equal(siteDaysOnline('2026-10-18',new Date('2026-10-23T16:00:00Z')),6)
+  assert.equal(siteDaysOnline('2026-10-18',new Date('2026-10-17T15:00:00Z')),0)
+  assert.equal(siteDaysOnline('not a date'),null)
 })
 
 

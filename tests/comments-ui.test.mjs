@@ -225,6 +225,26 @@ async function setup(context, language, { identity = guest(), rows = [], configu
 }
 
 for (const language of ['zh', 'en']) {
+  test(`${language}: background freshness checks show a hint without moving the editor or replacing a draft`,async context=>{
+    const ui=await setup(context,language,{identity:member(),rows:[row(1)]})
+    ui.draft('An unfinished comment');ui.textarea.focus()
+    const originalItem=ui.list.firstElementChild, originalParent=ui.compose.parentElement
+    Object.defineProperty(ui.window.document,'hidden',{configurable:true,value:false})
+    const clock=ui.window.Date.now();ui.window.Date.now=()=>clock+61000
+    ui.rows=[row(2),row(1,{nickname:'Renamed reader'})]
+    ui.window.document.dispatchEvent(new ui.window.Event('visibilitychange'))
+    await until(()=>!ui.select('[data-update-note]').hidden,'freshness hint')
+    assert.equal(ui.list.firstElementChild,originalItem)
+    assert.equal(ui.compose.parentElement,originalParent)
+    assert.equal(ui.textarea.value,'An unfinished comment')
+    assert.equal(ui.window.document.activeElement,ui.textarea)
+    assert.equal(ui.calls.some(call=>['comment_create','comment_delete','comment_profile_update'].includes(call.name)),false)
+    ui.select('[data-apply-update]').click()
+    await until(()=>ui.select('[data-update-note]').hidden && ui.list.querySelectorAll('.comment-item').length===2,'explicit refresh')
+    assert.equal(ui.textarea.value,'An unfinished comment')
+    assert.match(ui.list.textContent,/Renamed reader/)
+  })
+
   test(`${language}: original comments contain all chronological replies including reply-to-reply`, async context => {
     const first = row(1, { created_at:'2026-10-21T21:46:00Z' })
     const second = row(2, { created_at:'2026-10-22T21:00:00Z' })

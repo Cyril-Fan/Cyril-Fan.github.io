@@ -5,6 +5,7 @@ import ContributionSnake from './ContributionSnake.astro'
 import PageLayout from '@/layouts/BaseLayout.astro'
 import Section from './Section.astro'
 import BlogStats from './BlogStats.astro'
+import SiteVisits from './SiteVisits.astro'
 import avatar from '@/assets/avatar.png'
 import config from '@/site-config'
 
@@ -72,6 +73,7 @@ const en = Astro.currentLocale === 'en'
         <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />
       </Section>
       <ContributionSnake />
+      <SiteVisits />
     </div>
   </main>
 </PageLayout>

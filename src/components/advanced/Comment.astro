@@ -68,6 +68,7 @@ const thread = commentThread(Astro.props.thread ?? Astro.url.pathname)
     <details data-admin hidden class='comment-admin'><summary>{en ? 'Comment settings' : '留言管理设置'}</summary><label><input type='checkbox' data-moderation /> {en ? 'Review new comments before publishing' : '新评论先审核再公开'}</label></details>
     <div data-status-home><p data-status role='status' aria-live='polite'></p></div>
     <div class='comment-list-heading'><h3>{en ? 'Recent comments' : '最近留言'}</h3><button type='button' data-refresh>{en ? 'Refresh' : '刷新'}</button></div>
+    <p data-update-note hidden class='comment-note' role='status'><button type='button' data-apply-update>{en ? 'The conversation has changed · Refresh comments' : '留言有更新 · 刷新留言'}</button></p>
     <ol data-list class='comment-list'></ol>
     <p data-empty hidden class='comment-empty'>{en ? 'No comments yet. Be the first to say hello.' : '这里还很安静，来留下第一声问候吧。'}</p>
     <button type='button' data-more hidden>{en ? 'Load more comments and replies' : '加载更多留言与回复'}</button>

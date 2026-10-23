@@ -5,6 +5,7 @@ export const PROFILE_REF = 'https://api.github.com/repos/Cyril-Fan/Cyril-Fan/git
 export const MAX_SOURCE_AGE_MS = 36 * 60 * 60 * 1000
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 export const RENDERER = 'Platane/snk-profile'
+export const PUBLISHED_CONTRIBUTIONS = '/data/contributions.json'
 
 export async function calendarHash(calendar: ContributionCalendar): Promise<string> {
   // Match profile.yml's json.dumps(sort_keys=True, separators=(',', ':')).
@@ -61,6 +62,49 @@ interface FeedOptions {
   signal?: AbortSignal
   currentCommit?: string
   token?: string
+}
+
+/** Validate the complete same-origin fallback just as strictly as the GitHub files.
+ * Its age is visible to readers; an upstream outage must not erase valid history. */
+export async function validatePublishedContributionBundle(input: unknown, now = new Date()): Promise<ContributionBundle> {
+  const bundle = input as ContributionBundle & { version?: number }
+  if (!bundle || bundle.version !== 1 || !/^[a-f0-9]{40}$/.test(bundle.sourceCommit) ||
+      !/^[a-f0-9]{64}$/.test(bundle.dataHash) || typeof bundle.light !== 'string' || typeof bundle.dark !== 'string') throw new Error('Invalid published contribution bundle')
+  const calendar = normalizeContributions({ contributions: bundle.calendar?.contributions, total: { lastYear: bundle.calendar?.total } })
+  const fetched = Date.parse(bundle.fetchedAt), checked = Date.parse(bundle.checkedAt)
+  if (!calendar || !Number.isFinite(fetched) || !Number.isFinite(checked) || fetched > now.getTime() + 300_000 || checked > now.getTime() + 300_000 ||
+      bundle.dataThrough !== calendar.contributions.at(-1)?.date || bundle.dataThrough > now.toISOString().slice(0,10) ||
+      bundle.dataHash !== await calendarHash(calendar)) throw new Error('Published contribution identity mismatch')
+  const light = validateProfileSnake(bundle.light, calendar, 'light')
+  const dark = validateProfileSnake(bundle.dark, calendar, 'dark')
+  if (light.duration !== dark.duration || light.width !== bundle.width || light.height !== bundle.height || light.duration !== bundle.duration) throw new Error('Published contribution geometry mismatch')
+  return { sourceCommit:bundle.sourceCommit, fetchedAt:bundle.fetchedAt, checkedAt:bundle.checkedAt, dataHash:bundle.dataHash,
+    dataThrough:bundle.dataThrough, calendar, light:bundle.light, dark:bundle.dark, ...light }
+}
+
+export async function fetchPublishedContributionBundle({ fetcher = fetch, now = new Date(), signal, origin = '' }: {
+  fetcher?: typeof fetch; now?: Date; signal?: AbortSignal; origin?: string
+} = {}): Promise<ContributionBundle> {
+  const response = await fetcher(`${origin}${PUBLISHED_CONTRIBUTIONS}`, {
+    cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer', redirect:'error',
+    signal:signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000)
+  })
+  if (!response.ok || !response.body) throw new Error('Published contribution bundle unavailable')
+  const reader = response.body.getReader(), chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.length
+      if (size > 3_200_000) throw new Error('Published contribution bundle too large')
+      chunks.push(value)
+    }
+  } finally { await reader.cancel() }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
+  return validatePublishedContributionBundle(JSON.parse(new TextDecoder().decode(bytes)), now)
 }
 
 /** Pin all three files to one commit; reject unfinished profile updates. */

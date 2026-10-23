@@ -57,6 +57,7 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
       <span data-contribution-total title={`${first} – ${last} · ${en ? 'Updated' : '更新于'} ${updated} UTC+8`}>{en ? `${data.total} contributions` : `${data.total} 次贡献`}</span>
       <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Turn on animation' : '开启动画'}</button>
     </div>
+    <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are temporarily delayed. The last verified contribution history is shown; hover over the total for its date.' : '更新暂有延迟，当前展示上次核实的贡献记录；悬停贡献总数可查看数据时间。'}</p>
     <div class='calendar-inspector text-xs text-muted-foreground'>
       <label>{en ? 'Date' : '日期'} <input type='date' data-contribution-date min={first} max={last} value={last} /></label>
       <output data-contribution-detail aria-live='polite' aria-atomic='true'>{dayLabel(days[days.length - 1])}</output>

@@ -1,4 +1,4 @@
-import { fetchContributionBundle, REFRESH_INTERVAL_MS } from './contribution-feed'
+import { fetchContributionBundle, fetchPublishedContributionBundle, REFRESH_INTERVAL_MS } from './contribution-feed'
 import { contributionWeeks } from './github-contributions'
 import type { ContributionBundle } from './contribution-feed'
 import type { ContributionDay } from './github-contributions'
@@ -123,17 +123,27 @@ export class ContributionSnake extends HTMLElement {
       }
     }
     let lastCheck = 0, checking = false
+    const showFreshness = () => {
+      const notice = this.querySelector<HTMLElement>('[data-contribution-stale]')
+      if (notice) notice.hidden = !this.dataset.updated || Date.now() - Date.parse(this.dataset.updated) <= 36 * 60 * 60 * 1000
+    }
     const refresh = async () => {
       if (document.hidden || signal.aborted || checking || Date.now() - lastCheck < REFRESH_INTERVAL_MS) return
       checking = true; lastCheck = Date.now()
       try {
-        const bundle = await fetchContributionBundle({ signal, currentCommit:this.dataset.sourceCommit })
+        let bundle
+        try { bundle = await fetchContributionBundle({ signal, currentCommit:this.dataset.sourceCommit }) }
+        catch {
+          if (signal.aborted) return
+          bundle = await fetchPublishedContributionBundle({ signal })
+        }
         if (bundle && !signal.aborted) await apply(bundle)
       } catch { /* Offline, rate-limited or half-published: retain the complete local snapshot. */ }
-      finally { checking = false }
+      finally { checking = false; showFreshness() }
     }
     // No credentials or site session are sent to GitHub; requests are limited per page.
     void refresh()
+    showFreshness()
     const timer = window.setInterval(() => { void refresh() }, REFRESH_INTERVAL_MS)
     signal.addEventListener('abort', () => window.clearInterval(timer), { once:true })
     document.addEventListener('visibilitychange', () => { void refresh() }, { signal })
