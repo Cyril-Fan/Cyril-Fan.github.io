@@ -22,6 +22,13 @@ try {
     if(migration==='202610240010_retire_cms.sql'){
       stage='historical CMS security checks before retirement';
       await db.exec(await readFile(path.join(here,'cms-regression.sql'),'utf8'));
+      const retirement=await readFile(path.join(migrationsPath,migration),'utf8');
+      let bucketGuard=false;
+      try{await db.exec(retirement)}catch(e){bucketGuard=String(e.message).includes('Storage API/UI first')}
+      await db.exec('rollback;');
+      if(!bucketGuard)throw new Error('Retirement must wait for Storage API bucket cleanup');
+      // In-memory emulation of the separately verified production Storage API deletion.
+      await db.exec("delete from storage.buckets where id='cms-media';");
     }
     const profileUpgrade = migration === '202610190003_current_profile_names.sql';
     if (profileUpgrade) {

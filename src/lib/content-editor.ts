@@ -32,7 +32,7 @@ export class ContentEditor extends HTMLElement{
   private t(zh:string,en:string){return this.en?en:zh}
   private q<T extends HTMLElement=HTMLElement>(s:string){return this.querySelector<T>(s)!}
   private notice(text:string,error=false){const p=this.q('[data-message]');p.textContent=text;p.dataset.error=String(error)}
-  private btn(text:string,action:()=>unknown,cls=''){const b=el('button',text,cls);b.type='button';b.onclick=()=>{try{Promise.resolve(action()).catch(e=>this.notice(e.message||String(e),true))}catch(e){this.notice(String(e),true)}};return b}
+  private btn(text:string,action:()=>unknown,cls=''){const b=el('button',text,cls);b.type='button';b.onclick=async()=>{b.disabled=true;b.setAttribute('aria-busy','true');try{await action()}catch(e:any){this.notice(e.message||String(e),true)}finally{b.disabled=false;b.removeAttribute('aria-busy')}};return b}
   connectedCallback(){
     if(this.abort)return
     this.abort=new AbortController();const signal=this.abort.signal

@@ -56,7 +56,9 @@ CMS_GITHUB_TOKEN remains server-only, limited to Cyril-Fan/Cyril-Fan.github.io, 
 
 Canonical files are in GitHub. Unsubmitted content is encrypted in the owner's current browser. The service-role secret derives an owner/repository-specific recovery key after admin verification. Export local drafts before rotating that secret. Publishing does not use database snapshots, jobs or storage.
 
-After validating the new frontend/backend, remove the approved old objects through Storage, then apply migration 010. It refuses nonempty storage or content changed since the approved inventory. Retire the old deployed cms-publish function. Preserve all account/comment/avatar/traffic structures. See [migration record](../docs/CMS-IMPLEMENTATION.md).
+After validating the new frontend/backend, remove the approved old objects **and the cms-media bucket** through the Storage API or dashboard, then apply migration 010. Do not delete rows from storage.objects or storage.buckets through SQL: that would not be a safe blob deletion, and Supabase protects these tables. The migration refuses any remaining bucket/object or content changed since the approved inventory. Retire the old deployed cms-publish function. Preserve all account/comment/avatar/traffic structures.
+
+Production retirement completed on 2026-10-24: the old CMS schema, 14 RPCs, storage bucket and cms-publish deployment are absent. The 3 existing Auth users, 21 comments, 1 user-avatar object and traffic structures were verified as preserved. See the [migration and acceptance record](../docs/CMS-IMPLEMENTATION.md).
 
 Guides: [中文](../CMS-GUIDE.md) · [English](../CMS-GUIDE.en.md).
 

@@ -39,6 +39,7 @@
 .cms-page button,.cms-file { border:1px solid hsl(var(--border)); border-radius:.45rem; padding:.5rem .75rem; font-size:.82rem; line-height:1.4; cursor:pointer; background:hsl(var(--background)); color:hsl(var(--foreground)); transition:color .15s,border-color .15s; }
 .cms-page button:hover,.cms-file:hover { color:hsl(var(--primary)); border-color:hsl(var(--primary)/.5); }
 .cms-page button:disabled { opacity:.45; cursor:not-allowed; }
+.cms-page button[aria-busy=true]::after { content:' …'; }
 .cms-page :is(button,input,textarea,select,summary,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
 .cms-page .cms-primary { background:hsl(var(--foreground)); color:hsl(var(--background)); border-color:hsl(var(--foreground)); }
 .cms-page .cms-danger { color:#d75151; }

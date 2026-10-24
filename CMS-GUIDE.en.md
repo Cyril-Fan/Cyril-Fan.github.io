@@ -42,3 +42,7 @@ Unknown submission result: retry the same request. Conflicting file versions: co
 Limits: 80 files per submission, 8 MB per processed image, 28 MB per request, 500 KB per article, 256 formulas and 2000 characters per formula. Larger formulas are shown literally. Unknown code languages are shown as plain code.
 
 The scoped GitHub credential is server-only, restricted to this repository's Contents read/write and Metadata read. It has no scheduled expiry but may be revoked or rate limited. Local recovery encryption is derived from the Supabase service-role secret; export local work before rotating that secret. Browser copies are not synced across devices. Application code and security configuration remain outside the content editor.
+
+## Migration
+
+The old Supabase CMS was retired on 2026-10-24 after checking the public GitHub files and receiving the owner's confirmation to discard the remaining test-only drafts and images. The old content/history/jobs tables, CMS image bucket, RPCs and publishing function were removed. Accounts, comments, user avatars and page views remain in Supabase. See the [implementation and acceptance record](docs/CMS-IMPLEMENTATION.md) for the audited scope and verification results.

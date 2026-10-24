@@ -28,7 +28,7 @@ export function imageRepositoryPath(value:string,sourcePath='') {
   if(value.startsWith('/'))return 'public'+value.split(/[?#]/)[0]
   if(value.startsWith('src/')||value.startsWith('public/'))return value
   if(/^[a-z][a-z0-9+.-]*:/i.test(value)||!sourcePath)return value
-  return new URL(value,'https://content.invalid/'+sourcePath).pathname.slice(1)
+  try{return new URL(value,'https://content.invalid/'+sourcePath).pathname.slice(1)}catch{return value}
 }
 export function replaceImageReferences(source:string,imagePath:string,sourcePath:string,replacement:string) {
   return source.replace(/[^\s"'()<>`]+/g,token=>imageRepositoryPath(token,sourcePath)===imagePath?replacement:token)

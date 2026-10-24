@@ -52,6 +52,7 @@ test('relative, shared and source image paths resolve and replace without broken
   assert.ok(safeUrl('/'+path,true))
   assert.equal(replaceImageReferences('![x](./photo.gif)\nheroImage:\n  src: photo.gif',path,source,replacement),'![x]('+replacement+')\nheroImage:\n  src: '+replacement)
   assert.ok(fileReferences('![x](../demo/photo.gif)',path,'src/content/blogs/other/index.md'))
+  assert.equal(fileReferences(String.raw`const escaped = '\\/';`,path,'src/components/Search.astro'),false)
   assert.equal(replaceImageReferences('![x](/links/roy.webp) ![y](/links/roy.webp.backup.png)','public/links/roy.webp',source,replacement),'![x]('+replacement+') ![y](/links/roy.webp.backup.png)')
 })
 
