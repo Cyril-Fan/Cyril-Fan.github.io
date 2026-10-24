@@ -1,8 +1,10 @@
 # 写作与维护指南
 
-日常写作现在可以直接使用 [内容后台](https://cyril-fan.top/admin/)，参见 [后台操作指南](CMS-GUIDE.md)。私有草稿、图片和历史记录存放在 Supabase，点发布后才生成公开 Markdown 并自动构建。
+日常写作现在可以直接使用 [内容后台](https://cyril-fan.top/admin/)，参见 [后台操作指南](CMS-GUIDE.md)。正文和新图片仅在当前浏览器加密暂存，点发布后才写入 GitHub 原始文件并自动构建。
 
-以下为代码维护和原有 Markdown / MDX 工作流参考。后台管理的文章不要同时手工修改生成文件；后台检测到外部冲突会停止发布。提交到公开仓库的传统 `draft: true` 文件依然公开，不能代替后台的私有草稿。
+以下为代码维护和原有 Markdown / MDX 工作流参考。后台与直接 Git 编辑操作同一份原文件；同一文件的版本冲突必须明确合并。提交到公开仓库的传统 `draft: true` 文件依然公开，不能代替浏览器未提交副本。
+
+MDX 仅支持静态 Aside、Collapse、Spoiler、Steps，不执行 import/export、JavaScript 表达式或事件。恢复和失败处理见 [编辑器指南](CMS-GUIDE.md)。
 
 ## 新增一篇文章
 

@@ -1,0 +1,48 @@
+{
+  "zh": {
+    "background": "我是范星宇，吉林大学软件工程本科生，喜欢通过研究与动手实践探索人工智能。",
+    "interests": [
+      {
+        "title": "深度学习",
+        "description": "",
+        "icon": "cpu"
+      },
+      {
+        "title": "多模态大语言模型",
+        "description": "",
+        "icon": "image"
+      },
+      {
+        "title": "AI 智能体",
+        "description": "",
+        "icon": "robot"
+      }
+    ],
+    "publications": [],
+    "projects": [],
+    "cv": ""
+  },
+  "en": {
+    "background": "I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. I enjoy exploring artificial intelligence through research and hands-on projects.",
+    "interests": [
+      {
+        "title": "Deep Learning",
+        "description": "",
+        "icon": "cpu"
+      },
+      {
+        "title": "Multimodal Large Language Models",
+        "description": "",
+        "icon": "image"
+      },
+      {
+        "title": "AI Agents",
+        "description": "",
+        "icon": "robot"
+      }
+    ],
+    "publications": [],
+    "projects": [],
+    "cv": ""
+  }
+}

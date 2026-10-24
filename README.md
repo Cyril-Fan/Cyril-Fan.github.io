@@ -4,7 +4,7 @@ Cyril Fan 的科研个人主页与博客，基于 [Axi404/Axi-Theme](https://git
 
 正式域名配置为 **[cyril-fan.top](https://cyril-fan.top/)**，公开源码仓库为 **[Cyril-Fan/Cyril-Fan.github.io](https://github.com/Cyril-Fan/Cyril-Fan.github.io)**。域名解析、GitHub Pages 部署和 HTTPS 状态应以控制台与实际访问结果为准。
 
-**日常内容可以直接在 [站长后台](https://cyril-fan.top/admin/) 编辑并发布。** 使用现有站长账号，支持文章、友链、双语个人资料、学术项目和图片库；提供私有草稿、撤回、回收站、恢复、历史与备份。操作见 [CMS-GUIDE.md](CMS-GUIDE.md)，源码位置见 [网站内容位置地图](SITE-CONTENT-MAP.md)。
+**日常内容可以直接在 [站长后台](https://cyril-fan.top/admin/) 编辑并发布。** 使用现有站长账号，支持文章、友链、双语个人资料、学术项目和图片库；提供浏览器本地暂存与恢复、原文件对比、选择文件发布、图片引用检查及 Git 历史恢复。操作见 [CMS-GUIDE.md](CMS-GUIDE.md)，源码位置见 [网站内容位置地图](SITE-CONTENT-MAP.md)。
 
 ## 首版内容
 
@@ -50,13 +50,13 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 内容 | 维护位置 |
 | --- | --- |
 | 站点名、邮箱、GitHub、域名、导航、集成开关 | `src/site.config.ts` |
-| 双语首页与关于 | 后台“首页与关于”；发布为 `src/data/cms-published.json` |
-| 研究与项目 | 后台“学术与项目”；共用公开快照，组件负责现有布局 |
+| 双语首页与关于 | 后台“首页与关于”；发布为 `src/data/profile.json` |
+| 研究与项目 | 后台“学术与项目”；直接编辑 src/data/academic.json，复用 Axi 论文与项目组件 |
 | 博客文章 | 后台“文章”；发布为 `src/content/blogs/<slug>/index.md` 和可选 `index-en.md` |
 | 主页与评论站长头像 | 后台“首页与关于”；空值沿用 `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
 | 关于页照片 | 后台“首页与关于”；空值沿用 `src/assets/photos/cyril-fan-lakeside.webp` |
 | 友链与朋友圈 | 后台“友链”生成 `public/links.json`；按名称字典序显示。RSS 快照每次构建刷新，失败时保留每个源最近成功内容 |
-| 新图片与历史 | 后台“图片库”；私有 `cms-media`，发布时将被引用图片写入 `public/media/` |
+| 新图片 | 浏览器本地暂存；发布为 public/media/image-内容指纹.webp 等文件 |
 | 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，并同步所有已发布图标目录；版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
 | 贡献图 | `src/lib/contribution-feed.ts` 读取并校验原版日历和动画；`scripts/sync-contribution-snake.mjs` 保存构建快照；`ContributionSnake.astro` 与 `contribution-view.ts` 控制刷新、主题、动画/日历切换与查询 |
 | 站点规范说明 | `src/pages/terms/` 与 `src/pages/en/terms/` |

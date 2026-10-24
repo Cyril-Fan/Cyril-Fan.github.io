@@ -2,21 +2,23 @@
 
 这份文件按“我想改什么”整理维护入口。路径都相对于仓库根目录；点击链接可直接在 GitHub 打开。正式网站：[cyril-fan.top](https://cyril-fan.top/)。
 
-**日常维护优先使用 [站长内容后台](https://cyril-fan.top/admin/)**，操作见 [CMS-GUIDE.md](CMS-GUIDE.md)。下面的源码路径用于理解结构和开发；文章、友链、个人资料及学术内容已由后台生成公开快照，不要同时直接修改快照与后台草稿。
+**日常维护优先使用 [站长内容后台](https://cyril-fan.top/admin/)**，操作见 [CMS-GUIDE.md](CMS-GUIDE.md)。下面的源码路径用于理解结构和开发；GitHub 原文件是唯一正式内容源；后台编辑浏览器本地副本，发布时校验原文件版本。
 
 ## 后台内容的数据源
 
-| 内容 | 私有源 / 公开产物 | 页面实现 |
+| 内容 | 唯一正式源 / 本地副本 | 页面实现 |
 | --- | --- | --- |
-| 草稿、历史版本、回收站、发布任务 | Supabase `cms_private`；不在 GitHub | [`src/lib/cms-editor.ts`](src/lib/cms-editor.ts)、[`AdminPage.astro`](src/components/cms/AdminPage.astro) |
-| 首页、关于、学术和项目资料 | 后台 → [`src/data/cms-published.json`](src/data/cms-published.json) | `HomePage.astro`、`AboutPage.astro`、`AcademicPage.astro`、`ProjectItems.astro` |
-| 友链与订阅地址 | 后台 → [`public/links.json`](public/links.json) | `LinksPage.astro` / `FriendList.astro` |
-| 文章 | 后台 → `src/content/blogs/<slug>/index.md` 与 `index-en.md` | 既有博客、搜索、RSS 页面 |
-| 新上传图片 | 私有 `cms-media` 桶 → 发布引用的 `public/media/<UUID>.webp` | 头像、照片、封面与正文 |
-| 发布校验与 Git 提交 | [`supabase/functions/cms-publish/index.ts`](supabase/functions/cms-publish/index.ts) | 服务器 Edge Function |
-| 表单规则和公开文件生成 | [`supabase/functions/_shared/cms.ts`](supabase/functions/_shared/cms.ts) | 前后台共用校验 |
-| 当前部署标记 | [`public/data/cms-release.json`](public/data/cms-release.json) | 后台核验真实上线状态 |
-| 后台数据库和存储权限 | [`202610230009_owner_cms.sql`](supabase/migrations/202610230009_owner_cms.sql) | [部署说明](supabase/README.md) |
+| 未提交内容和新图片 | 当前浏览器加密 IndexedDB；无服务端草稿 | content-editor.ts、content-local.ts |
+| 首页与关于资料 | [src/data/profile.json](src/data/profile.json) | HomePage / AboutPage / AboutPhoto |
+| 学术、论文和项目 | [src/data/academic.json](src/data/academic.json) | AcademicPage、PublicationSection、ResearchProjectSection |
+| 友链与 RSS | [public/links.json](public/links.json) | LinksPage / FriendList |
+| 文章 | src/content/blogs/网址/index.md，英文 index-en.md | BlogPost / Hero / ArticleBody |
+| 合集 | src/content/collection/网址.md | CollectionHeader / CollectionPreview |
+| 网站图片 | public/media、public/links、public/avatar、src/assets/photos、src/assets/projects、文章同目录 | 内容指纹文件名；保留动画 |
+| 真实身份验证与 GitHub 代理 | [content-github](supabase/functions/content-github/index.ts) | 服务端；固定仓库/main/路径/类型 |
+| 文件规则与 Markdown 处理 | git-content.ts、content-loader.ts、article-markdown.ts、content-render.ts | 原文件字段保留、共享安全预览 |
+| 当前部署标记 | [public/data/cms-release.json](public/data/cms-release.json) | 轻量版本标记，不含正文快照 |
+| 旧 CMS 清理迁移 | [010](supabase/migrations/202610240010_retire_cms.sql) | [迁移记录](docs/CMS-IMPLEMENTATION.md) |
 
 ## 先记住这几个目录
 
@@ -37,7 +39,7 @@
 | 想改的内容 | 直接维护的位置 | 注意 |
 | --- | --- | --- |
 | 网站标题、作者、邮箱、GitHub 用户名、域名、建站日期 | [`src/site.config.ts`](src/site.config.ts) | 英文元信息同时检查 `description_en` / `author_en` |
-| 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | 后台“首页与关于” → `src/data/cms-published.json` 的 `profile` | [`HomePage.astro`](src/components/home/HomePage.astro) 保留双语布局 |
+| 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | 后台“首页与关于” → `src/data/profile.json` 的 `profile` | [`HomePage.astro`](src/components/home/HomePage.astro) 保留双语布局 |
 | 中文 / 英文首页入口 | [`src/pages/index.astro`](src/pages/index.astro)、[`src/pages/en/index.astro`](src/pages/en/index.astro) | 实际界面由 `HomePage.astro` 生成 |
 | 主页头像 | 后台“首页与关于”的头像 | 空值使用默认 [`src/assets/avatar.png`](src/assets/avatar.png) |
 | 评论站长头像、对外提供的本站头像地址 | 跟随后台设置的主页头像 | 默认对外地址为 [`public/avatar/avatar.png`](public/avatar/avatar.png)，不自动跟随 GitHub |
@@ -84,7 +86,7 @@
 | 构建使用的订阅快照 | [`src/assets/friend-feeds.json`](src/assets/friend-feeds.json)，由 `npm run sync:friends` 更新 |
 | 朋友圈后台更新检测 | [`src/lib/friend-feed-refresh.ts`](src/lib/friend-feed-refresh.ts)，读取 [`public/data/friend-feeds.json`](public/data/friend-feeds.json) |
 
-添加朋友时，使用后台“友链”，填写表单并发布；`public/links.json` 是自动生成的公开文件。不用手工维护显示顺序。`feed` 不是网站主页地址，而是 RSS / Atom 地址。Roy Zhao 的订阅是 `https://royzhao.cn/rss.xml`。没有可用订阅或订阅暂时没有文章时，卡片仍会显示，但朋友圈没有该站文章。
+添加朋友时，使用后台“友链”，填写表单并发布；`public/links.json` 是直接编辑的原文件。不用手工维护显示顺序。`feed` 不是网站主页地址，而是 RSS / Atom 地址。Roy Zhao 的订阅是 `https://royzhao.cn/rss.xml`。没有可用订阅或订阅暂时没有文章时，卡片仍会显示，但朋友圈没有该站文章。
 
 导入头像：
 

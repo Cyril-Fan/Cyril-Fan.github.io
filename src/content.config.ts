@@ -1,78 +1,9 @@
 import { defineCollection } from 'astro:content'
 import { z } from 'astro/zod'
-import { glob } from 'astro/loaders'
-
-function removeDupsAndLowerCase(array: string[]) {
-  if (!array.length) return array
-  const lowercaseItems = array.map((str) => str.toLowerCase())
-  const distinctItems = new Set(lowercaseItems)
-  return Array.from(distinctItems)
-}
-
-// Shared schema for both collections
-const blogSchema = ({ image }: { image: () => any }) =>
-  z.object({
-    // Required
-    title: z.string().max(60),
-    description: z.string().max(160),
-    publishDate: z.coerce.date(),
-    // Optional
-    updatedDate: z.coerce.date().optional(),
-    heroImage: z
-      .object({
-        src: z.union([z.string().regex(/^(?:\/(?:media|links)\/[a-z0-9-]+\.webp|https:\/\/[^\s]+)$/), image()]),
-        alt: z.string().optional(),
-        inferSize: z.boolean().optional(),
-        width: z.number().optional(),
-        height: z.number().optional(),
-
-        color: z.string().optional()
-      })
-      .optional(),
-    tags: z.array(z.string()).default([]).transform(removeDupsAndLowerCase),
-    category: z.string().optional(),
-    language: z.string().optional(),
-    draft: z.boolean().default(false),
-    // Integrations
-    comment: z.boolean().default(true),
-    pixivLink: z.string().optional()
-  })
-
-const blog = defineCollection({
-  // Load Chinese version: index.md or index.mdx
-  loader: glob({ base: './src/content/blogs', pattern: '**/index.{md,mdx}' }),
-  schema: blogSchema
-})
-
-const blogEn = defineCollection({
-  // Load English version: index-en.md or index-en.mdx
-  loader: glob({ base: './src/content/blogs', pattern: '**/index-en.{md,mdx}' }),
-  schema: blogSchema
-})
-
-const collectionSchema = ({ image }: { image: () => any }) =>
-  z.object({
-    title: z.string(),
-    /** Optional English title used on /en routes */
-    title_en: z.string().optional(),
-    description: z.string().optional(),
-    /** Optional English description used on /en routes */
-    description_en: z.string().optional(),
-    heroImage: z
-      .object({
-        src: image(),
-        alt: z.string().optional(),
-        inferSize: z.boolean().optional(),
-        width: z.number().optional(),
-        height: z.number().optional()
-      })
-      .optional(),
-    bloglist: z.array(z.string()).default([])
-  })
-
-const postCollections = defineCollection({
-  loader: glob({ base: './src/content/collection', pattern: '**/*.{md,mdx}' }),
-  schema: collectionSchema
-})
-
-export const collections = { blog, blogEn, postCollections }
+import { contentFiles } from './lib/content-loader'
+const heroImage=z.object({src:z.string(),alt:z.string().optional(),inferSize:z.boolean().optional(),width:z.number().positive().optional(),height:z.number().positive().optional(),color:z.string().optional()}).passthrough().optional()
+const blogSchema=z.object({title:z.string().max(60),description:z.string().max(160),publishDate:z.coerce.date(),updatedDate:z.coerce.date().optional(),heroImage,tags:z.array(z.string()).default([]).transform(tags=>[...new Set(tags.map(t=>t.toLowerCase()))]),category:z.string().optional(),language:z.string().optional(),draft:z.boolean().default(false),comment:z.boolean().default(true),pixivLink:z.string().optional(),source:z.string().optional()}).passthrough()
+const blog=defineCollection({loader:contentFiles('blog'),schema:blogSchema})
+const blogEn=defineCollection({loader:contentFiles('blogEn'),schema:blogSchema})
+const postCollections=defineCollection({loader:contentFiles('collection'),schema:z.object({title:z.string(),title_en:z.string().optional(),description:z.string().optional(),description_en:z.string().optional(),heroImage,bloglist:z.array(z.string()).default([])}).passthrough()})
+export const collections={blog,blogEn,postCollections}

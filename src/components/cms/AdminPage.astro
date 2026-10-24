@@ -2,31 +2,31 @@
 import BaseLayout from '../../layouts/BaseLayout.astro'
 import CommentAuth from '../advanced/CommentAuth.astro'
 import '../../assets/styles/cms.css'
+import '../../assets/styles/article-content.css'
 import 'katex/dist/katex.min.css'
+const en=Astro.currentLocale==='en',t=(zh:string,english:string)=>en?english:zh
+const sections=[['post','文章','Articles'],['friend','友链','Friends'],['profile','首页与关于','Home & About'],['academic','学术与项目','Academic'],['collection','合集','Collections'],['media','图片','Images']]
 ---
-<BaseLayout meta={{title:'内容管理',description:'站长内容管理后台'}}>
+<BaseLayout meta={{title:t('内容编辑器','Content editor'),description:t('站长 GitHub 内容编辑器','Owner GitHub content editor')}}>
   <main class='cms-page' data-pagefind-ignore>
-    <header class='cms-heading'><div><p class='cms-eyebrow'>CYRIL FAN / STUDIO</p><h1>内容管理</h1><p class='cms-muted'>在这里写作、整理与发布。</p></div><a href='/' class='cms-return'>返回网站 ↗</a></header>
-    <section class='cms-account' aria-label='站长登录'><CommentAuth id='cms-auth' context='admin' /><p class='cms-muted'>使用现有站长账号登录。编辑内容与草稿仅站长可见。</p></section>
-    <owner-cms>
-      <p data-cms-gate role='status'>正在验证站长权限…</p>
-      <div data-cms-shell hidden>
-        <nav class='cms-nav' aria-label='内容类型'>
-          <button type='button' data-kind='post' aria-pressed='true'>文章</button><button type='button' data-kind='friend' aria-pressed='false'>友链</button><button type='button' data-kind='profile' aria-pressed='false'>首页与关于</button><button type='button' data-kind='academic' aria-pressed='false'>学术与项目</button><button type='button' data-kind='media' aria-pressed='false'>图片库</button><button type='button' data-kind='trash' aria-pressed='false'>回收站</button><button type='button' data-kind='jobs' aria-pressed='false'>发布记录</button>
-        </nav>
-        <div class='cms-tools'><button type='button' data-create>新建文章</button><button type='button' data-refresh>刷新列表</button><details class='cms-backup'><summary>导入与备份</summary><div><button type='button' data-export>导出当前内容与图片</button><label class='cms-file'>导入备份 / Markdown<input type='file' data-import accept='.json,.md,.markdown' /></label><p>导入后先保存为草稿，不会自动发布或覆盖已上线内容。</p></div></details></div>
-        <p data-cms-message class='cms-message' role='status' aria-live='polite'></p>
-        <div class='cms-workspace'>
-          <aside class='cms-sidebar'><label>查找内容<input type='search' data-search placeholder='按名称查找' /></label><div data-list class='cms-list'></div></aside>
-          <section data-editor class='cms-editor' aria-label='内容编辑区'><div class='cms-empty'>选择一项内容，或开始写一篇新文章。</div></section>
-        </div>
+    <header class='cms-heading'><div><p class='cms-eyebrow'>CYRIL FAN / EDITOR</p><h1>{t('内容编辑器','Content editor')}</h1><p class='cms-muted'>{t('读取 GitHub → 本地编辑与预览 → 选择修改并发布','Read GitHub → edit and preview locally → select changes and publish')}</p></div><a href={en?'/en/':'/'} class='cms-return'>{t('返回网站 ↗','Back to site ↗')}</a></header>
+    <section class='cms-account' aria-label={t('站长登录','Owner sign-in')}><CommentAuth id='cms-auth' context='admin' lang={en?'en':'zh'} /><p class='cms-muted'>{t('未提交内容和新图片只暂存在此浏览器；登录验证后才可恢复。','Unsubmitted content and new images stay in this browser. Sign in to restore them.')}</p></section>
+    <content-editor>
+      <p data-gate role='status'>{t('正在验证站长权限…','Checking owner access…')}</p>
+      <div data-shell hidden>
+        <nav class='cms-nav' aria-label={t('内容类型','Content type')}>{sections.map(([kind,zh,english])=><button type='button' data-kind={kind} aria-pressed={kind==='post'}>{t(zh,english)}</button>)}</nav>
+        <div class='cms-tools'><button type='button' data-create>{t('新建文章','New article')}</button><button type='button' data-refresh>{t('重新读取 GitHub','Reload GitHub')}</button><button type='button' data-recover>{t('恢复本地副本','Restore local copy')}</button><details class='cms-backup'><summary>{t('导入 / 导出','Import / export')}</summary><div><button type='button' data-export>{t('导出本地副本','Export local copy')}</button><label class='cms-file'>{t('导入本地副本','Import local copy')}<input type='file' data-import accept='.json,application/json' /></label></div></details></div>
+        <p data-message class='cms-message' role='status' aria-live='polite'></p>
+        <div data-submission class='cms-submission' role='status' aria-live='polite'></div>
+        <div class='cms-workspace'><aside class='cms-sidebar'><label>{t('查找内容','Find content')}<input type='search' data-search placeholder={t('标题或文件名','Title or file name')} /></label><div data-list class='cms-list'></div></aside><section data-editor class='cms-editor' aria-label={t('内容编辑区','Content editor')}></section></div>
+        <footer class='cms-publish-bar'><span data-save role='status'>{t('与 GitHub 一致','Matches GitHub')}</span><button type='button' data-review class='cms-primary' disabled>{t('检查并发布','Review & publish')}</button></footer>
       </div>
-      <dialog data-cms-dialog class='cms-dialog'><form method='dialog'><button class='cms-dialog-close' aria-label='关闭' value='close'>×</button></form><div data-dialog-body></div></dialog>
-    </owner-cms>
-    <noscript>内容管理需要启用 JavaScript。</noscript>
+      <dialog class='cms-dialog'><form method='dialog'><button class='cms-dialog-close' aria-label={t('关闭','Close')} value='close'>×</button></form><div data-dialog></div></dialog>
+    </content-editor>
+    <noscript>{t('内容编辑器需要启用 JavaScript。','The editor requires JavaScript.')}</noscript>
   </main>
 </BaseLayout>
 <script>
-  import { installCMS } from '../../lib/cms-editor'
-  installCMS()
+  import { installContentEditor } from '../../lib/content-editor'
+  installContentEditor()
 </script>

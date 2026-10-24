@@ -1,0 +1,13 @@
+---
+import { renderArticleDocument } from '../../lib/content-render'
+import { resolveArticleImages } from '../../lib/content-image'
+import '../../assets/styles/article-content.css'
+import 'katex/dist/katex.min.css'
+const {source='',filePath='',html} = Astro.props
+const rendered=html??(await renderArticleDocument(source,Astro.currentLocale==='en')).html
+---
+<div class='article-body' data-article-body set:html={resolveArticleImages(rendered,filePath)} />
+<script>
+  import { enhanceArticle } from '../../lib/content-render'
+  document.querySelectorAll<HTMLElement>('[data-article-body]').forEach(root=>void enhanceArticle(root))
+</script>

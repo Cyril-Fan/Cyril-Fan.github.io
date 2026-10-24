@@ -48,25 +48,17 @@ Local migration tests cover old `005` data, reply order and pagination, deleted 
 unavailable originals, all existing authorization checks, and the new private-email
 RPC. They do not establish that `006` has been applied to the production project.
 
-## Owner CMS (009)
+## GitHub content editor (010)
 
-Apply `migrations/202610230009_owner_cms.sql` once after 008. It adds private documents, version history, reversible trash, publication jobs, and the private `cms-media` bucket. It reuses the existing verified administrator allowlist and live-session checks; it does not create an administrator or change comment permissions. Never expose `cms_private` through the Data API.
+Deploy functions/content-github/index.ts with shared git-content.ts. Use a browser-targeted ESM bundle (YAML browser build). Exclude local fixtures. config.toml keeps the legacy JWT gateway check disabled; the handler authenticates every request through comment_me and its current owner/session policy.
 
-Deploy `functions/cms-publish/index.ts` with its shared `functions/_shared/cms.ts` module. The function authenticates every request through `comment_me`, which validates the real Auth session and current admin membership; service-only job functions cannot be invoked by browser roles. `config.toml` disables the legacy-secret-only gateway check so current Auth signing keys work with this server-side validation.
+CMS_GITHUB_TOKEN remains server-only, limited to Cyril-Fan/Cyril-Fan.github.io, Contents read/write and Metadata read. The current credential has no scheduled expiry. Actions reruns use GitHub's UI; no new permission is needed.
 
-Store `CMS_GITHUB_TOKEN` only in Edge Function Secrets: a fine-grained token limited to `Cyril-Fan/Cyril-Fan.github.io`, Contents read/write and required Metadata read-only. Do not grant repository administration, Actions write, workflow write, or access to other private repositories. The credential was regenerated and saved to Supabase on **2026-10-24**. Its current setting is **No expiration**: there is no scheduled expiry date and no renewal is required for a fixed expiry date.
+Canonical files are in GitHub. Unsubmitted content is encrypted in the owner's current browser. The service-role secret derives an owner/repository-specific recovery key after admin verification. Export local drafts before rotating that secret. Publishing does not use database snapshots, jobs or storage.
 
-No expiration does not guarantee indefinite availability. Manual revocation, credential exposure or a change in repository access can still prevent publication. GitHub also automatically revokes personal access tokens that have not been used in one year; see [Token expiration and revocation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/token-expiration-and-revocation).
+After validating the new frontend/backend, remove the approved old objects through Storage, then apply migration 010. It refuses nonempty storage or content changed since the approved inventory. Retire the old deployed cms-publish function. Preserve all account/comment/avatar/traffic structures. See [migration record](../docs/CMS-IMPLEMENTATION.md).
 
-An unusable publishing credential affects operations that must commit changes to GitHub: publishing, updating, unpublishing and trashing published content. It does not delete existing website files or Supabase records. Already deployed static pages, private draft saving, account sign-in and comments do not depend on this GitHub credential. Auth sessions, email verification links and credentials for other services retain their own lifetime settings.
-
-When replacement is needed, regenerate a token for the same repository with the same minimum permissions and promptly replace the value of `CMS_GITHUB_TOKEN` in Supabase Edge Function Secrets. Regeneration invalidates the old value, so publication may be temporarily unavailable until the new value is saved. A successful secret save confirms storage, not a complete publishing test; verify the publication job and live status during the next normal publication. Never put the token in frontend variables, GitHub files, articles or chat messages. The Chinese maintenance guide is [CMS-GUIDE.md](../CMS-GUIDE.md#发布凭据维护).
-
-Deploy the matching frontend and public baseline before opening `/admin/`. The first owner visit imports that already-public baseline once; later visits cannot overwrite private records. The publisher compares the repository baseline with database published snapshots and uses atomic, non-forced Git commits. Only selected saved document versions enter a publication. It detects a successful but uncertain Git update by release ID before retrying. Private media uploads are immutable; their Git blobs stage in small resumable batches and become public together in the final commit.
-
-The CMS does not permanently purge content. Unpublish and trash remove files from the current site, while database history and Git history remain recoverable. Back up the private database and storage separately from the public Git repository. User operation guide: [`../CMS-GUIDE.md`](../CMS-GUIDE.md).
-
-Local checks: `npm test` covers rendering, validation and mocked Git failure/retry paths; `npm run test:database` applies all real SQL migrations in isolated PostgreSQL and checks owner/non-owner permissions, session revocation, optimistic edits, frozen publish snapshots and Storage RLS. These checks do not replace authenticated production acceptance or multi-connection load testing.
+Guides: [中文](../CMS-GUIDE.md) · [English](../CMS-GUIDE.en.md).
 
 ## Project setup
 

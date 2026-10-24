@@ -2,6 +2,7 @@
 import { render, type CollectionEntry } from 'astro:content'
 
 import { getBlogCollection, sortMDByDate } from '@/server'
+import ArticleBody from '@/components/cms/ArticleBody.astro'
 import PostLayout from '@/layouts/BlogPost.astro'
 
 export const prerender = true
@@ -20,9 +21,9 @@ type Props = {
 }
 
 const { post, posts } = Astro.props
-const { Content, headings, remarkPluginFrontmatter } = await render(post)
+const { headings, remarkPluginFrontmatter } = await render(post)
 ---
 
 <PostLayout {post} {posts} {headings} {remarkPluginFrontmatter}>
-  <Content />
+  <ArticleBody source={post.body} filePath={post.filePath} />
 </PostLayout>

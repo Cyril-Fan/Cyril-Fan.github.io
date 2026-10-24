@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets'
+import { contentImage } from '../../lib/content-image'
 import type { CollectionEntry } from 'astro:content'
 import { cn } from '@/utils'
 
@@ -16,7 +16,7 @@ const title = isEn && data.title_en ? data.title_en : data.title
 const description = isEn && data.description_en ? data.description_en : data.description
 
 const imageProps = data.heroImage ? {
-  src: data.heroImage.src,
+  src: contentImage(data.heroImage.src,collection.filePath),
   alt: data.heroImage.alt || title,
   width: data.heroImage.width || 1200,
   height: data.heroImage.height || 630
@@ -27,7 +27,7 @@ const imageProps = data.heroImage ? {
   {
     imageProps ? (
       <div class='group relative overflow-hidden rounded-xl shadow-xs'>
-        <Image
+        <img
           src={imageProps.src}
           alt={imageProps.alt}
           width={imageProps.width}

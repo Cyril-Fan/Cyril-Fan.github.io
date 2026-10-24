@@ -1,4 +1,5 @@
-import { validateWebp } from '../../supabase/functions/_shared/cms'
+import { validateImage } from '../../supabase/functions/_shared/git-content'
+const validateWebp=(bytes:Uint8Array)=>validateImage('public/media/check.webp',bytes)
 
 /** A local codec also works where canvas.toBlob cannot encode WebP (Safari). */
 export async function encodeCMSImage(canvas:HTMLCanvasElement):Promise<Blob> {

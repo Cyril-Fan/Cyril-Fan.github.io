@@ -4,7 +4,6 @@ import * as pagefind from 'pagefind'
 // Astro
 import type { AstroIntegration, RehypePlugins, RemarkPlugins } from 'astro'
 // Integrations
-import mdx from '@astrojs/mdx'
 import { isUnifiedProcessor, unified } from '@astrojs/markdown-remark'
 import sitemap from '@astrojs/sitemap'
 import rehypeExternalLinks from 'rehype-external-links'
@@ -37,9 +36,7 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
         if (!allIntegrations.find(({ name }) => name === '@astrojs/sitemap')) {
           integrations.push(sitemap({ filter: (page) => !/^\/(?:en\/)?(?:auth\/|admin(?:\/|$))/.test(new URL(page).pathname) }))
         }
-        if (!allIntegrations.find(({ name }) => name === '@astrojs/mdx')) {
-          integrations.push(mdx({ optimize: true }))
-        }
+        // Owner-authored MDX is data, never compiled as JavaScript.
 
         // Add supported remark plugins based on user config.
         if (userConfig.integ.mediumZoom.enable)

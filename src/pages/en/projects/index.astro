@@ -2,14 +2,14 @@
 import PageLayout from '@/layouts/CommonPage.astro'
 import { Button } from '@/components/user'
 import { academic } from '../../../lib/cms-content'
-import ProjectItems from '../../../components/cms/ProjectItems.astro'
+import ResearchProjectSection from '../../../components/user/ResearchProjectSection.astro'
 
 const headings = [{ depth: 2, slug: 'projects', text: 'Open-source Projects' }]
 ---
 
 <PageLayout title='Projects' {headings} info={{ slug: '/en/projects', hideComment: true }}>
   <h2 id='projects'>Open-source Projects</h2>
-  {academic.en.projects.length ? <ProjectItems items={academic.en.projects} /> : <div class='not-prose rounded-xl border border-border bg-card px-6 py-10 text-center'>
+  {academic.en.projects.length ? <ResearchProjectSection projects={academic.en.projects} /> : <div class='not-prose rounded-xl border border-border bg-card px-6 py-10 text-center'>
     <p class='text-xl font-medium'>No projects to share yet.</p>
     <p class='mt-3 text-muted-foreground'>Research and publications are collected on the Academic page.</p>
     <Button title='Visit Academic' class='mt-5 inline-flex w-fit' href='/en/academic' />

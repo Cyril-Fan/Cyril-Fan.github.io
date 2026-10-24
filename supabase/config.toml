@@ -1,4 +1,4 @@
-[functions.cms-publish]
+[functions.content-github]
 # Current publishable keys are not legacy JWTs. The handler verifies the user's
 # current Auth session and administrator membership through comment_me instead.
 verify_jwt = false

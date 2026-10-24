@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets'
+import { contentImage } from '../../lib/content-image'
 import type { CollectionEntry } from 'astro:content'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 import { Icon } from '@/components/user'
@@ -61,8 +61,8 @@ const collectionUrl = getLocalizedUrl(Astro.currentLocale, `/collection/${id}`)
       <div class='flex flex-col'>
         {data.heroImage ? (
           <div class='group/img relative aspect-video w-full overflow-hidden'>
-            <Image
-              src={data.heroImage.src}
+            <img
+              src={contentImage(data.heroImage.src,collection.filePath)}
               alt={data.heroImage.alt || title}
               width={data.heroImage.width || 1200}
               height={data.heroImage.height || 630}

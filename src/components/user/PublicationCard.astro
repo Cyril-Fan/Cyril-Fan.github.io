@@ -30,6 +30,7 @@ interface Props {
 }
 
 const { class: className, publication } = Astro.props
+const en=Astro.currentLocale==='en'
 
 const linkIconMap: Record<string, { type: 'simple' | 'builtin'; icon: string; color?: string }> = {
   pdf: { type: 'builtin', icon: 'document' },
@@ -82,12 +83,12 @@ const symbolMutedClass = "text-muted-foreground/80 dark:text-slate-400/80";
       <span
         class={cn('px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap', typeColors[publication.type])}
       >
-        {publication.type.charAt(0).toUpperCase() + publication.type.slice(1)}
+        {en?publication.type.charAt(0).toUpperCase()+publication.type.slice(1):({conference:'会议',journal:'期刊',workshop:'研讨会',preprint:'预印本'})[publication.type]}
       </span>
       <span
         class={cn('px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap', statusColors[publication.status])}
       >
-        {publication.status.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+        {en?publication.status.replace('-', ' ').replace(/\b\w/g,l=>l.toUpperCase()):({published:'已发表',accepted:'已接收','under-review':'审稿中',preprint:'预印本'})[publication.status]}
       </span>
     </div>
 
@@ -122,11 +123,11 @@ const symbolMutedClass = "text-muted-foreground/80 dark:text-slate-400/80";
 
     {(publication.authors.some(a => a.isEqual || a.isCoreContributor || a.role) || publication.authorsAlphabetical) && (
       <div class={cn('mb-3 text-xs', symbolMutedClass, 'flex flex-wrap gap-x-3 gap-y-1')}>
-        {publication.authors.some(a => a.isEqual) && <span><sup class={symbolBaseClass}>*</sup>Equal contribution</span>}
-        {publication.authors.some(a => a.isCoreContributor) && <span><sup class={symbolBaseClass}>§</sup>Core contributor</span>}
-        {publication.authors.some(a => a.role === 'project-leader') && <span><sup class={symbolBaseClass}>‡</sup>Project Leader</span>}
-        {publication.authors.some(a => a.role === 'corresponding') && <span><sup class={symbolBaseClass}>†</sup>Corresponding author</span>}
-        {publication.authorsAlphabetical && <span class="italic">Authors are listed in alphabetical order</span>}
+        {publication.authors.some(a => a.isEqual) && <span><sup class={symbolBaseClass}>*</sup>{en?'Equal contribution':'共同一作'}</span>}
+        {publication.authors.some(a => a.isCoreContributor) && <span><sup class={symbolBaseClass}>§</sup>{en?'Core contributor':'核心贡献者'}</span>}
+        {publication.authors.some(a => a.role === 'project-leader') && <span><sup class={symbolBaseClass}>‡</sup>{en?'Project Leader':'项目负责人'}</span>}
+        {publication.authors.some(a => a.role === 'corresponding') && <span><sup class={symbolBaseClass}>†</sup>{en?'Corresponding author':'通讯作者'}</span>}
+        {publication.authorsAlphabetical && <span class="italic">{en?'Authors are listed in alphabetical order':'作者按字母顺序排列'}</span>}
       </div>
     )}
 
@@ -140,7 +141,7 @@ const symbolMutedClass = "text-muted-foreground/80 dark:text-slate-400/80";
       publication.citations != null && publication.citations > 0 && (
         <div class='mb-4 flex items-center gap-1.5 text-xs text-muted-foreground dark:text-slate-400'>
           <Icon class='size-3.5 text-current' name='quote' />
-          <span>{publication.citations} citation{publication.citations === 1 ? '' : 's'}</span>
+          <span>{publication.citations} {en?(publication.citations===1?'citation':'citations'):'次引用'}</span>
         </div>
       )
     }

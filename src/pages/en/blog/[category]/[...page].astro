@@ -117,7 +117,7 @@ const meta = {
           <a class='mt-6 inline-block text-sm hover:text-primary' href='/en/archives'>Browse the archives →</a>
         </section>
       ) : (
-        <div class='grid gap-y-16 sm:grid-cols-[3fr_1fr] sm:gap-x-8'>
+        <div class='grid gap-y-16 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)] sm:gap-x-8'>
           <section aria-label='Blog posts list' class='animate' id='content'>
             {/* header */}
             <div class='mb-3 flex flex-col justify-between text-sm sm:mb-5 sm:flex-row'>

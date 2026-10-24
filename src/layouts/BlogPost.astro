@@ -5,10 +5,10 @@ import type { CollectionEntry } from 'astro:content'
 // Plugin styles
 import 'katex/dist/katex.min.css'
 
-import { Comment, MediumZoom } from '@/components/advanced'
+import { Comment } from '@/components/advanced'
 import { ArticleBottom, Copyright, Hero, TOC } from '@/components/pages'
 import PageLayout from '@/layouts/ContentLayout.astro'
-import { integ } from '@/site-config'
+import { contentImage } from '../lib/content-image'
 
 interface Props {
   post: CollectionEntry<'blog'> | CollectionEntry<'blogEn'>
@@ -18,7 +18,7 @@ interface Props {
 }
 
 const {
-  post: { id, data },
+  post: { id, data, filePath },
   posts,
   headings,
   remarkPluginFrontmatter
@@ -36,11 +36,12 @@ const {
 
 const socialImage = heroImage
   ? typeof heroImage.src === 'string'
-    ? heroImage.src
-    : heroImage.src.src
+    ? contentImage(heroImage.src,filePath)
+    : ''
   : '/avatar/avatar.png'
 const articleDate = updatedDate?.toISOString() ?? publishDate.toISOString()
 const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-text-opacity, 1))'
+const tocHeadings=[...headings,...(!isDraft&&enableComment?[{depth:2,slug:'comments',text:Astro.currentLocale==='en'?'Conversation':'留言与交流'}]:[])]
 ---
 
 <PageLayout
@@ -48,9 +49,9 @@ const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-tex
   highlightColor={primaryColor}
   back={Astro.currentLocale === 'en' ? '/en/blog/all' : '/blog/all'}
 >
-  {!!headings.length && <TOC {headings} slot='sidebar' />}
+  {!!tocHeadings.length && <TOC headings={tocHeadings} slot='sidebar' />}
 
-  <Hero {data} {remarkPluginFrontmatter} slot='header' />
+  <Hero {data} {filePath} {remarkPluginFrontmatter} slot='header' />
 
   <slot />
 
@@ -66,4 +67,3 @@ const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-tex
   <slot name='bottom-sidebar' slot='bottom-sidebar' />
 </PageLayout>
 
-{integ.mediumZoom.enable && <MediumZoom />}

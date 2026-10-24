@@ -8,6 +8,7 @@ import BlogStats from './BlogStats.astro'
 import avatar from '@/assets/avatar.png'
 import config from '@/site-config'
 import { profile } from '../../lib/cms-content'
+import { contentImage } from '../../lib/content-image'
 
 const en = Astro.currentLocale === 'en'
 const p = profile[en ? 'en' : 'zh']
@@ -17,7 +18,7 @@ const p = profile[en ? 'en' : 'zh']
   <main class='home-layout'>
     <section class='home-profile animate' id='content-header'>
       <div class='profile-heading'>
-        {profile.avatar ? <img src={profile.avatar} alt={p.name} class='profile-avatar shrink-0 rounded-lg border p-1' width='176' height='176' loading='eager' /> : <Image
+        {profile.avatar ? <img src={contentImage(profile.avatar)} alt={p.name} class='profile-avatar shrink-0 rounded-lg border p-1' width='176' height='176' loading='eager' /> : <Image
           src={avatar}
           alt={en ? 'Cyril Fan’s avatar' : '范星宇的头像'}
           class='profile-avatar shrink-0 rounded-lg border p-1'

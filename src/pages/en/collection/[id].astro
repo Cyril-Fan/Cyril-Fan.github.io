@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content'
 import { getPostsForCollection } from '@/server'
 import PageLayout from '@/layouts/BaseLayout.astro'
+import ArticleBody from '@/components/cms/ArticleBody.astro'
 import { PostPreview, CollectionHeader } from '@/components/pages'
 
 export const prerender = true
@@ -29,6 +30,7 @@ const meta = {
 <PageLayout {meta}>
   <main class='mt-6 lg:mt-10'>
      <CollectionHeader {collection} />
+     {collection.body&&<div class='prose prose-neutral dark:prose-invert max-w-none mb-8'><ArticleBody source={collection.body} filePath={collection.filePath}/></div>}
 
      <section aria-label='Collection posts list' class='animate'>
         {posts.length > 0 ? (

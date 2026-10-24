@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, resolve, sep } from 'node:path'
 import { parse } from 'node-html-parser'
-import { publicFiles, emptyPayload } from '../supabase/functions/_shared/cms.ts'
+import { newArticle,writeArticle } from '../supabase/functions/_shared/git-content.ts'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const astroPackage = JSON.parse(await readFile(join(root,'node_modules/astro/package.json'),'utf8'))
@@ -49,19 +49,14 @@ A footnote[^1].
 
 [^1]: Footnote content.
 `
-  const cmsPost = emptyPayload('post')
-  Object.assign(cmsPost,{slug:'migration-cms',publishDate:'2026-10-18',cover:'/media/90000000-0000-4000-8000-000000000001.webp',coverAlt:'CMS cover'})
-  cmsPost.zh={title:'后台生成验收',description:'CMS Markdown output',body:body+'\n<script data-cms-unsafe>bad()</script>\n'}
-  cmsPost.en={title:'CMS publishing check',description:'CMS Markdown output',body:body}
-  const seed=JSON.parse(await readFile(join(root,'src/data/cms-published.json'),'utf8'))
-  const cmsFiles=publicFiles([...seed.documents,{id:'90000000-0000-4000-8000-000000000001',kind:'post',revision:1,payload:cmsPost}],'fixture')
   const fixtures = [
-    [join(directories[0],'index.mdx'),article('迁移验收文章') + body + '\n<span data-migration-inline="yes">MDX component</span>\n'],
+    [join(directories[0],'index.mdx'),article('迁移验收文章') + body + '\n<Aside type="tip" title="Static theme component">\nSafe MDX content\n</Aside>\n'],
     [join(directories[0],'index-en.mdx'),article('Migration verification') + body],
     [join(directories[1],'index.md'),article('中文回退验收') + body],
     [join(directories[2],'index.md'),article('NEVER_PUBLISH_MIGRATION_DRAFT','draft: true\n') + body],
     [collection,'---\ntitle: 迁移验收合集\ntitle_en: Migration collection\nbloglist: [migration-check, migration-fallback]\n---\n'],
-    ...[...cmsFiles].filter(([p])=>p.startsWith('src/content/blogs/migration-cms/')).map(([p,c])=>[join(root,p),c])
+    [join(directories[3],'index.md'),writeArticle(newArticle(),{title:'后台生成验收',heroImage:{src:'/links/royzhao.webp',alt:'Cover'}},body+'\n<script data-cms-unsafe>bad()</script>')],
+    [join(directories[3],'index-en.md'),writeArticle(newArticle('en'),{title:'Editor publishing check',heroImage:{src:'/links/royzhao.webp',alt:'Cover'}},body)]
   ]
   for (const [filename, contents] of fixtures) {
     try { await access(filename); throw new Error(`Refusing to overwrite ${filename}`) } catch (error) { if (error.code !== 'ENOENT') throw error }
@@ -73,11 +68,12 @@ A footnote[^1].
     child.on('error',reject); child.on('close',done)
   })
   assert.equal(code,0,'Fixture build must succeed')
+  assert.ok((await readFile(join(output,'pagefind/pagefind.js'),'utf8')).length>100,'Pagefind output must be written successfully')
   for (const locale of ['', 'en/']) {
     const cmsHTML=parse(await readFile(join(output,locale,'blog/migration-cms/index.html'),'utf8'))
     assert.ok(cmsHTML.querySelector('.katex'),'CMS formulas render after publishing')
     assert.ok(cmsHTML.querySelector('table'),'CMS tables render after publishing')
-    assert.ok(cmsHTML.querySelector('img[src="/media/90000000-0000-4000-8000-000000000001.webp"]'),'CMS public cover paths survive')
+    assert.ok(cmsHTML.querySelector('img[src="/links/royzhao.webp"]'),'CMS public cover paths survive')
     assert.equal(cmsHTML.querySelector('script[data-cms-unsafe]'),null,'Raw HTML never executes in CMS posts')
     const html = await readFile(join(output,locale,'blog/migration-check/index.html'),'utf8')
     const doc = parse(html)
@@ -85,13 +81,13 @@ A footnote[^1].
     assert.ok(doc.querySelector('table'),'GFM tables survive the migration')
     assert.ok(doc.querySelector('input[type="checkbox"]'),'GFM tasks survive the migration')
     assert.ok(doc.querySelector('img.zoomable'),'Image zoom plugin survives the migration')
-    assert.ok(doc.querySelector('.astro-code'),'Shiki code highlighting survives the migration')
+    assert.ok(doc.querySelector('.shiki'),'Shiki code highlighting survives the migration')
     const external = doc.querySelector('a[href="https://example.org/"]')
     assert.equal(external.getAttribute('target'),'_blank')
     assert.match(external.getAttribute('rel'),/noopener/)
     assert.ok(doc.querySelector('a[href="#test-heading"]'),'Heading anchors survive the migration')
     assert.match(doc.textContent,/Footnote content/)
-    if (!locale) assert.ok(doc.querySelector('[data-migration-inline="yes"]'))
+    if (!locale) assert.ok(doc.querySelector('aside.theme-tip'))
     const list = await readFile(join(output,locale,'blog/all/index.html'),'utf8')
     assert.doesNotMatch(list,/NEVER_PUBLISH_MIGRATION_DRAFT/)
     const fallback = await readFile(join(output,locale,'blog/migration-fallback/index.html'),'utf8')

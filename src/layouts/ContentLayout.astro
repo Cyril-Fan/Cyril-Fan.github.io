@@ -56,7 +56,7 @@ const { meta, highlightColor, ...props } = Astro.props
 <style>
   .content-side-column { display:none; }
 
-  @media (min-width:1024px) {
+  @media (min-width:768px) {
     .content-layout { display:grid; grid-template-columns:minmax(0, 1fr) 15rem; column-gap:2.5rem; }
     .content-side-column { display:flex; min-width:0; flex-direction:column; }
     .sidebar-track { flex:1; min-height:0; }

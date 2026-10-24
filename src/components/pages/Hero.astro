@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets'
+import { contentImage } from '../../lib/content-image'
 import type { InferEntrySchema } from 'astro:content'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 
@@ -8,6 +8,7 @@ import { FormattedDate, Icon } from '@/components/user'
 
 interface Props {
   data: InferEntrySchema<'blog'> | InferEntrySchema<'blogEn'>
+  filePath?:string
   remarkPluginFrontmatter: Record<string, unknown>
 }
 
@@ -22,9 +23,10 @@ const {
     comment: enableComment,
     tags,
     language,
+    source,
     pixivLink
   },
-  remarkPluginFrontmatter
+  remarkPluginFrontmatter, filePath
 } = Astro.props
 
 const dateTimeOptions: Intl.DateTimeFormatOptions = {
@@ -36,7 +38,7 @@ const imageProps: {
   width: number
   height: number
 } | undefined = heroImage ? {
-  src: heroImage.src,
+  src: contentImage(heroImage.src,filePath),
   width: heroImage.width || 1200,
   height: heroImage.height || 630
 } : undefined
@@ -47,14 +49,14 @@ const imageAlt: string = (heroImage?.alt || title) as string
 {
   imageProps && (
     <div class='hero-image relative mb-6'>
-      <Image
+      <img
         alt={imageAlt}
         class='cover-image relative z-10 h-auto w-full max-w-[65ch] rounded-2xl object-contain'
         fetchpriority='high'
         loading='eager'
         {...imageProps}
       />
-      <Image
+      <img
         alt='Blur image'
         fetchpriority='high'
         loading='eager'
@@ -79,7 +81,7 @@ const imageAlt: string = (heroImage?.alt || title) as string
           <div class='flex items-center gap-1'>
             <span> / </span>
             <span>
-              Update
+{Astro.currentLocale==='en'?'Updated ':'更新于 '}
               <FormattedDate
                 class='font-sans'
                 date={updatedDate}
@@ -105,11 +107,11 @@ const imageAlt: string = (heroImage?.alt || title) as string
       )
     }
     {
-      pixivLink && (
+      (source||pixivLink) && (
         <span class='flex items-center gap-1'>
           <Icon name='moon' class='size-5' />
-          <a href={`https://www.pixiv.net/artworks/${pixivLink}`} target="_blank" rel="noopener noreferrer" class="hover:underline hover:underline-offset-4">
-            {Astro.currentLocale === 'en' ? 'Hero Image' : '封面来源'}
+          <a href={source||`https://www.pixiv.net/artworks/${pixivLink}`} target="_blank" rel="noopener noreferrer" class="hover:underline hover:underline-offset-4">
+            {Astro.currentLocale === 'en' ? (source?'Source':'Hero Image') : (source?'来源':'封面来源')}
           </a>
         </span>
       )
