@@ -98,3 +98,13 @@ test('blog folders contain articles and collections and creation is local with n
  assert.ok(!ui.calls.some(c=>c.action==='publish'))
 })
 
+
+
+test('discard deletes the current local file and removes an empty stored workspace',async t=>{
+ const ui=await setup(t);await ui.open('首页与关于');ui.fill('zh.intro','Discard test');await tick()
+ assert.equal(ui.saved.size,1)
+ await ui.click('放弃本地修改');await ui.click('确认');await tick()
+ assert.equal(ui.saved.size,0)
+ assert.equal(ui.root.querySelector('[name="zh.intro"]').value,JSON.parse(profile).zh.intro)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})

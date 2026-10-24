@@ -133,6 +133,9 @@
 .cms-folder-icon { font-size:1.7rem; color:hsl(var(--primary)); }
 .cms-folder small { color:hsl(var(--muted-foreground)); font-family:ui-monospace,monospace; font-size:.75rem; }
 .cms-row-footer,.cms-dialog-actions { display:flex; justify-content:flex-end; gap:.6rem; padding-top:1.2rem; }
+.cms-row-footer { flex-wrap:wrap; }
+.cms-field-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:.5rem; margin:.75rem 0; }
+.cms-image-field>.cms-field-image { margin-top:.75rem; }
 .cms-row-footer button { font-size:.78rem; padding:.45rem .75rem; }
 .cms-dialog-compact { width:min(32rem,calc(100vw - 2rem)); padding:1.5rem; }
 .cms-dialog-compact label { margin-top:1rem; }

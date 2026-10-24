@@ -3,10 +3,17 @@ import { createHighlighter, bundledLanguages } from 'shiki/bundle/web'
 import rust from '@shikijs/langs/rust'
 import go from '@shikijs/langs/go'
 import latex from '@shikijs/langs/latex'
+import csharp from '@shikijs/langs/csharp'
+import kotlin from '@shikijs/langs/kotlin'
+import swift from '@shikijs/langs/swift'
+import powershell from '@shikijs/langs/powershell'
+import dockerfile from '@shikijs/langs/dockerfile'
+import toml from '@shikijs/langs/toml'
+import diff from '@shikijs/langs/diff'
 import mediumZoom from 'medium-zoom'
 import { codeThemes } from './code-themes'
 import { transformerNotationDiff, transformerNotationHighlight } from '../plugins/shiki-official-transformers'
-const languages=['text','javascript','typescript','python','json','bash','shell','html','css','yaml','markdown','cpp','c','java','sql','rust','go','latex']
+const extraLanguages={rust,go,latex,csharp,kotlin,swift,powershell,dockerfile,toml,diff}
 let highlighter:ReturnType<typeof createHighlighter>|undefined
 const decode=(s:string)=>s.replace(/&(?:amp|lt|gt|quot|#39|#x27);|&#(?:x[0-9a-f]+|\d+);/gi,v=>{
   const known:Record<string,string>={'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'",'&#x27;':"'"}
@@ -17,9 +24,12 @@ export async function highlightCode(code:string,language:string,meta=''){
   language=language.trim().toLowerCase()
   // Unlabelled existing C++ comments are recognizable without guessing at prose.
   if(language==='text'&&/^\s*#include\s*[<"](?:iostream|bits\/stdc\+\+\.h|vector|string|cstdio)[>"]/m.test(code))language='cpp'
-  language=({js:'javascript',ts:'typescript',sh:'bash',shell:'bash',py:'python',yml:'yaml',md:'markdown','c++':'cpp',cc:'cpp',cxx:'cpp'} as Record<string,string>)[language]||language
-  highlighter??=createHighlighter({themes:Object.values(codeThemes),langs:[...languages.filter(l=>l in bundledLanguages),rust,go,latex]})
-  const h=await highlighter,lang=language==='shell'?'bash':languages.includes(language)?language:'text'
+  language=({js:'javascript',ts:'typescript',sh:'bash',shell:'bash',py:'python',yml:'yaml',md:'markdown','c++':'cpp',cc:'cpp',cxx:'cpp',cs:'csharp','c#':'csharp',rs:'rust',kt:'kotlin',ps1:'powershell',tex:'latex',txt:'text',plaintext:'text'} as Record<string,string>)[language]||language
+  highlighter??=createHighlighter({themes:Object.values(codeThemes),langs:[]})
+  const h=await highlighter,extra=Object.hasOwn(extraLanguages,language)?extraLanguages[language as keyof typeof extraLanguages]:undefined
+  const lang=extra||Object.hasOwn(bundledLanguages,language)?language:'text'
+  // Load only the grammar being used; all surfaces still share the same theme.
+  if(lang!=='text'&&!h.getLoadedLanguages().includes(lang))await h.loadLanguage(extra||lang as keyof typeof bundledLanguages)
   const html=h.codeToHtml(code,{lang,themes:codeThemes,defaultColor:false,meta:{__raw:meta},transformers:[transformerNotationDiff(),transformerNotationHighlight()]})
   const title=meta.match(/\btitle=["']([^"']+)["']/)?.[1]||''
   return '<div class="article-code'+(title?' has-title':'')+'" data-code-language="'+lang+'"><div class="article-code-bar">'+(title?'<span class="code-title">'+escape(title)+'</span>':'')+'<span class="code-language">'+lang+'</span><button type="button" data-copy-code aria-label="Copy code">Copy</button></div>'+html+'</div>'

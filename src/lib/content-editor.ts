@@ -203,7 +203,7 @@ export class ContentEditor extends HTMLElement{
     }catch(e){target.append(el('p',this.t('无法解析表单，请用原文件编辑器修正。','Cannot parse the form. Correct it in the source editor.'),'cms-message'));this.sourceEditor(path)}
   }
   private async discard(path:string){
-    if(!await this.confirm(this.t('放弃本地修改？','Discard local edits?'),[path,this.t('将丢弃此浏览器副本中尚未提交的修改；GitHub 不变。','Unsubmitted changes in this copy will be lost. GitHub is unchanged.')]))return
+    if(!await this.confirm(this.t('放弃本地修改？','Discard local edits?'),[path,this.t('删除当前浏览器副本中此文件的暂存内容，GitHub 不变。单独上传的图片请在图片库清理；其它窗口的恢复副本和已导出的备份不受影响。','Removes this file from this browser copy; GitHub is unchanged. Separately uploaded images can be cleaned in the image library. Other tabs’ recovery copies and exported backups remain.')]))return
     this.space!.files=this.space!.files.filter(f=>f.path!==path);this.releaseUnusedImageUrls();await this.persist();this.renderList()
     if(this.remote.has(path))await this.open(path);else if(this.view==='media')await this.mediaLibrary();else this.renderEmpty()
   }
@@ -235,12 +235,12 @@ export class ContentEditor extends HTMLElement{
         const rows=el('div');section.append(rows)
         const render=()=>{rows.replaceChildren();value[f.key].forEach((item:any,i:number)=>{
           const row=el('details','','cms-row');row.open=false;row.append(el('summary',(i+1)+'. '+(item.title||item.name||item.type||title)))
-          const controls=el('div','','cms-inline')
+          const controls=el('div','','cms-row-footer')
           const move=(delta:number)=>{const j=i+delta;if(j<0||j>=value[f.key].length)return;[value[f.key][i],value[f.key][j]]=[value[f.key][j],value[f.key][i]];changed();render()}
           controls.append(this.btn('↑',()=>move(-1)),this.btn('↓',()=>move(1)),this.btn(this.t('移除','Remove'),async()=>{if(await this.confirm(this.t('移除此条目？','Remove this item?'),[item.title||item.name||title])){value[f.key].splice(i,1);changed();render()}}))
-          row.append(controls,this.form(f.fields!,item,changed,prefix+f.key+'.'+i+'.'));rows.append(row)
+          row.append(this.form(f.fields!,item,changed,prefix+f.key+'.'+i+'.'),controls);rows.append(row)
         })};render()
-        section.append(this.btn(this.t('添加条目','Add item'),()=>{const defaults=(fields:Field[]):any=>Object.fromEntries(fields.map(x=>[x.key,x.type==='group'?defaults(x.fields!):x.type==='list'?[]:x.type==='checkbox'?false:x.type==='select'?x.options?.[0]||'':x.type==='number'?undefined:'']));value[f.key].push(defaults(f.fields!));changed();render();(rows.lastElementChild as HTMLDetailsElement).open=true}));box.append(section);continue
+        const footer=el('div','','cms-row-footer');footer.append(this.btn(this.t('添加条目','Add item'),()=>{const defaults=(fields:Field[]):any=>Object.fromEntries(fields.map(x=>[x.key,x.type==='group'?defaults(x.fields!):x.type==='list'?[]:x.type==='checkbox'?false:x.type==='select'?x.options?.[0]||'':x.type==='number'?undefined:'']));value[f.key].push(defaults(f.fields!));changed();render();(rows.lastElementChild as HTMLDetailsElement).open=true}));section.append(footer);box.append(section);continue
       }
       const label=el('label',title),id='field-'+prefix+f.key
       if(f.type==='markdown'){const area=this.markdownArea(String(value[f.key]||''),text=>{value[f.key]=text;changed()});const input=area.querySelector('textarea')!;input.id=id;label.htmlFor=id;const group=el('div');group.append(label,area);box.append(group);continue}
@@ -262,10 +262,10 @@ export class ContentEditor extends HTMLElement{
       if(f.type==='image'){
         const image=el('img');image.alt=title;image.className='cms-field-image';image.hidden=!value[f.key]
         showImage=async()=>{image.hidden=!value[f.key];if(value[f.key])try{image.src=await this.imageUrl(value[f.key])}catch{image.alt=this.t('暂时无法预览','Preview unavailable')}}
-        const controls=el('div','','cms-inline')
+        const controls=el('div','','cms-field-actions')
         controls.append(this.btn(this.t('选择 / 上传图片','Select / upload image'),()=>this.imagePicker(path=>{value[f.key]=path;input.value=path;changed();void showImage()},f.key==='avatar')),
           this.btn(this.t('清除','Clear'),()=>{value[f.key]='';input.value='';changed();void showImage()}))
-        label.append(controls,image);void showImage()
+        const group=el('div','','cms-image-field');group.append(label,controls,image);box.append(group);void showImage();continue
       }
       box.append(label)
     }
@@ -278,8 +278,7 @@ export class ContentEditor extends HTMLElement{
         const rows=el('div','','cms-form');target.append(rows)
         const render=()=>{rows.replaceChildren();group.link_list.sort((a:any,b:any)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'}));group.link_list.forEach((f:any,i:number)=>{
           const section=el('details');section.append(el('summary',f.name||this.t('新友链','New friend')),this.form(friendFields,f,changed,'friend.'+i+'.'))
-          const image=el('img');image.alt=f.name;image.className='cms-avatar-preview';if(f.avatar)void this.imageUrl(f.avatar).then(url=>image.src=url)
-          section.append(image,this.btn(this.t('删除这条友链','Delete this friend'),async()=>{if(await this.confirm(this.t('删除友链？','Delete friend?'),[f.name,f.link,path])){group.link_list.splice(i,1);changed();render()}}));rows.append(section)
+          const footer=el('div','','cms-row-footer');footer.append(this.btn(this.t('删除这条友链','Delete this friend'),async()=>{if(await this.confirm(this.t('删除友链？','Delete friend?'),[f.name,f.link,path])){group.link_list.splice(i,1);changed();render()}},'cms-danger'));section.append(footer);rows.append(section)
         })};render()
         const add=el('div','','cms-row-footer');target.append(add);add.append(this.btn(this.t('添加友链','Add friend'),()=>{const friend={name:'',intro:'',link:'https://',avatar:'',feed:''};group.link_list.push(friend);changed();render();(rows.children[group.link_list.indexOf(friend)] as HTMLDetailsElement).open=true}))
       }

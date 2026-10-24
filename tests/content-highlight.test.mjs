@@ -34,3 +34,16 @@ test('article and preview rendering retains safe code, mathematics and unknown-l
  assert.match(d.querySelectorAll('code')[1].textContent,/plain <b>text<\/b>/)
  dom.window.close()
 })
+
+
+test('popular language fences share the classic palettes and preserve the original source',async()=>{
+ const samples={python:'def square(x):\n    return x * x # note',javascript:'const value = "hello"; // note',typescript:'const count: number = 42;',jsx:'const App = () => <button>Hi</button>;',tsx:'const App = (p: Props) => <b>{p.name}</b>;',java:'public class App { int count = 2; }',c:'int main(void) { return 0; }',csharp:'public class App { string name = "Hello"; }',php:'<?php echo "hello"; ?>',rust:'fn main() { let x = 42; }',go:'package main\nfunc main() { println("hi") }',kotlin:'fun main() { println("Hi") }',swift:'let name: String = "Hi"',powershell:'$name = "Hi"; Write-Host $name',bash:'echo "$HOME" # note',sql:'SELECT name FROM users WHERE id = 1;',html:'<div class="card">Hello</div>',css:'.card { color: red; }',json:'{"name": "Hello", "count": 1}',yaml:'name: Hello\ncount: 1',r:'square <- function(x) { x * x }',dockerfile:'FROM node:24\nRUN npm ci',toml:'name = "site"',diff:'-before\n+after',markdown:'# Heading\n**bold**',latex:'\\frac{1}{2}',xml:'<node id="1">text</node>'}
+ for(const [language,source]of Object.entries(samples)){
+  const html=await highlightCode(source,language),dom=new JSDOM(html),pre=dom.window.document.querySelector('pre')
+  assert.equal(pre.querySelector('code').textContent,source,language)
+  assert.match(pre.className,/light-plus dark-plus/,language)
+  assert.equal(dom.window.document.querySelector('[data-code-language]').dataset.codeLanguage,language,language)
+  assert.ok(pre.querySelectorAll('span[style]').length>1,language+' should receive token colors')
+  dom.window.close()
+ }
+})
