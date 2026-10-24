@@ -54,4 +54,10 @@
 
 ## 发布凭据维护
 
-服务器专用凭据 `CMS_GITHUB_TOKEN` 仅存于 Supabase Edge Function Secrets，限网站仓库 Contents 读写和 Metadata 只读，当前有效期至 **2027-01-21**。到期后原网站仍可访问、草稿仍可保存，发布会提示更新密钥。续期或更换时保持相同仓库范围和最小权限；不要把密钥放到前端变量、GitHub 源文件或文章里。
+服务器专用凭据 `CMS_GITHUB_TOKEN` 仅存于 Supabase Edge Function Secrets，范围限 `Cyril-Fan/Cyril-Fan.github.io`，权限为 Contents 读写及必需的 Metadata 只读。该凭据已于 **2026-10-24** 重新生成并同步保存到 Supabase，当前设置为 **No expiration（不设到期日）**，无需按固定到期日续期。
+
+“不设到期日”表示没有预设失效日期，不代表永远可用。主动撤销、密钥泄露或仓库访问权限变化仍可能使发布凭据无法使用。GitHub 也会自动撤销连续一年未使用的个人访问令牌，详见 [GitHub 的令牌过期与撤销说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/token-expiration-and-revocation)。
+
+发布凭据失效会影响需要向 GitHub 提交修改的操作，包括发布、更新、撤回和回收已发布内容；不会因这把密钥失效而删除现有网站或 Supabase 数据。已经上线的静态页面、Supabase 中的草稿保存、账号登录和评论不依赖这把 GitHub 密钥。登录会话、邮箱验证链接及其他服务的凭据仍遵循各自的有效期设置。
+
+需要更换时，在 GitHub 为同一仓库重新生成相同最小权限的凭据，并尽快将新值替换到 Supabase Edge Function Secrets 的 `CMS_GITHUB_TOKEN`。重新生成会使旧值失效；生成新值到 Supabase 保存完成之间可能暂时无法发布。保存成功只说明密钥已写入；后续正常发布时，还应核对发布任务及“已上线”状态。不要把密钥放到前端变量、GitHub 文件、文章或聊天消息里。
