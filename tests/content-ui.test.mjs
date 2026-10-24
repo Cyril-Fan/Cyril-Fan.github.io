@@ -8,6 +8,8 @@ import * as markdown from '../src/lib/article-markdown.ts'
 import * as fields from '../src/lib/content-fields.ts'
 const source=(await readFile('src/lib/content-editor.ts','utf8')).replaceAll('import.meta.env.PUBLIC_SUPABASE_URL',"'https://fixture.invalid'").replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY',"'fixture-public'")
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+const localModule={exports:{}}
+Function('module','exports','require',ts.transpileModule(await readFile('src/lib/content-local.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(localModule,localModule.exports,()=>git)
 const profile=await readFile('src/data/profile.json','utf8'),academic=await readFile('src/data/academic.json','utf8'),friends=await readFile('public/links.json','utf8')
 const markup='<content-editor><p data-message></p><p data-gate></p><div data-shell hidden><nav>'+[['profile','首页与关于'],['blog','博客'],['academic','学术与项目'],['friend','友链'],['media','图片']].map(([k,n])=>'<button data-kind="'+k+'">'+n+'</button>').join('')+'</nav><div data-category-tools hidden><button data-back-blog>博客目录</button><span data-category-name></span><button data-create>新建文章</button><button data-create-collection>新建合集</button></div><button data-refresh>刷新</button><button data-review>发布</button><button data-recover>恢复本地副本</button><button data-export>导出</button><button data-import-trigger>从文件恢复</button><input data-import type=file><div data-search-box><button data-search-toggle>查找内容</button><input data-search><button data-search-clear>清空查找</button></div><div class="cms-workspace"><aside class="cms-sidebar"><div data-list></div></aside><div data-editor></div></div><div data-submission></div><p data-save></p></div><dialog><form method=dialog><button>关闭</button></form><div data-dialog></div></dialog></content-editor>'
 
@@ -38,7 +40,7 @@ async function setup(t,{role='owner',saved=new Map()}={}){
    if(name==='./comment-auth')return {getCommentClient:()=>client,COMMENT_AUTH_EVENT:'auth-change'}
    if(name==='./article-markdown')return markdown
    if(name==='./content-render')return {enhanceArticle:async()=>{}}
-   if(name==='./content-local')return {LocalContentStore:MemoryStore,markCommitted}
+   if(name==='./content-local')return {...localModule.exports,LocalContentStore:MemoryStore,markCommitted}
    if(name==='./content-fields')return fields
    if(name==='./cms-image')return {encodeCMSImage:()=>{throw Error('Browser codec acceptance required')}}
    if(name.includes('_shared/git-content'))return git
@@ -107,4 +109,41 @@ test('discard deletes the current local file and removes an empty stored workspa
  assert.equal(ui.saved.size,0)
  assert.equal(ui.root.querySelector('[name="zh.intro"]').value,JSON.parse(profile).zh.intro)
  assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('discard automatically collects attached new uploads but keeps unrelated library uploads',async t=>{
+ const ui=await setup(t),attached='public/media/attached.webp',unrelated='public/media/unrelated.webp'
+ ui.root.edit(attached,'aW1hZ2U=','base64');ui.root.edit(unrelated,'aW1hZ2U=','base64')
+ ui.fill('photo','/media/attached.webp');await tick()
+ assert.ok(ui.root.space.files.find(f=>f.path===attached).mediaOwners.includes(git.PROFILE))
+ await ui.click('放弃本地修改');await ui.click('确认');await tick()
+ assert.deepEqual([...ui.saved.values()][0].files.map(f=>f.path),[unrelated])
+ assert.match(ui.root.querySelector('[data-message]').textContent,/自动清理 1 张/)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('discard leaves another tab copy and shared images intact',async t=>{
+ const saved=new Map(),a=await setup(t,{saved}),image='public/media/shared.webp'
+ a.root.edit(image,'aW1hZ2U=','base64');a.fill('photo','/media/shared.webp');await tick()
+ const b=await setup(t,{saved});await b.click('恢复本地副本');await b.click('恢复此副本');await b.open('首页与关于')
+ const before=structuredClone(a.root.space)
+ await b.click('放弃本地修改');await b.click('确认');await tick()
+ assert.equal(b.root.space.files.length,0);assert.deepEqual(saved.get(a.root.space.id),before)
+ assert.equal(a.root.querySelector('[name="photo"]').value,'/media/shared.webp')
+})
+
+test('typing during the asynchronous reference check cannot be erased by discard',async t=>{
+ const ui=await setup(t);ui.fill('zh.intro','First');await tick();let release
+ ui.root.store.list=()=>new Promise(resolve=>release=resolve)
+ await ui.click('放弃本地修改');ui.find('确认').click();await tick()
+ ui.fill('zh.intro','New typing');release([]);await tick()
+ assert.ok(ui.root.space.files[0].content.includes('New typing'));assert.match(ui.root.querySelector('[data-message]').textContent,/刚刚发生变化/)
+})
+
+test('failed local deletion never reports successful automatic cleanup',async t=>{
+ const ui=await setup(t);ui.fill('zh.intro','Preserved on disk');await tick()
+ ui.root.store.remove=async()=>{throw Error('IndexedDB unavailable')}
+ await ui.click('放弃本地修改');await ui.click('确认');await tick()
+ assert.equal(ui.saved.size,1);assert.match(ui.root.querySelector('[data-message]').textContent,/存储已满或不可用/)
+ assert.equal(ui.root.querySelector('[data-message]').textContent.includes('自动清理'),false)
 })

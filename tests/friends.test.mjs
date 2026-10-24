@@ -10,6 +10,12 @@ const rss = '<rss><channel><item><title>A &amp; B</title><link>https://example.c
 const typescriptModule = async file => import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(readFileSync(new URL(file, import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'))
 const { sortFriends } = await typescriptModule('../src/lib/friends.ts')
 const { commentThread } = await typescriptModule('../src/lib/comment-utils.ts')
+const browserModule=(w,file,imports={})=>{
+ const module={exports:{}}
+ const code=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+ w.Function('module','exports','require',code)(module,module.exports,name=>{if(name in imports)return imports[name];throw Error(name)})
+ return module.exports
+}
 
 test('dictionary order is stable, locale-independent and does not mutate configuration', () => {
   const names = ['VYS3N','Roy Zhao','Leonwater','Axi']
@@ -84,10 +90,8 @@ test('a visible feed announces changed articles without replacing dialogs, pagin
   w.Date.now=()=>Date.parse('2026-10-23T12:00:00Z')+ticks
   w.setInterval=fn=>{scheduled=fn;return 1};w.clearInterval=()=>{}
   w.fetch=async()=>{requests++;return new Response(JSON.stringify({version:1,revision,checkedAt:'2026-10-23T11:00:00Z'}))}
-  const module={exports:{}}
-  const code=ts.transpileModule(readFileSync(new URL('../src/lib/friend-feed-refresh.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
-  w.Function('module','exports',code)(module,module.exports)
-  const controller=new w.AbortController();module.exports.watchFriendFeed(host,controller.signal)
+  const client=browserModule(w,'../src/lib/friend-feed-client.ts'),refresh=browserModule(w,'../src/lib/friend-feed-refresh.ts',{'./friend-feed-client':client})
+  const controller=new w.AbortController();refresh.watchFriendFeed(host,controller.signal)
   const settle=async()=>{for(let i=0;i<16;i++)await Promise.resolve();await new Promise(setImmediate)}
   await settle();assert.equal(host.querySelector('[data-feed-update]').hidden,true,'A new check time alone is not an update')
   revision='b'.repeat(64);ticks+=600001;scheduled();await settle()
@@ -99,4 +103,56 @@ test('a visible feed announces changed articles without replacing dialogs, pagin
   Object.defineProperty(w.document,'hidden',{configurable:true,value:true});ticks+=600001;scheduled();await settle()
   assert.equal(requests,2,'Background tabs do not poll')
   controller.abort()
+})
+
+test('server and browser retain all supplied RSS entries beyond the former 40-item cap',t=>{
+ const dom=new JSDOM('',{runScripts:'outside-only'});t.after(()=>dom.window.close());dom.window.TextEncoder=TextEncoder
+ const client=browserModule(dom.window,'../src/lib/friend-feed-client.ts')
+ const xml='<rss><channel>'+Array.from({length:113},(_,i)=>`<item><title>Post ${i}</title><link>https://example.com/${i}</link><pubDate>2026-10-20</pubDate></item>`).join('')+'</channel></rss>'
+ assert.equal(parseFeed(xml,friend,now).length,113)
+ assert.deepEqual(JSON.parse(JSON.stringify(client.parseBrowserFeed(xml,friend,now))),parseFeed(xml,friend,now))
+ assert.throws(()=>client.parseBrowserFeed('<!DOCTYPE rss>'+rss,friend,now))
+ assert.throws(()=>client.parseBrowserFeed('<rss><channel>',friend,now))
+ assert.equal(client.parseBrowserFeed(rss.replace('https://example.com/post','javascript:alert(1)'),friend,now).length,0)
+ assert.equal(client.parseBrowserFeed(rss.replace('https://example.com/post',''),friend,now).length,0)
+})
+
+test('manual refresh really requests configured feeds, updates counts/time and preserves failed-source posts',async t=>{
+ const dom=new JSDOM('',{runScripts:'outside-only'});t.after(()=>dom.window.close());const w=dom.window
+ w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.AbortSignal.any=()=>new w.AbortController().signal;w.AbortSignal.timeout=()=>new w.AbortController().signal
+ const client=browserModule(w,'../src/lib/friend-feed-client.ts'),second={name:'Second',link:'https://second.example/',feed:'https://second.example/rss.xml',avatar:'/avatar.png'}
+ const primary={...friend,avatar:'/avatar.png'},previous={friends:[primary],checkedAt:'2026-10-20',feeds:[{source:second.link,feed:second.feed,status:'ok',lastSuccessAt:'2026-10-21',articles:[{title:'Retained',link:second.link+'post',date:'2026-10-21',source:second.link},{title:'Bad',link:'javascript:alert(1)',date:'2026-10-21',source:second.link}]}]}
+ const urls=[],fetcher=async(url,options)=>{urls.push(url);assert.equal(options.credentials,'omit');assert.equal(options.cache,'no-store');assert.equal(options.redirect,'error')
+  if(url==='/links.json')return new Response(JSON.stringify({friends:[{link_list:[primary,second]}]}))
+  if(url==='/data/friend-feeds.json')throw Error('Snapshot offline')
+  if(url===primary.feed)return new Response(rss)
+  throw Error('CORS unavailable')
+ }
+ const result=await client.refreshBrowserFeeds(previous,new w.AbortController().signal,fetcher)
+ assert.ok(urls.includes(primary.feed)&&urls.includes(second.feed));assert.equal(result.friends.length,2)
+ assert.equal(result.feeds[0].status,'ok');assert.equal(result.feeds[0].articles.length,1)
+ assert.equal(result.feeds[1].status,'unavailable');assert.equal(result.feeds[1].articles.length,1)
+ assert.equal(result.feeds[1].articles[0].title,'Retained');assert.ok(Date.parse(result.checkedAt)>Date.parse(previous.checkedAt))
+ await assert.rejects(()=>client.refreshBrowserFeeds(previous,new w.AbortController().signal,async()=>{throw Error('Offline')}))
+ assert.equal(previous.feeds[0].articles.length,2,'Input snapshot remains untouched')
+})
+
+test('manual feed UI refresh replaces only reading rows and restores pagination feedback after 3.5 seconds',async t=>{
+ const initial={friends:[{...friend,avatar:'/avatar.png'}],feeds:[],checkedAt:'2026-10-20'}
+ const dom=new JSDOM(`<friend-feed data-lang="zh"><script data-feed-data type="application/json">${JSON.stringify(initial)}</script><template data-feed-row><article data-feed-article><button class="feed-author"><img><span></span></button><a class="feed-title"></a><time></time></article></template><button data-random-refresh>随便读读</button><button data-check-update>刷新</button><section data-random-panel hidden><a data-random-title></a><span data-random-meta></span><button data-close-random></button></section><div class="feed-articles"></div><button data-load-more></button><p data-feed-status></p><span data-feed-counts></span><span data-feed-checked><time></time></span><span data-feed-stale></span><dialog><h3 id="feed-author-title"></h3><a data-author-site></a><ul data-author-articles></ul></dialog></friend-feed><textarea>Unsubmitted comment</textarea>`,{url:'https://cyril-fan.top/links/',runScripts:'outside-only'})
+ t.after(()=>dom.window.close());const w=dom.window;let timer
+ w.setTimeout=(fn,ms)=>{assert.equal(ms,3500);timer=fn;return 1};w.clearTimeout=()=>{}
+ const updated={...initial,checkedAt:'2026-10-24T16:02:01Z',feeds:[{source:friend.link,status:'ok',articles:parseFeed(rss,friend,now)}]}
+ const refresh={watchFriendFeed:(_host,_signal,_data,apply)=>async()=>{apply(updated);return 'updated'}}
+ const source=readFileSync(new URL('../src/components/links/FriendFeed.astro',import.meta.url),'utf8').match(/<script>\s*([\s\S]*?)<\/script>/)[1]
+ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+ w.Function('require','exports',js)(()=>refresh,{})
+ const host=w.document.querySelector('friend-feed');host.querySelector('[data-check-update]').click();await new Promise(setImmediate)
+ assert.equal(host.querySelectorAll('[data-feed-article]').length,1);assert.match(host.querySelector('[data-feed-status]').textContent,/已更新/)
+ assert.equal(host.querySelector('time').dateTime,'2026-10-20T00:00:00.000Z');assert.equal(host.querySelector('[data-feed-checked] time').dateTime,updated.checkedAt)
+ assert.match(host.querySelector('[data-feed-counts]').textContent,/1 位朋友 · 1 个订阅可用/)
+ timer();assert.match(host.querySelector('[data-feed-status]').textContent,/已显示 1 \/ 1/)
+ host.querySelector('[data-random-refresh]').click();assert.equal(host.querySelector('[data-random-panel]').hidden,false)
+ assert.equal(host.querySelector('[data-random-panel]').textContent.includes('随便读读'),false)
+ assert.equal(w.document.querySelector('textarea').value,'Unsubmitted comment')
 })

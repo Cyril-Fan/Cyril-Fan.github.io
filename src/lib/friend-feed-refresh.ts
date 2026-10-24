@@ -1,11 +1,23 @@
-/** Check only our published snapshot. Never replace the open discussion or an
+import { refreshBrowserFeeds, type FeedData } from './friend-feed-client'
+/** Automatic checks read only our published snapshot. Never replace the open discussion or an
  * author's dialog while someone is reading or composing a comment. */
-export function watchFriendFeed(host: HTMLElement, signal: AbortSignal) {
+export function watchFriendFeed(host: HTMLElement, signal: AbortSignal, initial?:FeedData, apply?:(data:FeedData)=>void) {
   let checking = false, lastCheck = 0
+  let current=initial
+  let inFlight=Promise.resolve(),finish:()=>void=()=>{}
   const refresh = async (manual = false) => {
+    if(manual&&checking)await inFlight
     if (document.hidden || signal.aborted || checking || (!manual && Date.now() - lastCheck < 10 * 60 * 1000)) return 'busy'
     checking = true; lastCheck = Date.now()
+    inFlight=new Promise(resolve=>finish=resolve)
     try {
+      if(manual&&current&&apply){
+        const updated=await refreshBrowserFeeds(current,signal)
+        const changed=JSON.stringify(current.feeds.map(f=>f.articles))!==JSON.stringify(updated.feeds.map(f=>f.articles))
+        current=updated;apply(updated)
+        const notice=host.querySelector<HTMLElement>('[data-feed-update]');if(notice)notice.hidden=true
+        return updated.feeds.some(f=>f.status==='unavailable')?'partial':changed?'updated':'current'
+      }
       const response = await fetch('/data/friend-feeds.json', { cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer', redirect:'error',
         signal:AbortSignal.any([signal, AbortSignal.timeout(15000)]) })
       if (!response.ok || !response.body) return 'unavailable'
@@ -34,7 +46,7 @@ export function watchFriendFeed(host: HTMLElement, signal: AbortSignal) {
       notice.hidden = false
       return 'updated'
     } catch { return 'unavailable' /* Preserve the currently visible feed. */ }
-    finally { checking = false }
+    finally { checking = false; finish() }
   }
   void refresh()
   const timer = window.setInterval(() => void refresh(), 10 * 60 * 1000)

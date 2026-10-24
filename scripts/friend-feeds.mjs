@@ -25,7 +25,7 @@ export function normalizeArticles(items, friend, now = Date.now()) {
     if (!link || !title || !Number.isFinite(date) || date > now + 86400000 || seen.has(link)) return []
     seen.add(link)
     return [{ title, link, date: new Date(date).toISOString(), source: friend.link }]
-  }).sort((a, b) => b.date.localeCompare(a.date) || a.link.localeCompare(b.link)).slice(0, 40)
+  }).sort((a, b) => b.date.localeCompare(a.date) || a.link.localeCompare(b.link))
 }
 
 export function parseFeed(xml, friend, now = Date.now()) {
@@ -102,7 +102,7 @@ export function mergeFriendSnapshots(friends, local = {}, published = {}, now = 
       : [])
     const best = candidates.sort((a,b) => Date.parse(b.lastSuccessAt) - Date.parse(a.lastSuccessAt))[0]
     return best ? { source:friend.link, feed:friend.feed, lastSuccessAt:best.lastSuccessAt,
-      articles:normalizeArticles(Array.isArray(best.articles) ? best.articles.slice(0,40) : [], friend, now) } : { source:friend.link, feed:friend.feed, articles:[] }
+      articles:normalizeArticles(Array.isArray(best.articles) ? best.articles : [], friend, now) } : { source:friend.link, feed:friend.feed, articles:[] }
   })
   return { feeds }
 }

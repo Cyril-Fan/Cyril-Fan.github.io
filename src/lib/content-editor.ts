@@ -2,7 +2,7 @@ import { COMMENT_AUTH_EVENT, getCommentClient } from './comment-auth'
 import { articleMarkdown } from './article-markdown'
 import { enhanceArticle } from './content-render'
 import { encodeCMSImage } from './cms-image'
-import { LocalContentStore, markCommitted, type Workspace, type LocalFile } from './content-local'
+import { LocalContentStore, markCommitted, discardLocalFile, type Workspace, type LocalFile } from './content-local'
 import { REPOSITORY, PROFILE, ACADEMIC, LINKS, CONTENT_CATEGORIES, contentCategory, fileReferences, pathKind, publicImage, imageRepositoryPath, replaceImageReferences, readArticle, writeArticle, newArticle, encodeBase64, decodeBase64, gitBlobHash, type Entry } from '../../supabase/functions/_shared/git-content'
 import { jsonFields, friendFields, articleFields, collectionFields, type Field } from './content-fields'
 
@@ -111,16 +111,19 @@ export class ContentEditor extends HTMLElement{
     let f=this.space.files.find(f=>f.path===path)
     if(!f){const base=this.remote.get(path);f={path,baseSha:base?.sha||this.entries.find(e=>e.path===path)?.sha||null,baseText:base?.content??null,content,encoding,revision:0};this.space.files.push(f)}
     f.content=content;f.encoding=encoding;f.revision++;this.space.updated=new Date().toISOString()
+    if(encoding!=='base64'&&content)for(const image of this.space.files){
+      if(image.encoding==='base64'&&!image.baseSha&&image.content&&fileReferences(content,image.path,path))image.mediaOwners=[...new Set([...(image.mediaOwners||[]),path])]
+    }
     if(path===this.current){const heading=this.querySelector('.cms-editor-head h2');if(heading)heading.textContent=this.label(path)}
     void this.persist();this.updateStatus();this.renderList()
   }
   private async persist(){
     if(!this.space)return
     const snapshot=clone(this.space),epoch=this.epoch,store=this.store
-    if(!store){this.q('[data-save]').textContent=this.t('未能暂存，请导出副本','Not saved locally — export a copy');return}
+    if(!store){this.q('[data-save]').textContent=this.t('未能暂存，请导出副本','Not saved locally — export a copy');return false}
     this.q('[data-save]').textContent=this.t('正在本地暂存…','Saving locally…')
     this.saving=this.saving.catch(()=>{}).then(()=>!snapshot.files.length&&(!snapshot.submission||snapshot.submission.state==='live')?store.remove(snapshot.id):store.save(snapshot))
-    try{await this.saving;if(epoch===this.epoch){this.q('[data-save]').textContent=this.t('本地已暂存 · 尚未提交','Saved locally · not submitted');this.updateStatus()}}catch{if(epoch===this.epoch){this.q('[data-save]').textContent=this.t('本地暂存失败','Local save failed');this.notice(this.t('浏览器存储已满或不可用；请导出修改，不要关闭页面。','Storage unavailable or full. Export your edits before closing.'),true)}}
+    try{await this.saving;if(epoch===this.epoch){this.q('[data-save]').textContent=this.t('本地已暂存 · 尚未提交','Saved locally · not submitted');this.updateStatus()}return true}catch{if(epoch===this.epoch){this.q('[data-save]').textContent=this.t('本地暂存失败','Local save failed');this.notice(this.t('浏览器存储已满或不可用；请导出修改，不要关闭页面。','Storage unavailable or full. Export your edits before closing.'),true)}return false}
   }
   private updateStatus(){
     const count=this.space?.files.length||0
@@ -203,8 +206,17 @@ export class ContentEditor extends HTMLElement{
     }catch(e){target.append(el('p',this.t('无法解析表单，请用原文件编辑器修正。','Cannot parse the form. Correct it in the source editor.'),'cms-message'));this.sourceEditor(path)}
   }
   private async discard(path:string){
-    if(!await this.confirm(this.t('放弃本地修改？','Discard local edits?'),[path,this.t('删除当前浏览器副本中此文件的暂存内容，GitHub 不变。单独上传的图片请在图片库清理；其它窗口的恢复副本和已导出的备份不受影响。','Removes this file from this browser copy; GitHub is unchanged. Separately uploaded images can be cleaned in the image library. Other tabs’ recovery copies and exported backups remain.')]))return
-    this.space!.files=this.space!.files.filter(f=>f.path!==path);this.releaseUnusedImageUrls();await this.persist();this.renderList()
+    if(this.busy||this.space?.submission?.changes.some(c=>c.path===path)){this.notice(this.t('此文件仍在提交请求中，请先完成或结束本次请求，再放弃修改。','This file belongs to a pending submission. Finish or end that request before discarding.'),true);return}
+    if(!await this.confirm(this.t('放弃本地修改？','Discard local edits?'),[path,this.t('同时自动清理仅供此内容使用、且已无引用的新图片。其他内容、其他窗口副本和 GitHub 已有图片均保留。','Also removes new images used only by this content that have no remaining references. Other content, other tabs and existing GitHub images are preserved.')]))return
+    const space=this.space!,epoch=this.epoch,file=space.files.find(f=>f.path===path),revision=file?.revision
+    let copies:Workspace[]|null=null
+    try{await this.saving;if(this.store)copies=await this.store.list()}catch{ /* Keep images if another copy cannot be inspected. */ }
+    if(this.epoch!==epoch||this.space!==space)return
+    if(this.busy||space.files.find(f=>f.path===path)!==file||file?.revision!==revision){this.notice(this.t('内容刚刚发生变化，请重新确认放弃。','Content changed while checking. Please confirm discard again.'),true);return}
+    const result=discardLocalFile(space,path,[...this.remote.values()].map(f=>({...f,baseSha:f.sha})),new Set(this.entries.map(e=>e.path)),copies)
+    if(result.blocked){this.notice(this.t('图片仍被内容、其他副本或提交任务使用，或暂时无法核对引用，已保留。','Image retained: it is used by content, another copy or a submission, or references could not be checked.'),true);return}
+    space.files=result.files;space.updated=new Date().toISOString();this.releaseUnusedImageUrls();const saved=await this.persist();this.renderList()
+    if(saved)this.notice(copies===null?this.t('已放弃内容修改；暂时无法核对其他副本，因此保留了新图片。','Edits discarded. New images retained because other copies could not be checked.'):this.t(`已放弃修改，自动清理 ${result.removed.length} 张无引用新图片。`,`Edits discarded; ${result.removed.length} unused new images removed.`))
     if(this.remote.has(path))await this.open(path);else if(this.view==='media')await this.mediaLibrary();else this.renderEmpty()
   }
   private async clearFixed(path:string){
@@ -563,7 +575,7 @@ export class ContentEditor extends HTMLElement{
       const newPath=imageRepositoryPath(replacement),remaining=result.references.filter((ref:string)=>!selected.has(ref)||fileReferences(this.file(ref)?.content||'',path,ref))
       const localRef=this.space!.files.some(f=>f.encoding!=='base64'&&f.content&&fileReferences(f.content,path,f.path))
       const cleanup=removeOld.checked&&newPath!==path&&!remaining.length&&!localRef
-      if(cleanup)this.edit(path,null,'base64')
+      if(cleanup){this.edit(path,null,'base64');this.space!.files.find(f=>f.path===path)!.autoRemovedFor=newPath;await this.persist()}
       this.q<HTMLDialogElement>('dialog').close();this.notice(cleanup?this.t('新图、引用和无引用旧图删除已一起暂存，检查后一次发布。','New image, references and unused original deletion staged for one commit.'):this.t('新图片与引用已暂存。旧图仍有引用或未选择清理，已保留。','Replacement staged. The original was retained because references remain or cleanup was not selected.'));await this.mediaLibrary()
     }))
   }

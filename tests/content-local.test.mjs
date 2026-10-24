@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 await mkdir('work',{recursive:true});const path='work/local-test-'+randomUUID()+'.mjs'
 await build({entryPoints:['src/lib/content-local.ts'],bundle:true,packages:'external',platform:'node',format:'esm',outfile:path})
-const {LocalContentStore,markCommitted}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
+const {LocalContentStore,markCommitted,discardLocalFile}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
 const repository='Cyril-Fan/Cyril-Fan.github.io',secret=Buffer.alloc(32,7).toString('base64')
 function indexedDBFixture(){
  const rows=new Map()
@@ -42,5 +42,38 @@ test('late deletion completion retains a newly restored local body',()=>{
  const submission={changes:[{path:'a',content:null}],revisions:{a:2}}
  const files=markCommitted([{path:'a',baseSha:'old',baseText:'old',content:'Restored',revision:3}],submission,[{path:'a',sha:null}])
  assert.equal(files[0].content,'Restored');assert.equal(files[0].baseSha,null)
+})
+
+const article='src/content/blogs/tech/test/index.md',image='public/media/image-new.webp'
+const localImage=(path=image)=>({path,baseSha:null,baseText:null,content:'image-bytes',encoding:'base64',revision:1,mediaOwners:[article]})
+const localText=(path=article,content='![image](/media/image-new.webp)')=>({path,baseSha:null,baseText:null,content,encoding:'utf-8',revision:1})
+const localSpace=files=>({...workspace(),files})
+test('discard removes only associated unused new images, including earlier replaced selections',()=>{
+ const s=localSpace([localText(),localImage(),{...localImage('public/media/earlier.webp')}, {...localImage('public/media/library.webp'),mediaOwners:[]}])
+ const result=discardLocalFile(s,article,[],new Set(),[])
+ assert.deepEqual(result.removed,[image,'public/media/earlier.webp']);assert.equal(result.files[0].path,'public/media/library.webp')
+ assert.equal(s.files.length,4,'planning must not mutate the original workspace')
+})
+test('shared references, existing GitHub paths and uncertain submissions protect images',()=>{
+ for(const extra of [localText('src/data/profile.json'),localText('src/content/blogs/tech/test/index-en.md')]){
+  const s=localSpace([localText(),localImage(),extra]);assert.deepEqual(discardLocalFile(s,article,[],new Set(),[]).removed,[])
+ }
+ const s=localSpace([localText(),localImage()])
+ assert.deepEqual(discardLocalFile(s,article,[],new Set([image]),[]).removed,[])
+ assert.deepEqual(discardLocalFile(s,article,[localText('src/data/profile.json')],new Set(),[]).removed,[])
+ s.submission={changes:[localImage()],state:'failed'};assert.deepEqual(discardLocalFile(s,article,[],new Set(),[]).removed,[])
+})
+test('other tabs retain their bytes and references; unavailable recovery inspection fails closed',()=>{
+ const s=localSpace([localText(),localImage()]),other=localSpace([localText('src/data/profile.json'),localImage()]),copy=structuredClone(other)
+ assert.deepEqual(discardLocalFile(s,article,[],new Set(),[other]).removed,[image],'Other tab owns its own full payload, which is untouched')
+ assert.deepEqual(discardLocalFile(s,article,[],new Set(),[{...other,files:[localText('src/data/profile.json')]}]).removed,[],'A reference without an independent payload protects the only copy')
+ assert.deepEqual(other,copy);assert.deepEqual(discardLocalFile(s,article,[],new Set(),null).removed,[])
+ assert.equal(discardLocalFile(s,image,[],new Set(),[]).blocked,true)
+})
+test('discarding replacement content restores an automatically removed original, without staging GitHub deletion',()=>{
+ const old='public/media/original.webp',s=localSpace([localText(),localImage(),{...localImage(old),baseSha:'old-sha',content:null,autoRemovedFor:image}])
+ const remote=[localText(article,'![original](/media/original.webp)')]
+ const result=discardLocalFile(s,article,remote,new Set([old]),[])
+ assert.deepEqual(result.removed,[image]);assert.deepEqual(result.restored,[old]);assert.deepEqual(result.files,[])
 })
 

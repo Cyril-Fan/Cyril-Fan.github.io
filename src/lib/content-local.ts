@@ -1,7 +1,35 @@
-import { REPOSITORY, decodeBase64, encodeBase64, type Change } from '../../supabase/functions/_shared/git-content'
-export type LocalFile = Change & { baseText: string | null; revision: number; title?: string }
+import { REPOSITORY, decodeBase64, encodeBase64, fileReferences, pathKind, type Change } from '../../supabase/functions/_shared/git-content'
+export type LocalFile = Change & { baseText: string | null; revision: number; title?: string; mediaOwners?:string[]; autoRemovedFor?:string }
 export type Submission = { requestId:string; baseHead:string; changes:Change[]; revisions:Record<string,number>; commitSha?:string; state:string; files?:{path:string;sha:string|null}[] }
 export type Workspace = { id:string; owner:string; repository:string; updated:string; files:LocalFile[]; submission?:Submission }
+
+/** Each workspace owns its full image bytes. Never mutate another tab's record.
+ * Unknown/unreadable other copies disable automatic collection (fail closed). */
+export function discardLocalFile(space:Workspace,path:string,remote:Change[],existingPaths:Set<string>,otherCopies:Workspace[]|null){
+  const discarded=space.files.find(f=>f.path===path)
+  const kept=space.files.filter(f=>f.path!==path),effective=new Map(remote.map(f=>[f.path,f]))
+  for(const f of kept)effective.set(f.path,f)
+  const references=(files:Change[],image:string)=>files.some(f=>f.encoding!=='base64'&&f.content&&fileReferences(f.content,image,f.path))
+  const pending=space.submission?.changes||[]
+  // Restored tabs own a complete duplicate payload. Removing this tab's bytes
+  // cannot invalidate that copy. A cross-copy reference without its own bytes
+  // must retain this payload; never assume an unfinished save has succeeded.
+  const dependsElsewhere=(image:LocalFile)=>otherCopies?.some(s=>s.id!==space.id&&s.owner===space.owner&&s.repository===space.repository&&
+    ![...s.files,...s.submission?.changes||[]].some(f=>f.path===image.path&&f.encoding==='base64'&&f.content===image.content)&&
+    (references(s.files,image.path)||s.submission?.changes.some(c=>c.path===image.path)||references(s.submission?.changes||[],image.path)))
+  const associated=(f:LocalFile)=>f.mediaOwners?.includes(path)||!!(discarded?.content&&discarded.encoding!=='base64'&&fileReferences(discarded.content,f.path,path))
+  if(discarded?.encoding==='base64'&&!discarded.baseSha&&discarded.content&&
+    (references([...effective.values()],path)||pending.some(c=>c.path===path)||references(pending,path)||otherCopies===null||
+     dependsElsewhere(discarded)))return {files:space.files,removed:[],restored:[],blocked:true}
+  const candidates=kept.filter(f=>pathKind(f.path)==='media'&&f.encoding==='base64'&&!f.baseSha&&f.content&&!existingPaths.has(f.path)&&associated(f))
+  const removed=new Set(candidates.filter(f=>otherCopies!==null&&!references([...effective.values()],f.path)&&
+    !pending.some(c=>c.path===f.path)&&!references(pending,f.path)&&
+    !dependsElsewhere(f)).map(f=>f.path))
+  // Undo only replacement-generated old-image deletions if restored text needs them.
+  const restored=new Set(kept.filter(f=>f.autoRemovedFor&&f.content===null&&
+    candidates.some(c=>c.path===f.autoRemovedFor)&&references([...effective.values()],f.path)&&!pending.some(c=>c.path===f.path)).map(f=>f.path))
+  return {files:kept.filter(f=>!removed.has(f.path)&&!restored.has(f.path)),removed:[...removed],restored:[...restored]}
+}
 type Sealed = { id:string; owner:string; repository:string; updated:string; iv:string; data:string }
 const DATABASE='cyril-content-local-v2'
 // Keys are supplied only after a fresh server-side owner check and are never persisted.
