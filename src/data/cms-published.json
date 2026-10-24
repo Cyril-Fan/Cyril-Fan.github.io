@@ -2,6 +2,18 @@
   "version": 1,
   "documents": [
     {
+      "id": "25e49837-e861-495a-9e2d-ffd15c9a4f47",
+      "kind": "friend",
+      "revision": 4,
+      "payload": {
+        "name": "123",
+        "intro": "12",
+        "link": "https://www.deepseek.com/",
+        "avatar": "/media/a1bb5aba-f124-4055-a785-3742660d1775.webp",
+        "feed": ""
+      }
+    },
+    {
       "id": "academic",
       "kind": "academic",
       "revision": 1,
