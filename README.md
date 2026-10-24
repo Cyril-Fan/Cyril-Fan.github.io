@@ -54,7 +54,7 @@ GitHub Actions 在发布前会自动执行 `npm ci`、`npm test`、`npm run test
 | 研究与项目 | 后台“学术与项目”；直接编辑 src/data/academic.json，复用 Axi 论文与项目组件 |
 | 博客文章 | 后台“文章”；发布为 `src/content/blogs/<slug>/index.md` 和可选 `index-en.md` |
 | 主页与评论站长头像 | 后台“首页与关于”；空值沿用 `src/assets/avatar.png` 与 `public/avatar/avatar.png` |
-| 关于页照片 | 后台“首页与关于”；空值沿用 `src/assets/photos/cyril-fan-lakeside.webp` |
+| 关于页照片 | 后台“首页与关于”的照片字段；空值隐藏照片，替换通过图片库同步引用 |
 | 友链与朋友圈 | 后台“友链”生成 `public/links.json`；按名称字典序显示。RSS 快照每次构建刷新，失败时保留每个源最近成功内容 |
 | 新图片 | 浏览器本地暂存；发布为 public/media/image-内容指纹.webp 等文件 |
 | 统一网站图标 | `src/assets/brand/star-orbit.svg`；构建生成 PNG、ICO、Safari 图标、manifest 与备用路径，并同步所有已发布图标目录；版本包含矢量及渲染参数；修改生成规则时同步更新 `iconRecipe.version` |
