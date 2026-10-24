@@ -10,18 +10,18 @@
 .article-body .theme-spoiler:not(:hover):not(:focus-within)>:not(.theme-block-title) { filter:blur(.4rem); }
 .article-body .theme-steps ol { list-style-type:decimal; }
 .article-body .article-code { position:relative; border:1px solid hsl(var(--border)); border-radius:.7rem; overflow:hidden; margin:1.25rem 0; background:hsl(var(--muted)); }
-.article-body .article-code-bar { position:absolute; top:.5rem; left:.5rem; right:.5rem; display:flex; justify-content:flex-end; align-items:center; gap:.5rem; font-size:.75rem; font-family:monospace; pointer-events:none; }
-.article-body .code-title { margin-right:auto; padding:.15rem .5rem; border:1px solid hsl(var(--border)); border-radius:.4rem; background:hsl(var(--background)); }
-.article-body .code-language { padding:.2rem .4rem; background:hsl(var(--muted)); }
-.article-body .article-code-bar button { pointer-events:auto; opacity:0; background:hsl(var(--background))!important; }
-.article-body .article-code:hover .article-code-bar button,.article-body .article-code:focus-within .article-code-bar button { opacity:1; }
-.article-body .article-code.has-title pre { padding-top:3rem; }
+.article-body .article-code-bar { display:flex; justify-content:space-between; align-items:center; gap:.65rem; min-height:2rem; padding:.25rem .85rem; border-bottom:1px solid hsl(var(--border)); color:hsl(var(--muted-foreground)); font:400 .75rem/1.5 Consolas,"Liberation Mono",Menlo,monospace; }
+.article-body .code-title { margin-right:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.article-body .code-language { margin-right:auto; }
+.article-body .code-title+.code-language { margin-right:0; }
 .article-body .line.diff.add { background:#10b98122; }
 .article-body .line.diff.remove { background:#ef444422; }
 .article-body .line.highlighted { background:#80808020; }
-@media(hover:none){.article-body .article-code-bar button { opacity:1; }}
-.article-body .article-code-bar button { border:0; padding:.2rem .5rem; color:hsl(var(--muted-foreground)); background:transparent; cursor:pointer; }
-.article-body .article-code pre { margin:0; border:0; border-radius:0; overflow:auto; padding:1rem; white-space:pre; }
+.article-body .article-code-bar button { border:0; border-radius:.25rem; padding:.15rem .4rem; color:inherit; background:transparent; cursor:pointer; font:inherit; }
+.article-body .article-code-bar button:hover { color:hsl(var(--foreground)); background:hsl(var(--background)); }
+.article-body .article-code pre { margin:0; max-width:100%; border:0; border-radius:0; overflow:auto; padding:1rem; white-space:pre; font:400 .875rem/1.65 Consolas,"Liberation Mono",Menlo,Courier,monospace; font-variant-ligatures:none; tab-size:4; }
+.article-body .article-code pre code { font:inherit; letter-spacing:normal; word-spacing:normal; white-space:pre; overflow-wrap:normal; word-break:normal; padding:0; background:none; }
+.article-body .article-code pre code::before,.article-body .article-code pre code::after { content:none; }
 .article-body .shiki,.article-body .shiki span { color:var(--shiki-light); background-color:var(--shiki-light-bg); }
 .dark .article-body .shiki,.dark .article-body .shiki span { color:var(--shiki-dark); background-color:var(--shiki-dark-bg); }
 .article-body table { display:block; overflow-x:auto; max-width:100%; width:max-content; }

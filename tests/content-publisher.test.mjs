@@ -11,7 +11,8 @@ await build({entryPoints:['supabase/functions/content-github/index.ts'],bundle:t
 let handler,env
 globalThis.Deno={env:{get:k=>env[k]},serve:fn=>{handler=fn}}
 await import(pathToFileURL(process.cwd()+'/'+bundle));await unlink(bundle)
-const profile=await readFile('src/data/profile.json','utf8')
+// Keep simulated Git trees independent from the owner's current image filenames.
+const profile=JSON.stringify({...JSON.parse(await readFile('src/data/profile.json','utf8')),photo:'/media/profile.webp',avatar:''})
 const academic=await readFile('src/data/academic.json','utf8')
 const avatar=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer()
 function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=false,buildFailed=false}={}){
@@ -20,6 +21,7 @@ function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=f
  let head='1'.repeat(40),seq=2,updates=0,commits=0,history=[],lost=false
  const blobs=new Map(),trees=new Map(),commitData=new Map(),initial=new Map()
  for(const [path,value]of [['src/data/profile.json',profile],['src/data/academic.json',academic],['public/links.json','{"friends":[]}'],['public/media/shared.webp',avatar],['src/content/blogs/demo/index.md','---\ntitle: Demo\ndescription: Test\npublishDate: 2026-10-24\n---\n![Shared](/media/shared.webp)'],['.github/workflows/deploy.yml','private workflow config']]){const bytes=Buffer.from(value),sha=hash(bytes);blobs.set(sha,bytes);initial.set(path,sha)}
+ const profileImageSha=hash(avatar);blobs.set(profileImageSha,avatar);initial.set('public/media/profile.webp',profileImageSha)
  trees.set('initial',initial);commitData.set(head,{tree:'initial',message:'Initial'})
  const current=()=>trees.get(commitData.get(head).tree),response=(value,status=200)=>new Response(JSON.stringify(value),{status})
  globalThis.fetch=async(url,init={})=>{

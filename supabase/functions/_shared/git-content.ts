@@ -151,7 +151,13 @@ export function validateText(path: string, text: string) {
 }
 export function decodeBase64(value: string) {
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4) throw new Error('Invalid base64')
-  return Uint8Array.from(atob(value),c=>c.charCodeAt(0))
+  // Avoid Uint8Array.from(string, callback): its per-character iterator work
+  // exceeds edge CPU budgets for full-resolution, lossless photos.
+  const native=Uint8Array as typeof Uint8Array & {fromBase64?:(source:string)=>Uint8Array<ArrayBuffer>}
+  if(native.fromBase64)return native.fromBase64(value)
+  const binary=atob(value),bytes=new Uint8Array(binary.length)
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i)
+  return bytes
 }
 export function encodeBase64(data: Uint8Array) {
   let s=''; for(let i=0;i<data.length;i+=8192)s+=String.fromCharCode(...data.subarray(i,i+8192)); return btoa(s)

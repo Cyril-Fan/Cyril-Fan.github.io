@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { contentCategory,pathKind,readArticle,writeArticle,validateMarkdown,validateText,validateImage,safeUrl,fileReferences,gitBlobHash,newArticle,imageRepositoryPath,replaceImageReferences,publicImage } from '../supabase/functions/_shared/git-content.ts'
+import { contentCategory,pathKind,readArticle,writeArticle,validateMarkdown,validateText,validateImage,safeUrl,fileReferences,gitBlobHash,newArticle,imageRepositoryPath,replaceImageReferences,publicImage,decodeBase64,encodeBase64 } from '../supabase/functions/_shared/git-content.ts'
 import { articleMarkdown,prepareThemeSource } from '../src/lib/article-markdown.ts'
 import { JSDOM } from 'jsdom'
 const profile=JSON.parse(await readFile(new URL('../src/data/profile.json',import.meta.url)))
@@ -67,4 +67,12 @@ test('category folders validate articles and collections without losing legacy p
   assert.equal(contentCategory('src/content/blogs/old/index.md',newArticle('zh','research')),'research')
   assert.equal(pathKind('src/content/blogs/unknown/example/index.md'),null)
   validateText('src/content/collection/tech/example/index.md','---\ntitle: Test\ncategory: tech\nbloglist: [tech/example, legacy]\n---\n')
+})
+
+test('full-resolution image payloads decode byte-for-byte with both native and fallback paths',()=>{
+ const bytes=Uint8Array.from({length:8*1024*1024},(_,i)=>i%251),text=encodeBase64(bytes)
+ assert.deepEqual(decodeBase64(text),bytes)
+ const original=Uint8Array.fromBase64
+ try{Uint8Array.fromBase64=undefined;assert.deepEqual(decodeBase64(text),bytes)}finally{Uint8Array.fromBase64=original}
+ for(const invalid of ['abc','ab?=','ab=c'])assert.throws(()=>decodeBase64(invalid))
 })

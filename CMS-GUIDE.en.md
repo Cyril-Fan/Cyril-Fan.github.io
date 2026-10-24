@@ -46,3 +46,5 @@ The scoped GitHub credential is server-only, restricted to this repository's Con
 ## Migration
 
 The old Supabase CMS was retired on 2026-10-24 after checking the public GitHub files and receiving the owner's confirmation to discard the remaining test-only drafts and images. The old content/history/jobs tables, CMS image bucket, RPCs and publishing function were removed. Accounts, comments, user avatars and page views remain in Supabase. See the [implementation and acceptance record](docs/CMS-IMPLEMENTATION.md) for the audited scope and verification results.
+
+Articles, comments and editor previews share the VS Code Light+ / Dark+ code palettes. Use `cpp` for C++ fences (`CPP`, `c++`, `cc` and `cxx` also work); recognizable legacy C++ includes are detected in unlabelled fences. Unknown languages remain readable and copyable without executing code.

@@ -4,6 +4,7 @@ import rust from '@shikijs/langs/rust'
 import go from '@shikijs/langs/go'
 import latex from '@shikijs/langs/latex'
 import mediumZoom from 'medium-zoom'
+import { codeThemes } from './code-themes'
 import { transformerNotationDiff, transformerNotationHighlight } from '../plugins/shiki-official-transformers'
 const languages=['text','javascript','typescript','python','json','bash','shell','html','css','yaml','markdown','cpp','c','java','sql','rust','go','latex']
 let highlighter:ReturnType<typeof createHighlighter>|undefined
@@ -17,9 +18,9 @@ export async function highlightCode(code:string,language:string,meta=''){
   // Unlabelled existing C++ comments are recognizable without guessing at prose.
   if(language==='text'&&/^\s*#include\s*[<"](?:iostream|bits\/stdc\+\+\.h|vector|string|cstdio)[>"]/m.test(code))language='cpp'
   language=({js:'javascript',ts:'typescript',sh:'bash',shell:'bash',py:'python',yml:'yaml',md:'markdown','c++':'cpp',cc:'cpp',cxx:'cpp'} as Record<string,string>)[language]||language
-  highlighter??=createHighlighter({themes:['github-light','github-dark'],langs:[...languages.filter(l=>l in bundledLanguages),rust,go,latex]})
+  highlighter??=createHighlighter({themes:Object.values(codeThemes),langs:[...languages.filter(l=>l in bundledLanguages),rust,go,latex]})
   const h=await highlighter,lang=language==='shell'?'bash':languages.includes(language)?language:'text'
-  const html=h.codeToHtml(code,{lang,themes:{light:'github-light',dark:'github-dark'},defaultColor:false,meta:{__raw:meta},transformers:[transformerNotationDiff(),transformerNotationHighlight()]})
+  const html=h.codeToHtml(code,{lang,themes:codeThemes,defaultColor:false,meta:{__raw:meta},transformers:[transformerNotationDiff(),transformerNotationHighlight()]})
   const title=meta.match(/\btitle=["']([^"']+)["']/)?.[1]||''
   return '<div class="article-code'+(title?' has-title':'')+'" data-code-language="'+lang+'"><div class="article-code-bar">'+(title?'<span class="code-title">'+escape(title)+'</span>':'')+'<span class="code-language">'+lang+'</span><button type="button" data-copy-code aria-label="Copy code">Copy</button></div>'+html+'</div>'
 }

@@ -2,6 +2,11 @@
 @config "../../../tailwind.config.mjs";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Astro-rendered MDX and the shared browser renderer use the same dual themes. */
+.astro-code, .astro-code span { color:var(--shiki-light); background-color:var(--shiki-light-bg); }
+.dark .astro-code, .dark .astro-code span { color:var(--shiki-dark); background-color:var(--shiki-dark-bg); }
+.astro-code pre { margin:0; background:transparent; color:inherit; font:400 .875rem/1.65 Consolas,"Liberation Mono",Menlo,Courier,monospace; tab-size:4; }
+
 /* Preserve the theme's Tailwind 3 defaults during the framework migration. */
 @layer base {
   button:not(:disabled), [role="button"]:not(:disabled) { cursor:pointer; }

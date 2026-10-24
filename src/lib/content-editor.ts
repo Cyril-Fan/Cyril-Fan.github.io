@@ -227,7 +227,7 @@ export class ContentEditor extends HTMLElement{
     for(const f of fields){
       const title=this.en?(f.en||f.label):f.label
       if(f.type==='group'){
-        const details=el('details');details.open=!prefix;details.append(el('summary',title));value[f.key]??={}
+        const details=el('details');details.open=!prefix&&(!['zh','en'].includes(f.key)||f.key===(this.en?'en':'zh'));details.append(el('summary',title));value[f.key]??={}
         details.append(this.form(f.fields!,value[f.key],changed,prefix+f.key+'.'));box.append(details);continue
       }
       if(f.type==='list'){
@@ -385,7 +385,7 @@ export class ContentEditor extends HTMLElement{
   }
   private async submit(){
     if(this.busy||!this.space?.submission)return
-    this.busy=true;this.updateStatus();this.renderSubmission();const sub=this.space.submission
+    this.busy=true;const sub=this.space.submission;sub.state='sending';this.updateStatus();this.renderSubmission()
     try{
       const result=await this.call('publish',{requestId:sub.requestId,baseHead:sub.baseHead,changes:sub.changes})
       if(result.state==='unchanged'){this.space.files=markCommitted(this.space.files,sub,result.files);this.space.submission=undefined;await this.persist();this.renderList();this.notice(this.t('所选文件与 GitHub 一致，无需提交。','Selected files already match GitHub.'));return}
@@ -393,6 +393,7 @@ export class ContentEditor extends HTMLElement{
       this.space.files=markCommitted(this.space.files,sub,result.files)
       for(const c of sub.changes){const sha=result.files.find((f:any)=>f.path===c.path)?.sha;this.entries=this.entries.filter(e=>e.path!==c.path);if(c.content===null)this.remote.delete(c.path);else{this.remote.set(c.path,{path:c.path,sha,content:c.content,encoding:c.encoding});this.entries.push({path:c.path,sha,size:c.content.length,kind:pathKind(c.path)!,writable:true})}}
       this.releaseUnusedImageUrls()
+      if(this.view==='media')void this.mediaLibrary()
       sub.changes=[];sub.revisions={}
       await this.persist();this.notice(this.t('已提交 GitHub，正在构建。你可以继续编辑，新修改会单独保留。','Committed to GitHub; building. You may keep editing; newer changes remain local.'));this.renderList();this.renderSubmission();void this.checkStatus()
     }catch(e:any){
@@ -435,14 +436,15 @@ export class ContentEditor extends HTMLElement{
     if(!this.store)return
     const body=this.dialog(this.t('恢复本地副本','Restore local copy')),spaces=await this.store.list()
     body.append(el('p',this.t('各窗口使用独立副本。恢复会复制到本窗口，不覆盖其他窗口或 GitHub；废弃副本可单独移除。','Each tab has an independent copy. Restore copies it into this tab, preserving other tabs and GitHub.')))
-    for(const s of spaces.filter(s=>s.id!==this.space?.id&&(s.files.length||s.submission))){
+    const recoverable=spaces.filter(s=>s.id!==this.space?.id&&(s.files.length||s.submission))
+    for(const s of recoverable){
       const row=el('section','','cms-local-copy');row.append(el('p',new Date(s.updated).toLocaleString(this.en?'en-GB':'zh-CN',{hour12:false})),el('p',s.files.map(f=>f.path).join('\n')||this.t('仅提交状态','Submission status only')))
       row.append(this.btn(this.t('恢复此副本','Restore this copy'),async()=>{
         if(this.space?.files.length&&!await this.confirm(this.t('保留当前副本并切换？','Keep current copy and switch?'),[this.t('当前内容仍保存在另一个本地副本中。','Current content stays in its separate local copy.')]))return
         await this.persist();this.space={...clone(s),id:crypto.randomUUID(),updated:new Date().toISOString()};await this.persist();this.q<HTMLDialogElement>('dialog').close();this.renderList();this.renderSubmission();if(this.space.files[0])await this.open(this.space.files[0].path);if(this.space.submission?.commitSha)void this.checkStatus()
       }),this.btn(this.t('移除此本地副本','Remove this local copy'),async()=>{if(await this.confirm(this.t('移除本地副本？','Remove local copy?'),[s.files.map(f=>f.path).join('\n'),this.t('只影响此浏览器的这个副本。','Only this browser copy is affected.')])){await this.store!.remove(s.id);await this.recover()}}));body.append(row)
     }
-    if(!spaces.length)body.append(el('p',this.t('没有可恢复的副本。','No local copies.')))
+    if(!recoverable.length)body.append(el('p',this.t('没有其它可恢复的副本。','No other local copies.')))
   }
   private download(name:string,text:string){
     const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob);this.blobUrls.set('export-'+Date.now(),url)
@@ -480,9 +482,9 @@ export class ContentEditor extends HTMLElement{
     this.notice(this.t('图片已本地暂存，发布前不会上传。','Image saved locally; not uploaded until Publish.'));return publicImage(path)
   }
   private uploader(use:(path:string)=>unknown,_avatar=false){
-    const label=el('label',this.t('上传本机图片','Upload image'),'cms-file'),input=el('input');input.type='file';input.className='cms-file-input';input.accept='image/png,image/jpeg,image/webp,image/gif,image/avif'
-    input.onchange=async()=>{const file=input.files?.[0];input.value='';if(!file)return;input.disabled=true;label.setAttribute('aria-busy','true');this.notice(this.t('正在无损处理图片，请稍候…','Processing the image losslessly…'));try{await use(await this.upload(file))}catch(e){this.notice((e as Error).message,true)}finally{input.disabled=false;label.removeAttribute('aria-busy')}}
-    label.append(input);return label
+    const wrap=el('div','','cms-upload'),label=el('label',this.t('上传本机图片','Upload image'),'cms-file'),input=el('input'),status=el('span','','cms-muted');status.setAttribute('role','status');input.type='file';input.className='cms-file-input';input.accept='image/png,image/jpeg,image/webp,image/gif,image/avif'
+    input.onchange=async()=>{const file=input.files?.[0];input.value='';if(!file)return;input.disabled=true;label.setAttribute('aria-busy','true');status.textContent=this.t('正在无损处理，请稍候…','Processing losslessly…');try{await use(await this.upload(file));status.textContent=this.t('已本地暂存','Saved locally')}catch(e){status.textContent=(e as Error).message;this.notice((e as Error).message,true)}finally{input.disabled=false;label.removeAttribute('aria-busy')}}
+    label.append(input);wrap.append(label,status);return wrap
   }
   private async imageUrl(url:string):Promise<string>{
     if(/^https:/.test(url))return url
@@ -519,10 +521,10 @@ export class ContentEditor extends HTMLElement{
   }
   private async mediaCards(grid:HTMLElement,select?:(path:string)=>unknown,selected=''){
     const query=select?'':this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
-    const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>p.toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
+    const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>(p+' '+this.imageLabel(p)).toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
     for(const path of paths){
       if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
-      const card=el('section','','cms-media-card'),img=el('img');img.alt=path.split('/').pop()!;img.loading='lazy';card.append(img,el('p',path));grid.append(card)
+      const card=el('section','','cms-media-card'),img=el('img');img.alt=this.imageLabel(path);img.loading='lazy';card.append(img,el('strong',this.imageLabel(path)),el('p',path,'cms-path'));grid.append(card)
       try{img.src=await this.imageUrl(publicImage(path))}catch{img.alt=this.t('暂时无法预览','Preview unavailable')}
       if(select)card.append(this.btn(this.t('使用图片','Use image'),()=>select(publicImage(path))))
       else{
@@ -533,6 +535,17 @@ export class ContentEditor extends HTMLElement{
       }
       if(selected===path)card.dataset.selected='true'
     }
+  }
+  private imageLabel(path:string){
+    try{
+      const profile=JSON.parse(this.file(PROFILE)?.content||'{}')
+      if(imageRepositoryPath(profile.photo||'')===path)return this.t('关于页照片','About photo')
+      if(imageRepositoryPath(profile.avatar||'')===path)return this.t('主页头像','Profile avatar')
+      const friends=JSON.parse(this.file(LINKS)?.content||'{}').friends||[]
+      const names=friends.flatMap((g:any)=>g.link_list||[]).filter((f:any)=>imageRepositoryPath(f.avatar||'')===path).map((f:any)=>f.name)
+      if(names.length)return names.join(' / ')+this.t(' · 友链头像',' · friend avatar')
+    }catch{}
+    return path.split('/').pop()!
   }
   private async replaceImage(path:string){
     const result=await this.call('references',{path}),body=this.dialog(this.t('替换图片与引用','Replace image and references')),selected=new Set<string>()

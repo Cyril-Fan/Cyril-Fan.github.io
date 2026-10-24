@@ -27,6 +27,7 @@ import {
   updateStyle
 } from './src/plugins/shiki-transformers.ts'
 import config from './src/site.config.ts'
+import { codeThemes } from './src/lib/code-themes.ts'
 
 // https://astro.build/config
 export default defineConfig({
@@ -107,10 +108,8 @@ export default defineConfig({
     }),
     // https://docs.astro.build/en/guides/syntax-highlighting/
     shikiConfig: {
-      themes: {
-        light: 'github-light',
-        dark: 'github-dark'
-      },
+      themes: codeThemes,
+      defaultColor: false,
       transformers: [
         transformerNotationDiff(),
         transformerNotationHighlight(),

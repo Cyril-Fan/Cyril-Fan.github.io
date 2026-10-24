@@ -129,7 +129,7 @@ const ownerAvatar = profile.avatar || '/avatar/avatar.png'
   site-comments .comment-markdown li { padding-left:.15rem; }
   site-comments .comment-markdown blockquote { border-left:3px solid hsl(var(--border)); margin:.8rem 0; padding:.1rem .9rem; color:hsl(var(--muted-foreground)); }
   site-comments .comment-markdown :not(pre) > code { font-size:.85em; padding:.15em .35em; border-radius:.25rem; background:hsl(var(--muted)); overflow-wrap:anywhere; }
-  site-comments .comment-markdown pre { max-width:100%; overflow-x:auto; padding:.85rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--muted) / .6); font-size:.82rem; line-height:1.6; tab-size:2; }
+  site-comments .comment-markdown pre:not(.shiki) { max-width:100%; overflow-x:auto; padding:1rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--muted) / .6); font-size:.875rem; line-height:1.65; tab-size:4; }
   site-comments .comment-markdown pre code { white-space:pre; }
   site-comments .comment-markdown table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; margin:.8rem 0; font-size:.85rem; }
   site-comments .comment-markdown :is(th,td) { border:1px solid hsl(var(--border)); padding:.45rem .65rem; min-width:5rem; }
