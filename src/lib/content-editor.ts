@@ -3,7 +3,7 @@ import { articleMarkdown } from './article-markdown'
 import { enhanceArticle } from './content-render'
 import { encodeCMSImage } from './cms-image'
 import { LocalContentStore, markCommitted, type Workspace, type LocalFile } from './content-local'
-import { REPOSITORY, PROFILE, ACADEMIC, LINKS, pathKind, publicImage, imageRepositoryPath, replaceImageReferences, readArticle, writeArticle, newArticle, encodeBase64, decodeBase64, gitBlobHash, type Entry } from '../../supabase/functions/_shared/git-content'
+import { REPOSITORY, PROFILE, ACADEMIC, LINKS, CONTENT_CATEGORIES, contentCategory, fileReferences, pathKind, publicImage, imageRepositoryPath, replaceImageReferences, readArticle, writeArticle, newArticle, encodeBase64, decodeBase64, gitBlobHash, type Entry } from '../../supabase/functions/_shared/git-content'
 import { jsonFields, friendFields, articleFields, collectionFields, type Field } from './content-fields'
 
 const el=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const n=document.createElement(tag);n.textContent=text;n.className=className;return n}
@@ -20,7 +20,9 @@ export class ContentEditor extends HTMLElement{
   private entries:Entry[]=[]
   private remote=new Map<string,Remote>()
   private current=''
-  private view='post'
+  private view='profile'
+  private category=''
+  private sectionGeneration=0
   private head=''
   private saving=Promise.resolve()
   private busy=false
@@ -36,14 +38,22 @@ export class ContentEditor extends HTMLElement{
   connectedCallback(){
     if(this.abort)return
     this.abort=new AbortController();const signal=this.abort.signal
-    this.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach(b=>b.addEventListener('click',()=>{this.view=b.dataset.kind!;this.current='';this.renderList();this.renderEmpty();if(this.view==='media')void this.mediaLibrary()}, {signal}))
-    this.q('[data-create]').onclick=()=>void this.create()
+    this.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach(b=>b.addEventListener('click',()=>void this.selectView(b.dataset.kind!), {signal}))
+    this.q('[data-create]').onclick=()=>void this.create('post')
+    this.q('[data-create-collection]').onclick=()=>void this.create('collection')
+    this.q('[data-back-blog]').onclick=()=>void this.selectView('blog')
+    this.q('[data-import-trigger]').onclick=()=>this.q<HTMLInputElement>('[data-import]').click()
+    const search=this.q<HTMLInputElement>('[data-search]'),box=this.q('[data-search-box]'),toggle=this.q('[data-search-toggle]')
+    toggle.onclick=()=>{box.dataset.open='true';toggle.setAttribute('aria-expanded','true');search.focus()}
+    this.q('[data-search-clear]').onclick=()=>{search.value='';this.searchChanged();search.focus()}
+    search.onkeydown=e=>{if(e.key==='Escape'){search.value='';box.dataset.open='false';toggle.setAttribute('aria-expanded','false');this.searchChanged();toggle.focus()}}
+    search.onblur=()=>{if(!search.value){box.dataset.open='false';toggle.setAttribute('aria-expanded','false')}}
     this.q('[data-refresh]').onclick=()=>void this.refresh().catch(e=>this.notice(e.message,true))
     this.q('[data-review]').onclick=()=>void this.review()
     this.q('[data-recover]').onclick=()=>void this.recover()
     this.q('[data-export]').onclick=()=>this.exportLocal()
     this.q<HTMLInputElement>('[data-import]').onchange=()=>{const f=this.q<HTMLInputElement>('[data-import]').files?.[0];if(f)void this.importLocal(f)}
-    this.q('[data-search]').addEventListener('input',()=>this.renderList(),{signal})
+    this.q('[data-search]').addEventListener('input',()=>this.searchChanged(),{signal})
     window.addEventListener(COMMENT_AUTH_EVENT,()=>void this.authorize(),{signal})
     window.addEventListener('beforeunload',event=>{if(this.space?.files.length||this.space?.submission?.state==='sending'){event.preventDefault();event.returnValue=''}},{signal})
     window.addEventListener('offline',()=>this.notice(this.t('已离线，修改仍在本机暂存。联网后可以发布。','Offline. Changes remain local; publish after reconnecting.')),{signal})
@@ -82,7 +92,7 @@ export class ContentEditor extends HTMLElement{
       this.space={id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString(),files:[]}
       try{this.store=await LocalContentStore.open(this.owner,snapshot.localKey)}catch{this.notice(this.t('浏览器无法暂存修改。请保留此页面，并及时导出本地副本。','Local storage unavailable. Keep this page open and export your edits.'),true)}
       this.q('[data-gate]').hidden=true;this.q('[data-shell]').hidden=false
-      await this.loadTextFiles();this.renderList();this.renderEmpty()
+      await this.loadTextFiles();await this.selectView(this.view)
       if(this.store&&(await this.store.list()).length)this.notice(this.t('发现之前的本地副本。点击“恢复本地副本”选择恢复；不会自动覆盖 GitHub。','Local copies found. Choose Restore local copy; GitHub is unchanged.'))
     }catch(e){this.owner='';this.q('[data-gate]').textContent=this.t('仅站长可使用。请确认登录和网络后刷新。','Owner access only. Check your session and connection, then reload.');this.notice((e as Error).message,true)}
   }
@@ -126,24 +136,51 @@ export class ContentEditor extends HTMLElement{
     if(pathKind(path)!=='media'&&f?.content)try{return readArticle(f.content).data.title+' · '+(path.includes('index-en')?'EN':'ZH')}catch{}
     return path.split('/').pop()!
   }
+  private categoryLabel(category:string){return ({research:this.t('科研','Research'),tech:this.t('技术','Technical'),daily:this.t('日常','Daily Life')} as Record<string,string>)[category]||category}
+  private async selectView(view:string,category=''){
+    const generation=++this.sectionGeneration
+    this.view=view;this.category=category;this.current='';this.q<HTMLInputElement>('[data-search]').value=''
+    this.renderList()
+    if(view==='profile'||view==='academic'||view==='friend'){await this.open(view==='profile'?PROFILE:view==='academic'?ACADEMIC:LINKS);return}
+    if(view==='media'){await this.mediaLibrary();return}
+    if(generation===this.sectionGeneration)this.renderEmpty()
+  }
+  private searchChanged(){this.renderList();if(this.view==='media')void this.mediaLibrary()}
   private renderList(){
     const list=this.q('[data-list]');list.replaceChildren()
     this.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===this.view)))
-    this.q<HTMLButtonElement>('[data-create]').hidden=['profile','academic','media'].includes(this.view)
-    this.q('[data-create]').textContent=this.t(this.view==='friend'?'添加友链':this.view==='collection'?'新建合集':'新建文章',this.view==='friend'?'Add friend':this.view==='collection'?'New collection':'New article')
+    this.q('[data-category-tools]').hidden=this.view!=='blog'||!this.category
+    this.q('[data-category-name]').textContent=this.categoryLabel(this.category)
+    this.q('[data-search-box]').hidden=!((this.view==='blog'&&this.category)||this.view==='media')
     const query=this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
-    const paths=[...new Set([...this.entries.map(e=>e.path),...this.space?.files.map(f=>f.path)||[]])].filter(p=>pathKind(p)===this.view).sort((a,b)=>this.label(a).localeCompare(this.label(b)))
-    for(const p of paths.filter(p=>(p+' '+this.label(p)).toLowerCase().includes(query))){
-      const changed=this.space?.files.find(f=>f.path===p),b=this.btn('',()=>this.open(p))
-      b.append(el('span',this.label(p)),el('small',changed?changed.content===null?this.t('待删除','To delete'):this.t('有本地修改','Local changes'):p))
+    const paths=[...new Set([...this.entries.map(e=>e.path),...this.space?.files.map(f=>f.path)||[]])].filter(p=>this.view==='blog'&&['post','collection'].includes(pathKind(p)||'')&&contentCategory(p,this.file(p)?.content)===this.category).sort((a,b)=>this.label(a).localeCompare(this.label(b)))
+    const shown=paths.filter(p=>(p+' '+this.label(p)).toLowerCase().includes(query))
+    const sidebar=this.q('.cms-sidebar');sidebar.hidden=this.view!=='blog'||!this.category||!paths.length
+    this.q('.cms-workspace').classList.toggle('cms-has-list',!sidebar.hidden)
+    for(const p of shown){
+      const changed=this.space?.files.find(f=>f.path===p),b=this.btn('',()=>this.open(p)),kind=pathKind(p)==='collection'?this.t('合集','Collection'):this.t('文章','Article')
+      b.append(el('span',this.label(p)),el('small',kind+' · '+(changed?changed.content===null?this.t('待删除','To delete'):this.t('本地修改','Local changes'):p.split('/').slice(-2,-1)[0])))
       b.setAttribute('aria-current',String(p===this.current));list.append(b)
     }
-    if(!list.childElementCount)list.append(el('p',this.t('暂无内容。','No content yet.'),'cms-muted'))
+    if(!list.childElementCount&&paths.length)list.append(el('p',this.t('没有匹配的内容。','No matching content.'),'cms-muted'))
     this.updateStatus()
   }
-  private renderEmpty(){this.q('[data-editor]').replaceChildren(el('div',this.t('选择文件开始编辑，或新建内容。','Choose a file or create new content.'),'cms-empty'))}
+  private folderIcon(){
+    const span=el('span','','cms-folder-icon');span.setAttribute('aria-hidden','true')
+    span.innerHTML='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';return span
+  }
+  private renderEmpty(){
+    const target=this.q('[data-editor]');target.replaceChildren()
+    if(this.view==='blog'&&!this.category){
+      target.append(el('h2',this.t('博客','Blog')),el('p',this.t('选择一个目录，管理其中的文章与合集。','Choose a folder to manage its articles and collections.'),'cms-muted'))
+      const folders=el('div','','cms-folders')
+      for(const category of CONTENT_CATEGORIES){const b=this.btn('',()=>this.selectView('blog',category),'cms-folder');b.append(this.folderIcon(),el('strong',this.categoryLabel(category)),el('small','blog/'+category+'/'));folders.append(b)}
+      target.append(folders);return
+    }
+    target.append(el('div',this.t('选择已有内容，或在右上角创建文章与合集。','Select existing content, or create an article or collection above.'),'cms-empty'))
+  }
   private async open(path:string){
-    this.current=path;this.view=pathKind(path)!;this.renderList()
+    this.current=path;const kind=pathKind(path)!;this.view=['post','collection'].includes(kind)?'blog':kind;if(this.view==='blog')this.category=contentCategory(path,this.file(path)?.content);this.renderList()
     if(!this.file(path)){const r=await this.call('read',{paths:[path]});this.remote.set(path,r.files[0])}
     if(this.current!==path)return
     const f=this.file(path)!;if(pathKind(path)==='media'){await this.mediaLibrary(path);return}
@@ -153,17 +190,22 @@ export class ContentEditor extends HTMLElement{
     actions.append(this.btn(this.t('放弃本地修改','Discard local edits'),()=>this.discard(path)),this.btn(this.t('重新读取 GitHub','Reload from GitHub'),()=>this.refresh()),this.btn(this.t('编辑原文件','Edit source'),()=>this.sourceEditor(path)))
     if(path!==PROFILE&&path!==ACADEMIC&&path!==LINKS)actions.append(this.btn(this.t('删除文件','Delete file'),()=>this.stageDelete(path),'cms-danger'))
     else actions.append(this.btn(this.t('清空内容…','Clear content…'),()=>this.clearFixed(path)))
+    if(kind==='post'&&!/index-en\.mdx?$/.test(path))actions.append(this.btn(this.t('编辑英文版','Edit English version'),async()=>{
+      const translated=path.replace(/index(\.mdx?)$/,'index-en$1')
+      if(!this.file(translated)&&!this.entries.some(e=>e.path===translated))this.edit(translated,writeArticle(this.file(path)!.content!,{language:'en'}))
+      await this.open(translated)
+    }))
     target.append(actions)
     if(f.content===null){target.append(el('p',this.t('此文件等待删除；发布前可以放弃修改。','This file is staged for deletion. Discard to undo before publishing.')));return}
     try{
-      if(this.view==='post'||this.view==='collection')this.articleEditor(path,f.content,target)
+      if(kind==='post'||kind==='collection')this.articleEditor(path,f.content,target)
       else this.jsonEditor(path,f.content,target)
     }catch(e){target.append(el('p',this.t('无法解析表单，请用原文件编辑器修正。','Cannot parse the form. Correct it in the source editor.'),'cms-message'));this.sourceEditor(path)}
   }
   private async discard(path:string){
     if(!await this.confirm(this.t('放弃本地修改？','Discard local edits?'),[path,this.t('将丢弃此浏览器副本中尚未提交的修改；GitHub 不变。','Unsubmitted changes in this copy will be lost. GitHub is unchanged.')]))return
-    this.space!.files=this.space!.files.filter(f=>f.path!==path);await this.persist();this.renderList()
-    if(this.remote.has(path))await this.open(path);else this.renderEmpty()
+    this.space!.files=this.space!.files.filter(f=>f.path!==path);this.releaseUnusedImageUrls();await this.persist();this.renderList()
+    if(this.remote.has(path))await this.open(path);else if(this.view==='media')await this.mediaLibrary();else this.renderEmpty()
   }
   private async clearFixed(path:string){
     if(!await this.confirm(this.t('清空内容，保留页面','Clear content, keep the page'),[path,this.t('固定页面不会被删除。清空操作先本地暂存，发布后才生效。','Fixed pages remain. Clearing is staged locally until published.')]))return
@@ -239,25 +281,25 @@ export class ContentEditor extends HTMLElement{
           const image=el('img');image.alt=f.name;image.className='cms-avatar-preview';if(f.avatar)void this.imageUrl(f.avatar).then(url=>image.src=url)
           section.append(image,this.btn(this.t('删除这条友链','Delete this friend'),async()=>{if(await this.confirm(this.t('删除友链？','Delete friend?'),[f.name,f.link,path])){group.link_list.splice(i,1);changed();render()}}));rows.append(section)
         })};render()
-        target.append(this.btn(this.t('添加友链','Add friend'),()=>{const friend={name:'',intro:'',link:'https://',avatar:'',feed:''};group.link_list.push(friend);changed();render();(rows.children[group.link_list.indexOf(friend)] as HTMLDetailsElement).open=true}))
+        const add=el('div','','cms-row-footer');target.append(add);add.append(this.btn(this.t('添加友链','Add friend'),()=>{const friend={name:'',intro:'',link:'https://',avatar:'',feed:''};group.link_list.push(friend);changed();render();(rows.children[group.link_list.indexOf(friend)] as HTMLDetailsElement).open=true}))
       }
     }else target.append(this.form(jsonFields[path===PROFILE?'profile':'academic'],data,changed))
   }
   private articleEditor(path:string,source:string,target:HTMLElement){
     const parsed=readArticle(source),form=clone(parsed.data)
-    if(this.view==='post')form.tags=(form.tags||[]).join(', ')
+    if(pathKind(path)==='post')form.tags=(form.tags||[]).join(', ')
     else form.bloglist=(form.bloglist||[]).join('\n')
     const info=el('details','','cms-metadata');info.open=!parsed.body.trim();info.append(el('summary',this.t('文章信息','Document information')))
     const metadataChange=()=>{
       const updates=clone(form)
-      if(this.view==='post')updates.tags=String(form.tags||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean)
+      if(pathKind(path)==='post')updates.tags=String(form.tags||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean)
       else updates.bloglist=String(form.bloglist||'').split('\n').map(x=>x.trim()).filter(Boolean)
       if(!updates.updatedDate)updates.updatedDate=undefined
       if(updates.heroImage&&!updates.heroImage.src)updates.heroImage=undefined
       for(const k of ['source','pixivLink'])if(!updates[k])updates[k]=undefined
       this.edit(path,writeArticle(this.file(path)!.content!,updates))
     }
-    info.append(this.form(this.view==='post'?articleFields:collectionFields,form,metadataChange));target.append(info)
+    info.append(this.form(pathKind(path)==='post'?articleFields.filter(f=>f.key!=='category'||!/^src\/content\/blogs\/(research|tech|daily)\//.test(path)):collectionFields,form,metadataChange));target.append(info)
     target.append(this.markdownArea(parsed.body,text=>this.edit(path,writeArticle(this.file(path)!.content!,{},text))))
   }
   private markdownArea(value:string,change:(v:string)=>void){
@@ -292,7 +334,7 @@ export class ContentEditor extends HTMLElement{
     body.append(el('p',this.t('保留未知字段和原有语法。应用后仅在本地暂存，发布前仍会校验。','Unknown fields and syntax are preserved. Applying saves locally; validation still runs before publishing.')),area,
       this.btn(this.t('应用到本地副本','Apply locally'),async()=>{this.edit(path,area.value);this.q<HTMLDialogElement>('dialog').close();await this.open(path)}))
   }
-  private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
+  private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');dialog.classList.remove('cms-dialog-compact');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
   private confirm(title:string,lines:string[]):Promise<boolean>{
     const body=this.dialog(title);for(const line of lines)body.append(el('p',line))
     return new Promise(resolve=>{
@@ -303,17 +345,24 @@ export class ContentEditor extends HTMLElement{
       controls.append(cancel,this.btn(this.t('确认','Confirm'),()=>finish(true),'cms-primary'));body.append(controls);cancel.focus()
     })
   }
-  private async create(){
-    if(this.view==='friend'){await this.open(LINKS);[...this.q('[data-editor]').querySelectorAll('button')].find(b=>b.textContent===this.t('添加友链','Add friend'))?.click();return}
-    const body=this.dialog(this.view==='collection'?this.t('新建合集','New collection'):this.t('新建文章','New article')),label=el('label',this.t('网址名称（小写字母、数字和连字符）','URL slug (lowercase letters, digits and hyphens)')),slug=el('input');label.append(slug)
-    const language=el('select');for(const [v,label]of [['zh','中文'],['en','English']]){const o=el('option',label);o.value=v;language.append(o)}
-    body.append(label,language,this.btn(this.t('建立本地副本','Create local copy'),async()=>{
-      if(!/^[a-z0-9][a-z0-9-]{0,99}$/.test(slug.value))throw new Error(this.t('网址格式不正确。','Invalid slug.'))
-      const path=this.view==='collection'?'src/content/collection/'+slug.value+'.md':'src/content/blogs/'+slug.value+'/index'+(language.value==='en'?'-en':'')+'.md'
-      if(this.entries.some(e=>e.path===path)||this.space?.files.some(f=>f.path===path))throw new Error(this.t('文件已存在。','File already exists.'))
-      this.edit(path,this.view==='collection'?'---\ntitle: '+slug.value+'\nbloglist: []\n---\n':newArticle(language.value))
+  private async create(kind:'post'|'collection'='post'){
+    if(this.view!=='blog'||!CONTENT_CATEGORIES.includes(this.category as any))return
+    const category=this.category,body=this.dialog(kind==='collection'?this.t('新建合集','New collection'):this.t('新建文章','New article'))
+    this.q('dialog').classList.add('cms-dialog-compact')
+    body.append(el('p',this.t('博客 / ','Blog / ')+this.categoryLabel(category),'cms-muted'))
+    const label=el('label',this.t('文件夹名','Folder name')),slug=el('input');slug.placeholder='my-first-post';slug.autocomplete='off';slug.setAttribute('aria-describedby','cms-folder-help');label.append(slug)
+    const help=el('p',this.t('使用小写字母、数字和连字符。创建后只保存在本机。','Use lowercase letters, digits and hyphens. Creation only saves locally.'),'cms-muted');help.id='cms-folder-help'
+    const error=el('p','','cms-message');error.setAttribute('role','alert')
+    const actions=el('div','','cms-dialog-actions')
+    actions.append(this.btn(this.t('取消','Cancel'),()=>this.q<HTMLDialogElement>('dialog').close()),this.btn(this.t('建立本地副本','Create local copy'),async()=>{
+      const name=slug.value.trim()
+      if(!/^[a-z0-9][a-z0-9-]{0,99}$/.test(name)){error.textContent=this.t('请填写有效的文件夹名。','Enter a valid folder name.');slug.focus();return}
+      const path='src/content/'+(kind==='post'?'blogs':'collection')+'/'+category+'/'+name+'/index.md'
+      if(this.entries.some(e=>e.path===path)||this.space?.files.some(f=>f.path===path)){error.textContent=this.t('此目录中已有同名内容。','This folder name already exists.');return}
+      this.edit(path,kind==='collection'?'---\ntitle: '+name+'\ncategory: '+category+'\nbloglist: []\n---\n':newArticle('zh',category))
       this.q<HTMLDialogElement>('dialog').close();await this.open(path)
-    }))
+    },'cms-primary'))
+    body.append(label,help,error,actions);slug.focus()
   }
   private async review(){
     if(this.busy||!this.space?.files.length)return
@@ -342,7 +391,8 @@ export class ContentEditor extends HTMLElement{
       if(result.state==='unchanged'){this.space.files=markCommitted(this.space.files,sub,result.files);this.space.submission=undefined;await this.persist();this.renderList();this.notice(this.t('所选文件与 GitHub 一致，无需提交。','Selected files already match GitHub.'));return}
       sub.commitSha=result.commitSha;sub.files=result.files;sub.state='committed'
       this.space.files=markCommitted(this.space.files,sub,result.files)
-      for(const c of sub.changes){const sha=result.files.find((f:any)=>f.path===c.path)?.sha;this.remote.set(c.path,{path:c.path,sha,content:c.content,encoding:c.encoding})}
+      for(const c of sub.changes){const sha=result.files.find((f:any)=>f.path===c.path)?.sha;this.entries=this.entries.filter(e=>e.path!==c.path);if(c.content===null)this.remote.delete(c.path);else{this.remote.set(c.path,{path:c.path,sha,content:c.content,encoding:c.encoding});this.entries.push({path:c.path,sha,size:c.content.length,kind:pathKind(c.path)!,writable:true})}}
+      this.releaseUnusedImageUrls()
       sub.changes=[];sub.revisions={}
       await this.persist();this.notice(this.t('已提交 GitHub，正在构建。你可以继续编辑，新修改会单独保留。','Committed to GitHub; building. You may keep editing; newer changes remain local.'));this.renderList();this.renderSubmission();void this.checkStatus()
     }catch(e:any){
@@ -413,15 +463,15 @@ export class ContentEditor extends HTMLElement{
     }catch(e){this.notice((e as Error).message,true)}
     this.q<HTMLInputElement>('[data-import]').value=''
   }
-  private async upload(file:File,avatar=false){
+  private async upload(file:File){
     let bytes=new Uint8Array(await file.arrayBuffer()),ext=file.name.split('.').pop()?.toLowerCase()||''
-    if(!['png','jpg','jpeg','webp','gif','avif'].includes(ext)||bytes.length>15*1024*1024)throw new Error(this.t('请选择不超过 15 MB 的 PNG/JPEG/WebP/GIF/AVIF 图片。','Choose PNG/JPEG/WebP/GIF/AVIF up to 15 MB.'))
+    if(!['png','jpg','jpeg','webp','gif','avif'].includes(ext)||bytes.length>32*1024*1024)throw new Error(this.t('请选择不超过 32 MB 的 PNG/JPEG/WebP/GIF/AVIF 图片。','Choose PNG/JPEG/WebP/GIF/AVIF up to 32 MB.'))
     // Animated formats retain their bytes, frames and transparency. Never flatten them.
     const ascii=new TextDecoder('latin1').decode(bytes)
     const animated=ext==='gif'||ext==='avif'||(ext==='webp'&&ascii.includes('ANIM'))||(ext==='png'&&ascii.includes('acTL'))
     if(!animated){
       const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw new Error('Image exceeds 40 megapixels')}
-      const max=avatar?512:3000,scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close()
+      const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close()
       bytes=new Uint8Array(await (await encodeCMSImage(canvas)).arrayBuffer());ext='webp';canvas.width=canvas.height=1
     }
     if(bytes.length>8*1024*1024)throw new Error(this.t('处理后的图片超过 8 MB，请缩小后再上传。','Processed image exceeds 8 MB. Reduce its size.'))
@@ -429,9 +479,9 @@ export class ContentEditor extends HTMLElement{
     if(!this.entries.some(e=>e.path===path))this.edit(path,encodeBase64(bytes),'base64')
     this.notice(this.t('图片已本地暂存，发布前不会上传。','Image saved locally; not uploaded until Publish.'));return publicImage(path)
   }
-  private uploader(use:(path:string)=>unknown,avatar=false){
-    const label=el('label',this.t('上传本机图片','Upload image'),'cms-file'),input=el('input');input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif,image/avif'
-    input.onchange=async()=>{const file=input.files?.[0];input.value='';if(!file)return;input.disabled=true;try{await use(await this.upload(file,avatar))}catch(e){this.notice((e as Error).message,true)}finally{input.disabled=false}}
+  private uploader(use:(path:string)=>unknown,_avatar=false){
+    const label=el('label',this.t('上传本机图片','Upload image'),'cms-file'),input=el('input');input.type='file';input.className='cms-file-input';input.accept='image/png,image/jpeg,image/webp,image/gif,image/avif'
+    input.onchange=async()=>{const file=input.files?.[0];input.value='';if(!file)return;input.disabled=true;label.setAttribute('aria-busy','true');this.notice(this.t('正在无损处理图片，请稍候…','Processing the image losslessly…'));try{await use(await this.upload(file))}catch(e){this.notice((e as Error).message,true)}finally{input.disabled=false;label.removeAttribute('aria-busy')}}
     label.append(input);return label
   }
   private async imageUrl(url:string):Promise<string>{
@@ -447,17 +497,31 @@ export class ContentEditor extends HTMLElement{
     const r=await this.call('read',{paths:[path]});this.remote.set(path,r.files[0]);return this.imageUrl(url)
   }
   private async previewImages(root:HTMLElement){await Promise.all([...root.querySelectorAll<HTMLImageElement>('img')].map(async img=>{try{img.src=await this.imageUrl(img.getAttribute('src')||'')}catch{}}))}
+  private releaseUnusedImageUrls(){
+    for(const [key,url]of this.blobUrls){if(!key.startsWith('export-')){URL.revokeObjectURL(url);this.blobUrls.delete(key)}}
+  }
+  private async cleanLocalImages(){
+    const files=this.space?.files||[]
+    const candidates=files.filter(f=>f.encoding==='base64'&&!f.baseSha&&f.content&&!this.space?.submission?.changes.some(c=>c.path===f.path))
+    const textPaths=[...new Set([...this.entries.filter(e=>e.kind!=='media').map(e=>e.path),...files.filter(f=>f.encoding!=='base64').map(f=>f.path)])]
+    const unused=candidates.filter(image=>!textPaths.some(p=>fileReferences(this.file(p)?.content||'',image.path,p)))
+    if(!unused.length){this.notice(this.t('没有未引用的本地图片。','No unreferenced local images.'));return}
+    if(!await this.confirm(this.t('清理未引用的本地图片？','Remove unused local images?'),unused.map(f=>f.path)))return
+    const paths=new Set(unused.map(f=>f.path));this.space!.files=files.filter(f=>!paths.has(f.path));this.releaseUnusedImageUrls();await this.persist();this.renderList();await this.mediaLibrary()
+  }
   private async imagePicker(use:(path:string)=>unknown,avatar=false){
     const body=this.dialog(this.t('选择图片','Choose image')),select=(path:string)=>{use(path);this.q<HTMLDialogElement>('dialog').close()}
     body.append(this.uploader(select,avatar));const grid=el('div','','cms-media-grid');body.append(grid);await this.mediaCards(grid,select)
   }
   private async mediaLibrary(selected=''){
-    const target=this.q('[data-editor]');target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('替换会创建带内容指纹的新图片，并与所选引用一起提交。共享图片不会自动删除；删除前会检查所有源码引用。','Replacing creates a new content-addressed image and updates selected references in the same commit. Shared images are never removed automatically; deletion checks all source references.'),'cms-hint'),this.uploader(()=>this.mediaLibrary()))
+    const target=this.q('[data-editor]');target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('替换会创建带内容指纹的新图片，并与所选引用一起提交。可同时清理无引用旧图；仍被其他内容引用的图片会保留。','Replacing creates a new content-addressed image and updates selected references in the same commit. Unused originals can be removed in the same commit; shared references keep the original safe.'),'cms-hint'),this.uploader(()=>this.mediaLibrary()),this.btn(this.t('清理未引用的本地图片','Clean unused local images'),()=>this.cleanLocalImages()))
     const grid=el('div','','cms-media-grid');target.append(grid);await this.mediaCards(grid,undefined,selected)
   }
   private async mediaCards(grid:HTMLElement,select?:(path:string)=>unknown,selected=''){
-    const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])]
+    const query=select?'':this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
+    const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>p.toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
     for(const path of paths){
+      if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
       const card=el('section','','cms-media-card'),img=el('img');img.alt=path.split('/').pop()!;img.loading='lazy';card.append(img,el('p',path));grid.append(card)
       try{img.src=await this.imageUrl(publicImage(path))}catch{img.alt=this.t('暂时无法预览','Preview unavailable')}
       if(select)card.append(this.btn(this.t('使用图片','Use image'),()=>select(publicImage(path))))
@@ -477,13 +541,18 @@ export class ContentEditor extends HTMLElement{
       const label=el('label','','cms-review-row'),check=el('input');check.type='checkbox';check.disabled=!pathKind(ref)||pathKind(ref)==='media';check.checked=!check.disabled;if(check.checked)selected.add(ref)
       check.onchange=()=>check.checked?selected.add(ref):selected.delete(ref);label.append(check,el('span',ref));body.append(label)
     }
+    const cleanupLabel=el('label','','cms-review-row'),removeOld=el('input');removeOld.type='checkbox';removeOld.checked=true;cleanupLabel.append(removeOld,el('span',this.t('一并删除替换后不再被引用的旧图','Also delete the old image if no references remain')));body.append(cleanupLabel)
     body.append(this.uploader(async replacement=>{
       for(const ref of selected){
         const f=this.file(ref);if(!f?.content)continue
         const text=replaceImageReferences(f.content,path,ref,replacement)
         if(text!==f.content)this.edit(ref,text)
       }
-      this.q<HTMLDialogElement>('dialog').close();this.notice(this.t('新图片和引用已本地暂存。原图保留；可检查无引用后另行删除。','New image and references staged. Original retained; remove it separately after checking references.'));await this.mediaLibrary()
+      const newPath=imageRepositoryPath(replacement),remaining=result.references.filter((ref:string)=>!selected.has(ref)||fileReferences(this.file(ref)?.content||'',path,ref))
+      const localRef=this.space!.files.some(f=>f.encoding!=='base64'&&f.content&&fileReferences(f.content,path,f.path))
+      const cleanup=removeOld.checked&&newPath!==path&&!remaining.length&&!localRef
+      if(cleanup)this.edit(path,null,'base64')
+      this.q<HTMLDialogElement>('dialog').close();this.notice(cleanup?this.t('新图、引用和无引用旧图删除已一起暂存，检查后一次发布。','New image, references and unused original deletion staged for one commit.'):this.t('新图片与引用已暂存。旧图仍有引用或未选择清理，已保留。','Replacement staged. The original was retained because references remain or cleanup was not selected.'));await this.mediaLibrary()
     }))
   }
 }

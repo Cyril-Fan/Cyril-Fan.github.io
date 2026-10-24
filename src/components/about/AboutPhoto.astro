@@ -1,24 +1,13 @@
 ---
-import { Image } from 'astro:assets'
-import lakesidePhoto from '@/assets/photos/cyril-fan-lakeside.webp'
 import { profile } from '../../lib/cms-content'
 import { contentImage } from '../../lib/content-image'
 
 const en = Astro.currentLocale === 'en'
 ---
 
-<figure class='about-photo not-prose'>
-  {profile.photo ? <img src={contentImage(profile.photo)} alt={profile[en ? 'en' : 'zh'].photoAlt} loading='eager' decoding='async' /> : <Image
-    src={lakesidePhoto}
-    alt={profile[en ? 'en' : 'zh'].photoAlt}
-    widths={[480, 768, 1120, 1600]}
-    sizes='(min-width: 1064px) 704px, (min-width: 1024px) calc(100vw - 360px), (min-width: 760px) 704px, (min-width: 640px) calc(100vw - 56px), calc(100vw - 32px)'
-    format='webp'
-    quality={85}
-    loading='eager'
-    decoding='async'
-  />}
-</figure>
+{profile.photo&&<figure class='about-photo not-prose'>
+  <img src={contentImage(profile.photo)} alt={profile[en ? 'en' : 'zh'].photoAlt} loading='eager' decoding='async' />
+</figure>}
 
 <style>
   .about-photo { width:100%; max-width:44rem; margin:1.5rem 0; }

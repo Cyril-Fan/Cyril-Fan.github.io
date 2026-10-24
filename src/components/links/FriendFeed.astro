@@ -23,10 +23,11 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       <span class='feed-meta' data-random-meta></span>
       <button type='button' data-random-refresh>{en ? 'Try another' : '换一篇'} ↻</button>
     </section>
-    <div class='feed-articles'>
+    <div class='feed-toolbar'><label>{en?'From':'来自'} <select data-feed-filter aria-label={en?'Filter by author':'按作者筛选'}><option value=''>{en?'All friends':'所有朋友'}</option>{friends.map(friend=><option value={friend.link}>{friend.name}</option>)}</select></label><span class='feed-meta'>{en?'Newest first':'按发布时间倒序'}</span></div>
+    <div class='feed-articles' role='list' aria-label={en?'Recent posts':'近期文章'}>
       {articles.map(article => {
         const friend = sourceMap.get(article.source)
-        return friend && <article class='feed-article' data-feed-article data-source={friend.link}>
+        return friend && <article class='feed-article' role='listitem' data-feed-article data-source={friend.link}>
           <button class='feed-author' type='button' data-author={friend.link} data-name={friend.name} aria-label={en ? `Recent posts by ${friend.name}` : `查看 ${friend.name} 的近期文章`}>
             <img class='no-lightbox' src={friend.avatar} width='40' height='40' alt='' loading='lazy' />
             <span>{friend.name}</span>
@@ -66,13 +67,16 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       const more = this.querySelector<HTMLButtonElement>('[data-load-more]')
       const status = this.querySelector<HTMLElement>('[data-feed-status]')
       let count = 12
+      const filter=this.querySelector<HTMLSelectElement>('[data-feed-filter]')
       let lastRandom = -1
       let opener: HTMLElement | null = null
       const paginate = () => {
-        cards.forEach((card, index) => card.hidden = index >= count)
-        if (more) more.hidden = cards.length <= count
-        if (status) status.textContent = en ? `Showing ${Math.min(count,cards.length)} of ${cards.length} posts.` : `已显示 ${Math.min(count,cards.length)} / ${cards.length} 篇文章。`
+        const matching=cards.filter(card=>!filter?.value||card.dataset.source===filter.value)
+        cards.forEach(card => card.hidden = !matching.slice(0,count).includes(card))
+        if (more) more.hidden = matching.length <= count
+        if (status) status.textContent = en ? `Showing ${Math.min(count,matching.length)} of ${matching.length} posts.` : `已显示 ${Math.min(count,matching.length)} / ${matching.length} 篇文章。`
       }
+      filter?.addEventListener('change',()=>{count=12;paginate()},{signal})
       const random = () => {
         if (!cards.length) return
         let index = Math.floor(Math.random() * (cards.length - (lastRandom >= 0 && cards.length > 1 ? 1 : 0)))
@@ -125,12 +129,16 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   [data-random-title] { grid-column:1; overflow-wrap:anywhere; font-weight:600; }
   .random-card button { grid-column:2; grid-row:1/4; align-self:center; }
   .feed-meta, time { font-size:.8rem; color:hsl(var(--muted-foreground)); }
-  .feed-articles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
-  .feed-article { min-width:0; display:flex; flex-direction:column; gap:.65rem; padding:1rem; border:1px solid hsl(var(--border)); border-radius:.85rem; background:hsl(var(--background)/.5); }
-  .feed-author { display:flex; align-items:center; gap:.6rem; text-align:start; font-size:.8rem; color:hsl(var(--muted-foreground)); }
-  .feed-author img { border-radius:50%; width:2rem; height:2rem; object-fit:cover; }
-  .feed-title { overflow-wrap:anywhere; line-height:1.5; }
-  .feed-article time { margin-top:auto; }
+  .feed-toolbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.3rem 0 .8rem; }
+  .feed-toolbar label { display:flex; align-items:center; gap:.5rem; font-size:.8rem; color:hsl(var(--muted-foreground)); }
+  .feed-toolbar select { max-width:12rem; padding:.45rem .6rem; border:1px solid hsl(var(--border)); border-radius:.4rem; background:hsl(var(--background)); color:hsl(var(--foreground)); font:inherit; }
+  .feed-articles { display:flex; flex-direction:column; border-top:1px solid hsl(var(--border)); }
+  .feed-article { min-width:0; display:grid; grid-template-columns:7.5rem minmax(0,1fr) 5.3rem; align-items:center; gap:1rem; padding:1rem .4rem; border-bottom:1px solid hsl(var(--border)); transition:background-color .18s; }
+  .feed-article:hover,.feed-article:focus-within { background:hsl(var(--muted)/.35); }
+  .feed-author { display:flex; align-items:center; gap:.5rem; text-align:start; font-size:.78rem; color:hsl(var(--muted-foreground)); min-height:2.75rem; overflow-wrap:anywhere; }
+  .feed-author img { border-radius:50%; width:1.8rem; height:1.8rem; object-fit:cover; flex-shrink:0; }
+  .feed-title { overflow-wrap:anywhere; line-height:1.6; font-size:.9rem; }
+  .feed-article time { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:.7rem; }
   button { transition:color .2s, background-color .2s; }
   button:hover, a:hover { color:hsl(var(--primary)); }
   :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; border-radius:.3rem; }
@@ -146,5 +154,6 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .author-dialog a { color:hsl(var(--primary)); }
   [data-author-articles] { padding:0; margin-top:1rem; }
   :global([data-author-articles] li) { display:flex; flex-direction:column; gap:.3rem; padding:.8rem 0; border-top:1px solid hsl(var(--border)); }
-  @media(max-width:540px) { .feed-articles { grid-template-columns:minmax(0,1fr); } .random-card { column-gap:.5rem; padding:1rem; } }
+  @media(max-width:640px) { .feed-article { grid-template-columns:minmax(0,1fr) auto; gap:.3rem .75rem; padding:.75rem .2rem 1rem; } .feed-title { grid-column:1/-1; grid-row:2; } .feed-article time { grid-column:2; grid-row:1; } .random-card { column-gap:.5rem; padding:1rem; } .feed-toolbar>.feed-meta { font-size:.7rem; } }
+  @media(prefers-reduced-motion:reduce){.feed-article { transition:none; }}
 </style>

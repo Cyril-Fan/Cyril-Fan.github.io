@@ -1,11 +1,12 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro'
 import CommentAuth from '../advanced/CommentAuth.astro'
+import Icon from '../user/Icon.astro'
 import '../../assets/styles/cms.css'
 import '../../assets/styles/article-content.css'
 import 'katex/dist/katex.min.css'
 const en=Astro.currentLocale==='en',t=(zh:string,english:string)=>en?english:zh
-const sections=[['post','文章','Articles'],['friend','友链','Friends'],['profile','首页与关于','Home & About'],['academic','学术与项目','Academic'],['collection','合集','Collections'],['media','图片','Images']]
+const sections=[['profile','首页与关于','Home & About'],['blog','博客','Blog'],['academic','学术与项目','Academic'],['friend','友链','Friends'],['media','图片','Images']]
 ---
 <BaseLayout meta={{title:t('内容编辑器','Content editor'),description:t('站长 GitHub 内容编辑器','Owner GitHub content editor')}}>
   <main class='cms-page' data-pagefind-ignore>
@@ -14,11 +15,14 @@ const sections=[['post','文章','Articles'],['friend','友链','Friends'],['pro
     <content-editor>
       <p data-gate role='status'>{t('正在验证站长权限…','Checking owner access…')}</p>
       <div data-shell hidden>
-        <nav class='cms-nav' aria-label={t('内容类型','Content type')}>{sections.map(([kind,zh,english])=><button type='button' data-kind={kind} aria-pressed={kind==='post'}>{t(zh,english)}</button>)}</nav>
-        <div class='cms-tools'><button type='button' data-create>{t('新建文章','New article')}</button><button type='button' data-refresh>{t('重新读取 GitHub','Reload GitHub')}</button><button type='button' data-recover>{t('恢复本地副本','Restore local copy')}</button><details class='cms-backup'><summary>{t('导入 / 导出','Import / export')}</summary><div><button type='button' data-export>{t('导出本地副本','Export local copy')}</button><label class='cms-file'>{t('导入本地副本','Import local copy')}<input type='file' data-import accept='.json,application/json' /></label></div></details></div>
+        <nav class='cms-nav' aria-label={t('内容类型','Content type')}>{sections.map(([kind,zh,english])=><button type='button' data-kind={kind} aria-pressed={kind==='profile'}>{t(zh,english)}</button>)}</nav>
+        <div class='cms-tools'><button type='button' data-refresh>{t('重新读取 GitHub','Reload GitHub')}</button><button type='button' data-recover>{t('恢复本地副本','Restore local copy')}</button><details class='cms-backup'><summary>{t('备份与恢复','Backup & restore')}</summary><div><p>{t('只处理当前浏览器的编辑副本，不会发布到网站。','Manage local copies without publishing to the website.')}</p><button type='button' data-export>{t('下载本地备份','Download local backup')}</button><button type='button' data-import-trigger>{t('从备份文件恢复…','Restore from file…')}</button><input type='file' data-import hidden accept='.json,application/json' /></div></details>
+          <div class='cms-search' data-search-box hidden><button type='button' data-search-toggle aria-label={t('查找内容','Find content')} aria-expanded='false'><Icon name='search'/></button><input type='search' data-search aria-label={t('查找内容','Find content')} placeholder={t('标题或文件夹名','Title or folder name')} /><button type='button' data-search-clear aria-label={t('清除搜索','Clear search')}>×</button></div>
+        </div>
+        <div data-category-tools class='cms-category-tools' hidden><button type='button' data-back-blog>{t('‹ 博客','‹ Blog')}</button><strong data-category-name></strong><div class='cms-category-actions'><button type='button' data-create>{t('新建文章','New article')}</button><button type='button' data-create-collection>{t('新建合集','New collection')}</button></div></div>
         <p data-message class='cms-message' role='status' aria-live='polite'></p>
         <div data-submission class='cms-submission' role='status' aria-live='polite'></div>
-        <div class='cms-workspace'><aside class='cms-sidebar'><label>{t('查找内容','Find content')}<input type='search' data-search placeholder={t('标题或文件名','Title or file name')} /></label><div data-list class='cms-list'></div></aside><section data-editor class='cms-editor' aria-label={t('内容编辑区','Content editor')}></section></div>
+        <div class='cms-workspace'><aside class='cms-sidebar' hidden><div data-list class='cms-list'></div></aside><section data-editor class='cms-editor' aria-label={t('内容编辑区','Content editor')}></section></div>
         <footer class='cms-publish-bar'><span data-save role='status'>{t('与 GitHub 一致','Matches GitHub')}</span><button type='button' data-review class='cms-primary' disabled>{t('检查并发布','Review & publish')}</button></footer>
       </div>
       <dialog class='cms-dialog'><form method='dialog'><button class='cms-dialog-close' aria-label={t('关闭','Close')} value='close'>×</button></form><div data-dialog></div></dialog>

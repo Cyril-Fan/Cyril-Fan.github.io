@@ -12,8 +12,8 @@
 | 首页与关于资料 | [src/data/profile.json](src/data/profile.json) | HomePage / AboutPage / AboutPhoto |
 | 学术、论文和项目 | [src/data/academic.json](src/data/academic.json) | AcademicPage、PublicationSection、ResearchProjectSection |
 | 友链与 RSS | [public/links.json](public/links.json) | LinksPage / FriendList |
-| 文章 | src/content/blogs/网址/index.md，英文 index-en.md | BlogPost / Hero / ArticleBody |
-| 合集 | src/content/collection/网址.md | CollectionHeader / CollectionPreview |
+| 文章 | src/content/blogs/分类/文件夹名/index.md，英文 index-en.md | BlogPost / Hero / ArticleBody |
+| 合集 | src/content/collection/分类/文件夹名/index.md | CollectionHeader / CollectionPreview |
 | 网站图片 | public/media、public/links、public/avatar、src/assets/photos、src/assets/projects、文章同目录 | 内容指纹文件名；保留动画 |
 | 真实身份验证与 GitHub 代理 | [content-github](supabase/functions/content-github/index.ts) | 服务端；固定仓库/main/路径/类型 |
 | 文件规则与 Markdown 处理 | git-content.ts、content-loader.ts、article-markdown.ts、content-render.ts | 原文件字段保留、共享安全预览 |
@@ -28,7 +28,7 @@
 | [`src/components/`](src/components/) | 页面实际布局、复用界面与文字 | 很多 `index.astro` 只有一行引用，实际内容在组件里 |
 | [`src/content/blogs/`](src/content/blogs/) | 博客正文、文章信息和配图 | 一篇文章一个目录，见[写作指南](CONTENT-GUIDE.md) |
 | [`src/assets/`](src/assets/) | 需要构建处理的头像、照片、图标源文件和数据快照 | 图片可由 Astro 生成合适尺寸；快照由脚本更新 |
-| [`public/`](public/) | 按原路径发布的资源 | 如 `public/links/axi.webp` 的网址就是 `/links/axi.webp` |
+| [`public/`](public/) | 按原路径发布的资源 | 如 `public/media/example.webp` 的网址就是 `/media/example.webp` |
 | [`src/lib/`](src/lib/) | 交互、认证、评论、数据校验与刷新逻辑 | 改行为时查看这里，通常不是日常写作入口 |
 | [`supabase/`](supabase/) | 评论和访问计数的数据库结构、迁移与部署说明 | SQL 文件是结构版本；真实账户、留言、访问总数在 Supabase |
 | [`scripts/`](scripts/) | 头像导入、图标生成、贡献和 RSS 同步、构建检查 | 优先用脚本生成资源，避免手动修改产物 |
@@ -57,10 +57,10 @@
 | 内容 | 中文 | 英文 / 补充 |
 | --- | --- | --- |
 | 关于：自我介绍、研究兴趣、联系方式 | 后台“首页与关于” | 两种语言共用 [`AboutPage.astro`](src/components/about/AboutPage.astro)，目录也在此 |
-| 关于页湖畔照片 | [`src/assets/photos/cyril-fan-lakeside.webp`](src/assets/photos/cyril-fan-lakeside.webp) | [`src/components/about/AboutPhoto.astro`](src/components/about/AboutPhoto.astro) 控制两种语言的大小、对齐与替代文字 |
+| 关于页湖畔照片 | `src/data/profile.json` 的 `photo` 所引用的图片 | [`src/components/about/AboutPhoto.astro`](src/components/about/AboutPhoto.astro) 控制两种语言的大小、对齐与替代文字 |
 | 学术页面 | 后台“学术与项目” | [`AcademicPage.astro`](src/components/cms/AcademicPage.astro) |
 | 项目页面 | 后台“学术与项目”的项目列表 | [`src/pages/projects/index.astro`](src/pages/projects/index.astro) 与英文入口 |
-| 文章正文 | `src/content/blogs/<文章目录>/index.mdx` 或 `index.md` | 可选 `index-en.mdx`；配图放同目录，使用相对路径 |
+| 文章正文 | `src/content/blogs/<research|tech|daily>/<文章目录>/index.mdx` 或 `index.md` | 可选 `index-en.mdx`；配图放同目录，使用相对路径 |
 | 文章标题、摘要、日期、分类、标签、草稿和评论开关 | 文章最上方的 frontmatter | 修改正文后如需更新展示日期，要同时改 `updatedDate` |
 | 博客列表与分类 | [`src/pages/blog/[category]/[...page].astro`](src/pages/blog/[category]/[...page].astro) | 对应英文文件位于 `src/pages/en/blog/`；“全部文章”与虚线等展示由相关博客组件控制 |
 | 文章详情 | [`src/pages/blog/[...id].astro`](src/pages/blog/[...id].astro) | [`src/layouts/BlogPost.astro`](src/layouts/BlogPost.astro) 和详情组件控制排版 |
@@ -94,7 +94,7 @@
 npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 ```
 
-脚本会自动旋转照片、缩小至最长边不超过 320 像素、输出 WebP 并移除元数据；小图片不会强行放大。之后将 `avatar` 填为 `/links/friend-name.webp`。已有合适 WebP 不需要重新压缩。原始照片留在自己的本地相册，仓库只维护网站使用的优化文件。
+脚本会自动旋转照片、保留原尺寸、输出无损 WebP 并移除元数据。之后将 `avatar` 填为 `/links/friend-name.webp`。已有合适 WebP 不需要重新压缩。原始照片留在自己的本地相册，仓库只维护网站使用的优化文件。
 
 ## 图标、贡献图和统计数据
 

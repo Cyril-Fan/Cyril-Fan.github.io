@@ -12,7 +12,7 @@ const profileFields:Field[]=[
 const links=[t('type','链接类型','Type'),t('href','链接地址','URL'),t('label','显示文字（可选）','Label (optional)')]
 const academicFields:Field[]=[
  m('background','学术背景','Background'),t('cv','简历链接（可选）','CV link (optional)'),
- list('interests','研究兴趣',[t('title','标题','Title'),t('description','说明','Description'),{...t('icon','图标','Icon'),type:'select',options:['cpu','image','robot','code','book','earth']}],'Research interests'),
+ list('interests','研究兴趣',[t('title','标题','Title'),t('description','说明','Description'),{...t('icon','图标','Icon'),type:'select',options:['cpu','brain','image','robot','code','book','earth']}],'Research interests'),
  list('publications','论文',[
   t('title','标题','Title'),t('venue','会议 / 期刊','Venue'),t('year','年份','Year'),
   {...t('type','类型','Type'),type:'select',options:['conference','journal','workshop','preprint']},

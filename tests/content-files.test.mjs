@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { pathKind,readArticle,writeArticle,validateMarkdown,validateText,validateImage,safeUrl,fileReferences,gitBlobHash,newArticle,imageRepositoryPath,replaceImageReferences,publicImage } from '../supabase/functions/_shared/git-content.ts'
+import { contentCategory,pathKind,readArticle,writeArticle,validateMarkdown,validateText,validateImage,safeUrl,fileReferences,gitBlobHash,newArticle,imageRepositoryPath,replaceImageReferences,publicImage } from '../supabase/functions/_shared/git-content.ts'
 import { articleMarkdown,prepareThemeSource } from '../src/lib/article-markdown.ts'
 import { JSDOM } from 'jsdom'
 const profile=JSON.parse(await readFile(new URL('../src/data/profile.json',import.meta.url)))
@@ -37,7 +37,7 @@ test('full article syntax renders safe GFM, math, nested blocks, and stable head
   assert.match(prepareThemeSource('$$x^2$$\n<Collapse title="X">'),/:::details X/)
 })
 test('image checks preserve real WebP bytes and reject mismatched/script formats',async()=>{
-  const bytes=await readFile(new URL('../public/links/royzhao.webp',import.meta.url));validateImage('public/media/test.webp',bytes)
+  const bytes=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer();validateImage('public/media/test.webp',bytes)
   assert.throws(()=>validateImage('public/media/test.png',bytes));assert.throws(()=>validateImage('public/media/test.svg',bytes))
   assert.ok(safeUrl('/src/assets/avatar.png',true));assert.ok(!safeUrl('javascript:bad()',true))
   assert.ok(fileReferences('import x from "@/assets/avatar.png"','src/assets/avatar.png','src/example.ts'))
@@ -56,3 +56,15 @@ test('relative, shared and source image paths resolve and replace without broken
   assert.equal(replaceImageReferences('![x](/links/roy.webp) ![y](/links/roy.webp.backup.png)','public/links/roy.webp',source,replacement),'![x]('+replacement+') ![y](/links/roy.webp.backup.png)')
 })
 
+
+test('category folders validate articles and collections without losing legacy paths',()=>{
+  for(const category of ['research','tech','daily']){
+    const path='src/content/blogs/'+category+'/example/index.md',source=newArticle('zh',category)
+    assert.equal(pathKind(path),'post');assert.equal(contentCategory(path,source),category);validateText(path,source)
+    assert.equal(pathKind('src/content/collection/'+category+'/example/index.md'),'collection')
+    assert.throws(()=>validateText(path,writeArticle(source,{category:'invalid'})))
+  }
+  assert.equal(contentCategory('src/content/blogs/old/index.md',newArticle('zh','research')),'research')
+  assert.equal(pathKind('src/content/blogs/unknown/example/index.md'),null)
+  validateText('src/content/collection/tech/example/index.md','---\ntitle: Test\ncategory: tech\nbloglist: [tech/example, legacy]\n---\n')
+})

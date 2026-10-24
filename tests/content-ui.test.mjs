@@ -9,7 +9,8 @@ import * as fields from '../src/lib/content-fields.ts'
 const source=(await readFile('src/lib/content-editor.ts','utf8')).replaceAll('import.meta.env.PUBLIC_SUPABASE_URL',"'https://fixture.invalid'").replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY',"'fixture-public'")
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
 const profile=await readFile('src/data/profile.json','utf8'),academic=await readFile('src/data/academic.json','utf8'),friends=await readFile('public/links.json','utf8')
-const markup='<content-editor><p data-message></p><p data-gate></p><div data-shell hidden><nav>'+[['post','文章'],['friend','友链'],['profile','首页与关于'],['academic','学术与项目'],['collection','合集'],['media','图片']].map(([k,n])=>'<button data-kind="'+k+'">'+n+'</button>').join('')+'</nav><button data-create>新建</button><button data-refresh>刷新</button><button data-review>发布</button><button data-recover>恢复本地副本</button><button data-export>导出</button><input data-import type=file><input data-search><div data-list></div><div data-editor></div><div data-submission></div><p data-save></p></div><dialog><form method=dialog><button>关闭</button></form><div data-dialog></div></dialog></content-editor>'
+const markup='<content-editor><p data-message></p><p data-gate></p><div data-shell hidden><nav>'+[['profile','首页与关于'],['blog','博客'],['academic','学术与项目'],['friend','友链'],['media','图片']].map(([k,n])=>'<button data-kind="'+k+'">'+n+'</button>').join('')+'</nav><div data-category-tools hidden><button data-back-blog>博客目录</button><span data-category-name></span><button data-create>新建文章</button><button data-create-collection>新建合集</button></div><button data-refresh>刷新</button><button data-review>发布</button><button data-recover>恢复本地副本</button><button data-export>导出</button><button data-import-trigger>从文件恢复</button><input data-import type=file><div data-search-box><button data-search-toggle>查找内容</button><input data-search><button data-search-clear>清空查找</button></div><div class="cms-workspace"><aside class="cms-sidebar"><div data-list></div></aside><div data-editor></div></div><div data-submission></div><p data-save></p></div><dialog><form method=dialog><button>关闭</button></form><div data-dialog></div></dialog></content-editor>'
+
 const tick=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Promise(setImmediate)}
 async function setup(t,{role='owner',saved=new Map()}={}){
  const dom=new JSDOM(markup,{url:'https://fixture.invalid/admin',runScripts:'outside-only'}),w=dom.window;t.after(()=>w.close())
@@ -46,7 +47,7 @@ async function setup(t,{role='owner',saved=new Map()}={}){
  const root=w.document.querySelector('content-editor'),find=text=>[...root.querySelectorAll('button')].find(b=>b.textContent===text&&!b.closest('[hidden]')&&(!b.closest('dialog')||b.closest('dialog').open))
  const click=async text=>{const b=find(text);assert.ok(b,'button '+text);b.click();await tick()}
  const fill=(name,value)=>{const i=root.querySelector('[name="'+name+'"]');assert.ok(i,'input '+name);i.value=value;i.dispatchEvent(new w.Event('input',{bubbles:true}))}
- const open=async kind=>{await click(kind);root.querySelector('[data-list] button').click();await tick()}
+ const open=async kind=>{await click(kind);await tick()}
  return {w,root,files,calls,saved,click,find,fill,open,override:fn=>override=fn,role:value=>{role=value;w.dispatchEvent(new w.Event('auth-change'))}}
 }
 test('guest and normal account cannot load private editor content',async t=>{
@@ -80,5 +81,20 @@ test('local recovery creates an independent tab copy and preserves the old one',
 test('Markdown toolbar uses the selection and previews math without scripts',async t=>{
  const ui=await setup(t);await ui.open('学术与项目');const area=ui.root.querySelector('[aria-label="Markdown 正文"]');area.value='hello';area.setSelectionRange(0,5);await ui.click('B');assert.equal(area.value,'**hello**')
  area.value='$$\nx^2\n$$\n\n<script>bad()</script>';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}));await new Promise(r=>setTimeout(r,210));assert.ok(ui.root.querySelector('.cms-md-preview .katex'));assert.equal(ui.root.querySelector('.cms-md-preview script'),null)
+})
+
+test('blog folders contain articles and collections and creation is local with no language selector',async t=>{
+ const ui=await setup(t);await ui.click('博客')
+ assert.equal(ui.root.querySelectorAll('.cms-folder').length,3)
+ ui.root.querySelectorAll('.cms-folder')[1].click();await tick();await ui.click('新建文章')
+ assert.equal(ui.root.querySelector('dialog select'),null)
+ const input=ui.root.querySelector('dialog input');input.value='nested-test';await ui.click('建立本地副本')
+ assert.ok([...ui.saved.values()].some(s=>s.files.some(f=>f.path==='src/content/blogs/tech/nested-test/index.md')))
+ await ui.click('编辑英文版');assert.ok([...ui.saved.values()].some(s=>s.files.some(f=>f.path==='src/content/blogs/tech/nested-test/index-en.md')))
+ await ui.click('新建合集');ui.root.querySelector('dialog input').value='reading-list';await ui.click('建立本地副本')
+ assert.ok([...ui.saved.values()].some(s=>s.files.some(f=>f.path==='src/content/collection/tech/reading-list/index.md')))
+ const search=ui.root.querySelector('[data-search]');search.value='reading-list';search.dispatchEvent(new ui.w.Event('input'))
+ assert.equal(ui.root.querySelectorAll('[data-list] button').length,1)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
 })
 

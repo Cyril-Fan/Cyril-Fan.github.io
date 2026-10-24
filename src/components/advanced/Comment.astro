@@ -3,6 +3,7 @@ import CommentAuth from './CommentAuth.astro'
 import { commentThread } from '../../lib/comment-utils'
 import { profile } from '../../lib/cms-content'
 import 'katex/dist/katex.min.css'
+import '../../assets/styles/article-content.css'
 interface Props { thread?: string; class?: string }
 const lang = Astro.currentLocale === 'en' ? 'en' : 'zh'
 const en = lang === 'en'

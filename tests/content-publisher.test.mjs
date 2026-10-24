@@ -13,7 +13,7 @@ globalThis.Deno={env:{get:k=>env[k]},serve:fn=>{handler=fn}}
 await import(pathToFileURL(process.cwd()+'/'+bundle));await unlink(bundle)
 const profile=await readFile('src/data/profile.json','utf8')
 const academic=await readFile('src/data/academic.json','utf8')
-const avatar=await readFile('public/links/royzhao.webp')
+const avatar=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer()
 function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=false,buildFailed=false}={}){
  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original})
  env={SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'private-server-key',CMS_GITHUB_TOKEN:'private-pat'}

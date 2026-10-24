@@ -10,16 +10,22 @@ export const PROFILE = 'src/data/profile.json'
 export const ACADEMIC = 'src/data/academic.json'
 export const LINKS = 'public/links.json'
 export const RELEASE = 'public/data/cms-release.json'
+export const CONTENT_CATEGORIES = ['research','tech','daily'] as const
+export function contentCategory(path:string,source?:string|null):string {
+  const folder=path.match(/^src\/content\/(?:blogs|collection)\/(research|tech|daily)\//)?.[1]
+  if(folder)return folder
+  try{const category=readArticle(source||'').data.category;return ({research:'research',tech:'tech',technical:'tech',daily:'daily','科研':'research','技术':'tech','日常':'daily'} as Record<string,string>)[category]||'tech'}catch{return 'tech'}
+}
 const imageExt = /\.(?:png|jpe?g|webp|gif|avif)$/i
 export function pathKind(path: string): string | null {
   if (path === PROFILE) return 'profile'
   if (path === ACADEMIC) return 'academic'
   if (path === LINKS) return 'friend'
-  if (/^src\/content\/blogs\/[a-z0-9][a-z0-9-]{0,99}\/index(?:-en)?\.mdx?$/.test(path)) return 'post'
-  if (/^src\/content\/collection\/[a-z0-9][a-z0-9-]{0,99}\.mdx?$/.test(path)) return 'collection'
+  if (/^src\/content\/blogs\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]{0,99}\/index(?:-en)?\.mdx?$/.test(path)) return 'post'
+  if (/^src\/content\/collection\/(?:[a-z0-9][a-z0-9-]{0,99}|(?:research|tech|daily)\/[a-z0-9][a-z0-9-]{0,99}\/index)\.mdx?$/.test(path)) return 'collection'
   if (/^(?:public\/(?:media|links|avatar|images)|src\/assets\/(?:photos|projects))\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(path) && imageExt.test(path)) return 'media'
   if (path === 'src/assets/avatar.png') return 'media'
-  if (/^src\/content\/blogs\/[a-z0-9][a-z0-9-]{0,99}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(path) && imageExt.test(path)) return 'media'
+  if (/^src\/content\/(?:blogs|collection)\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]{0,99}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(path) && imageExt.test(path)) return 'media'
   return null
 }
 export const publicImage = (path: string) => path.startsWith('public/') ? '/' + path.slice(7) : path.startsWith('src/') ? '/' + path : path
@@ -53,7 +59,7 @@ export function writeArticle(source: string, updates: Record<string, unknown>, b
 export function safeUrl(value: string, image = false): boolean {
   if (typeof value !== 'string') return false
   if (image && value === '/src/assets/avatar.png') return true
-  if (image && /^\/src\/content\/blogs\/[a-z0-9][a-z0-9-]*\/[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
+  if (image && /^\/src\/content\/(?:blogs|collection)\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]*\/[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
   if (image && /^(?:\/(?:media|links|avatar|images)\/[\w.-]+|\/src\/assets\/(?:photos|projects)\/[\w.-]+|\/src\/assets\/avatar\.png|\.\.?\/[\w./-]+)\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
   if (image && /^\/(?:media|links|avatar|images)\/[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password && !/[\u0000-\u0020]/.test(value) } catch { return false }
@@ -94,7 +100,9 @@ export function validateText(path: string, text: string) {
     for(const k of ['draft','comment'])if(data[k]!==undefined&&typeof data[k]!=='boolean')throw new Error('Expected boolean: '+k)
     if(data.pixivLink&&!/^\d+$/.test(data.pixivLink))throw new Error('Pixiv artwork ID must be numeric')
     if(data.heroImage){if(typeof data.heroImage!=='object'||typeof data.heroImage.src!=='string')throw new Error('Cover source required');for(const k of ['width','height'])if(data.heroImage[k]!==undefined&&(!Number.isFinite(data.heroImage[k])||data.heroImage[k]<=0))throw new Error('Invalid image dimensions')}
-    if (data.bloglist && (!Array.isArray(data.bloglist) || data.bloglist.some((x: unknown) => typeof x !== 'string' || !/^[\w-]+$/.test(x)))) throw new Error('Invalid collection order')
+    const folder=path.match(/^src\/content\/(?:blogs|collection)\/(research|tech|daily)\//)?.[1]
+    if(folder&&data.category!==folder)throw new Error('Category must match its folder')
+    if (data.bloglist && (!Array.isArray(data.bloglist) || data.bloglist.some((x: unknown) => typeof x !== 'string' || !/^(?:(?:research|tech|daily)\/)?[\w-]+$/.test(x)))) throw new Error('Invalid collection order')
     if (data.heroImage?.src && !safeUrl(data.heroImage.src, true) && !/^(?:\.\.?\/)?[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(data.heroImage.src)) throw new Error('Invalid cover image')
     checkLinks(data); validateMarkdown(body, path.endsWith('.mdx'))
     return
@@ -127,7 +135,7 @@ export function validateText(path: string, text: string) {
     if (kind === 'academic') for (const lang of ['zh','en']) {
       const a=data[lang]
       if(typeof a.background!=='string'||!['interests','publications','projects'].every(k=>Array.isArray(a[k])))throw new Error('Academic text and lists are required')
-      for(const i of a.interests)if(typeof i.title!=='string'||!i.title.trim()||typeof i.description!=='string'||!['cpu','image','robot','code','book','earth'].includes(i.icon))throw new Error('Invalid research interest')
+      for(const i of a.interests)if(typeof i.title!=='string'||!i.title.trim()||typeof i.description!=='string'||!['cpu','brain','image','robot','code','book','earth'].includes(i.icon))throw new Error('Invalid research interest')
       for(const p of [...a.publications,...a.projects]){
         if(typeof p.title!=='string'||!p.title.trim()||!Array.isArray(p.links))throw new Error('Academic title and links are required')
         for(const l of p.links)if(typeof l.type!=='string'||!safeUrl(l.href))throw new Error('Invalid academic link')
@@ -171,6 +179,6 @@ export function fileReferences(source: string, imagePath: string, sourcePath = '
   if (imagePath.startsWith('src/content/') && sourcePath.startsWith(imagePath.slice(0,imagePath.lastIndexOf('/')+1)) && source.includes(short)) return true
   return false
 }
-export function newArticle(language='zh') {
-  return '---\n'+stringify({title:language==='en'?'Untitled':'未命名文章',description:'',publishDate:new Date().toISOString().slice(0,10),tags:[],category:'tech',language,comment:true,draft:false})+'---\n\n'
+export function newArticle(language='zh',category='tech') {
+  return '---\n'+stringify({title:language==='en'?'Untitled':'未命名文章',description:'',publishDate:new Date().toISOString().slice(0,10),tags:[],category,language,comment:true,draft:false})+'---\n\n'
 }

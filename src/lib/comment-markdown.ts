@@ -207,6 +207,8 @@ export function commentMarkdownHtml(source: string, en: boolean, scope = String(
 export function renderCommentMarkdown(target: HTMLElement, source: string, en: boolean, scope?: string) {
   try { target.innerHTML = commentMarkdownHtml(source, en, scope) }
   catch { target.textContent = source }
+  target.classList.add('article-body')
+  if(target.querySelector('pre code'))void import('./content-render').then(({enhanceArticle})=>enhanceArticle(target)).catch(()=>{/* Plain code remains readable if highlighting cannot load. */})
   target.querySelectorAll<HTMLElement>('[data-markdown-image]').forEach(placeholder => {
     const url = placeholder.dataset.markdownImage!
     const host = new URL(url).hostname

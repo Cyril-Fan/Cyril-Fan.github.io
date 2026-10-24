@@ -13,7 +13,10 @@ const decode=(s:string)=>s.replace(/&(?:amp|lt|gt|quot|#39|#x27);|&#(?:x[0-9a-f]
 })
 const escape=(s:string)=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')
 export async function highlightCode(code:string,language:string,meta=''){
-  language=({js:'javascript',ts:'typescript',sh:'bash',shell:'bash',py:'python',yml:'yaml',md:'markdown','c++':'cpp'} as Record<string,string>)[language]||language
+  language=language.trim().toLowerCase()
+  // Unlabelled existing C++ comments are recognizable without guessing at prose.
+  if(language==='text'&&/^\s*#include\s*[<"](?:iostream|bits\/stdc\+\+\.h|vector|string|cstdio)[>"]/m.test(code))language='cpp'
+  language=({js:'javascript',ts:'typescript',sh:'bash',shell:'bash',py:'python',yml:'yaml',md:'markdown','c++':'cpp',cc:'cpp',cxx:'cpp'} as Record<string,string>)[language]||language
   highlighter??=createHighlighter({themes:['github-light','github-dark'],langs:[...languages.filter(l=>l in bundledLanguages),rust,go,latex]})
   const h=await highlighter,lang=language==='shell'?'bash':languages.includes(language)?language:'text'
   const html=h.codeToHtml(code,{lang,themes:{light:'github-light',dark:'github-dark'},defaultColor:false,meta:{__raw:meta},transformers:[transformerNotationDiff(),transformerNotationHighlight()]})

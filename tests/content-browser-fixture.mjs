@@ -9,7 +9,9 @@ import { pathKind,validateText,validateImage,decodeBase64,fileReferences } from 
 const root=process.cwd(),dist=resolve(root,'.content-check-dist'),port=9361
 const hash=data=>createHash('sha1').update('blob '+Buffer.byteLength(data)+'\0').update(data).digest('hex')
 const files=new Map()
-for(const path of ['src/data/profile.json','src/data/academic.json','public/links.json','public/links/royzhao.webp','public/links/axi.webp','public/links/leonwater.webp','public/links/vys3n.webp']){const bytes=await readFile(resolve(root,path));files.set(path,{path,sha:hash(bytes),content:bytes.toString(pathKind(path)==='media'?'base64':'utf8'),encoding:pathKind(path)==='media'?'base64':'utf-8'})}
+const siteLinks=JSON.parse(await readFile(resolve(root,'public/links.json'),'utf8'))
+const fixtureImages=siteLinks.friends.flatMap(g=>g.link_list.map(f=>'public'+f.avatar))
+for(const path of ['src/data/profile.json','src/data/academic.json','public/links.json',...fixtureImages]){const bytes=await readFile(resolve(root,path));files.set(path,{path,sha:hash(bytes),content:bytes.toString(pathKind(path)==='media'?'base64':'utf8'),encoding:pathKind(path)==='media'?'base64':'utf-8'})}
 const html=parse(await readFile(resolve(dist,'admin/index.html'),'utf8'))
 const editor=html.querySelector('content-editor').outerHTML,styles='<meta charset="utf-8">'+html.querySelectorAll('link[rel=stylesheet],head style').map(x=>x.outerHTML).join('')
 const entry=`import { installContentEditor } from './src/lib/content-editor.ts';
