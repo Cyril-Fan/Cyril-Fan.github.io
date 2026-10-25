@@ -1,8 +1,9 @@
 import { COMMENT_AUTH_EVENT, getCommentClient } from './comment-auth'
 import { articleMarkdown } from './article-markdown'
+import { sortPosts } from './blog-presentation'
 import { enhanceArticle } from './content-render'
 import { encodeCMSImage } from './cms-image'
-import { LocalContentStore, markCommitted, discardLocalFile, type Workspace, type LocalFile } from './content-local'
+import { LocalContentStore, markCommitted, discardLocalFile, reconcileCompletedCopies, workspaceLock, type Workspace, type LocalFile } from './content-local'
 import { REPOSITORY, PROFILE, ACADEMIC, LINKS, CONTENT_CATEGORIES, contentCategory, fileReferences, pathKind, publicImage, imageRepositoryPath, replaceImageReferences, readArticle, writeArticle, newArticle, encodeBase64, decodeBase64, gitBlobHash, type Entry } from '../../supabase/functions/_shared/git-content'
 import { jsonFields, friendFields, articleFields, collectionFields, type Field } from './content-fields'
 
@@ -31,6 +32,8 @@ export class ContentEditor extends HTMLElement{
   private statusTimer?:number
   private previewGeneration=0
   private dialogCancel?:()=>void
+  private releaseWorkspace?:()=>void
+  private cleanupRunning=false
   private t(zh:string,en:string){return this.en?en:zh}
   private q<T extends HTMLElement=HTMLElement>(s:string){return this.querySelector<T>(s)!}
   private notice(text:string,error=false){const p=this.q('[data-message]');p.textContent=text;p.dataset.error=String(error)}
@@ -63,10 +66,11 @@ export class ContentEditor extends HTMLElement{
   }
   disconnectedCallback(){this.abort?.abort();this.abort=undefined;this.clear()}
   private clear(){
+    this.releaseWorkspace?.();this.releaseWorkspace=undefined
     this.epoch++;this.owner='';this.store?.close();this.store=undefined;this.space=undefined
     this.dialogCancel?.();this.q<HTMLDialogElement>('dialog').close();this.q('[data-dialog]').replaceChildren()
     this.q('[data-shell]').hidden=true;this.q('[data-gate]').hidden=false;this.q('[data-list]').replaceChildren();this.q('[data-editor]').replaceChildren();this.q('[data-submission]').replaceChildren()
-    this.remote.clear();this.entries=[];this.current='';this.busy=false
+    this.remote.clear();this.entries=[];this.current='';this.busy=false;this.notice('')
     for(const u of this.blobUrls.values())URL.revokeObjectURL(u);this.blobUrls.clear()
     clearTimeout(this.previewTimer);clearTimeout(this.statusTimer);this.previewGeneration++
   }
@@ -90,11 +94,30 @@ export class ContentEditor extends HTMLElement{
       if(epoch!==this.epoch)return
       this.owner=snapshot.owner;this.head=snapshot.head;this.entries=snapshot.entries
       this.space={id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString(),files:[]}
+      this.holdWorkspace()
       try{this.store=await LocalContentStore.open(this.owner,snapshot.localKey)}catch{this.notice(this.t('浏览器无法暂存修改。请保留此页面，并及时导出本地副本。','Local storage unavailable. Keep this page open and export your edits.'),true)}
       this.q('[data-gate]').hidden=true;this.q('[data-shell]').hidden=false
       await this.loadTextFiles();await this.selectView(this.view)
-      if(this.store&&(await this.store.list()).length)this.notice(this.t('发现之前的本地副本。点击“恢复本地副本”选择恢复；不会自动覆盖 GitHub。','Local copies found. Choose Restore local copy; GitHub is unchanged.'))
-    }catch(e){this.owner='';this.q('[data-gate]').textContent=this.t('仅站长可使用。请确认登录和网络后刷新。','Owner access only. Check your session and connection, then reload.');this.notice((e as Error).message,true)}
+      await this.cleanCompletedCopies()
+    }catch(e){if(epoch!==this.epoch)return;this.clear();this.q('[data-gate]').textContent=this.t('仅站长可使用。请确认登录和网络后刷新。','Owner access only. Check your session and connection, then reload.');this.notice((e as Error).message,true)}
+  }
+  private holdWorkspace(){
+    this.releaseWorkspace?.();this.releaseWorkspace=undefined
+    if(!this.space||!navigator.locks)return
+    const space=this.space;let release!:()=>void;const held=new Promise<void>(resolve=>release=resolve);this.releaseWorkspace=release
+    void navigator.locks.request(workspaceLock(space.owner,space.id),async()=>held).catch(()=>{})
+  }
+  private async cleanCompletedCopies(){
+    if(!this.store||!this.space||this.cleanupRunning)return
+    this.cleanupRunning=true;const epoch=this.epoch,space=this.space,store=this.store
+    try{
+      const removed=await reconcileCompletedCopies(store,sub=>this.call('status',{requestId:sub.requestId,commitSha:sub.commitSha}),space.id,navigator.locks,()=>this.epoch===epoch&&this.space===space)
+      if(this.epoch!==epoch||this.space!==space)return
+      const copies=(await store.list()).filter(s=>s.id!==space.id&&(s.files.length||s.submission))
+      this.q('[data-recover]').textContent=this.t('恢复本地副本','Restore local copy')+(copies.length?' ('+copies.length+')':'')
+      if(removed)this.notice(this.t(`已清理 ${removed} 个已确认上线的空任务；未提交内容与活跃窗口均保留。`,`Removed ${removed} confirmed-live empty jobs. Unsubmitted content and active tabs are preserved.`))
+      else if(copies.length)this.notice(this.t('发现之前的本地副本。点击“恢复本地副本”选择恢复；不会自动覆盖 GitHub。','Local copies found. Choose Restore local copy; GitHub is unchanged.'))
+    }catch(error){if(this.epoch===epoch)this.notice(this.t('暂时无法检查旧副本，所有本地内容均已保留。','Old copies could not be checked; all local content is preserved.'),true)}finally{this.cleanupRunning=false}
   }
   private async loadTextFiles(){
     const paths=this.entries.filter(e=>e.kind!=='media').map(e=>e.path)
@@ -191,6 +214,7 @@ export class ContentEditor extends HTMLElement{
     const header=el('div','','cms-editor-head');header.append(el('h2',this.label(path)),el('code',path,'cms-path'));target.append(header)
     const actions=el('div','','cms-actions')
     actions.append(this.btn(this.t('放弃本地修改','Discard local edits'),()=>this.discard(path)),this.btn(this.t('重新读取 GitHub','Reload from GitHub'),()=>this.refresh()),this.btn(this.t('编辑原文件','Edit source'),()=>this.sourceEditor(path)))
+    if(['post','collection','academic'].includes(kind))actions.append(this.btn(this.t('完整页面预览','Full page preview'),()=>this.fullPreview(path)))
     if(path!==PROFILE&&path!==ACADEMIC&&path!==LINKS)actions.append(this.btn(this.t('删除文件','Delete file'),()=>this.stageDelete(path),'cms-danger'))
     else actions.append(this.btn(this.t('清空内容…','Clear content…'),()=>this.clearFixed(path)))
     if(kind==='post'&&!/index-en\.mdx?$/.test(path))actions.append(this.btn(this.t('编辑英文版','Edit English version'),async()=>{
@@ -299,19 +323,65 @@ export class ContentEditor extends HTMLElement{
   private articleEditor(path:string,source:string,target:HTMLElement){
     const parsed=readArticle(source),form=clone(parsed.data)
     if(pathKind(path)==='post')form.tags=(form.tags||[]).join(', ')
-    else form.bloglist=(form.bloglist||[]).join('\n')
+    else form.bloglist=[...(form.bloglist||[])]
     const info=el('details','','cms-metadata');info.open=!parsed.body.trim();info.append(el('summary',this.t('文章信息','Document information')))
     const metadataChange=()=>{
       const updates=clone(form)
       if(pathKind(path)==='post')updates.tags=String(form.tags||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean)
-      else updates.bloglist=String(form.bloglist||'').split('\n').map(x=>x.trim()).filter(Boolean)
+      else updates.bloglist=[...form.bloglist]
       if(!updates.updatedDate)updates.updatedDate=undefined
       if(updates.heroImage&&!updates.heroImage.src)updates.heroImage=undefined
       for(const k of ['source','pixivLink'])if(!updates[k])updates[k]=undefined
       this.edit(path,writeArticle(this.file(path)!.content!,updates))
     }
-    info.append(this.form(pathKind(path)==='post'?articleFields.filter(f=>f.key!=='category'||!/^src\/content\/blogs\/(research|tech|daily)\//.test(path)):collectionFields,form,metadataChange));target.append(info)
+    info.append(this.form(pathKind(path)==='post'?articleFields.filter(f=>f.key!=='category'||!/^src\/content\/blogs\/(research|tech|daily)\//.test(path)):collectionFields.filter(f=>f.key!=='bloglist'),form,metadataChange));target.append(info)
+    if(pathKind(path)==='collection')target.append(this.collectionPicker(form,metadataChange))
     target.append(this.markdownArea(parsed.body,text=>this.edit(path,writeArticle(this.file(path)!.content!,{},text))))
+  }
+  private availableArticles(){
+    const paths=[...new Set([...this.entries.map(e=>e.path),...this.space?.files.map(f=>f.path)||[]])].filter(p=>pathKind(p)==='post'&&!/index-en\.mdx?$/.test(p)&&this.file(p)?.content)
+    return sortPosts(paths.map(path=>{const data=readArticle(this.file(path)!.content!).data,id=path.replace(/^src\/content\/blogs\//,'').replace(/\/index\.mdx?$/,'');return {id,path,data,title:String(data.title||id),draft:!!data.draft,category:data.category}}))
+  }
+  private collectionPicker(form:any,changed:()=>void){
+    const box=el('section','','cms-collection-picker'),selected=el('ol'),available=el('div'),search=el('input');search.type='search';search.placeholder=this.t('搜索文章标题或目录','Search titles or folders');search.setAttribute('aria-label',search.placeholder)
+    box.append(el('h3',this.t('合集文章与顺序','Articles and order')),el('p',this.t('勾选文章加入合集，用上下按钮排序；移除只影响合集，不删除文章。','Select articles, then reorder them. Removing an item does not delete the article.'),'cms-hint'),selected,search,available)
+    const posts=this.availableArticles(),render=()=>{
+      selected.replaceChildren();available.replaceChildren()
+      form.bloglist.forEach((id:string,i:number)=>{
+        const post=posts.find(p=>p.id===id),row=el('li','','cms-collection-row'),controls=el('div','','cms-inline')
+        row.append(el('span',post?.title||this.t('未找到文章：','Missing article: ')+id))
+        for(const [delta,label]of [[-1,this.t('上移','Move up')],[1,this.t('下移','Move down')]] as const){const b=this.btn(label,()=>{const j=i+delta;[form.bloglist[i],form.bloglist[j]]=[form.bloglist[j],form.bloglist[i]];changed();render()});b.disabled=i+delta<0||i+delta>=form.bloglist.length;controls.append(b)}
+        controls.append(this.btn(this.t('移除','Remove'),()=>{form.bloglist.splice(i,1);changed();render()}));row.append(controls);selected.append(row)
+      })
+      const matches=posts.filter(p=>(p.title+' '+p.id).toLowerCase().includes(search.value.toLowerCase()))
+      for(const p of matches){const label=el('label','','cms-review-row'),check=el('input');check.type='checkbox';check.checked=form.bloglist.includes(p.id);check.onchange=()=>{if(check.checked&&!form.bloglist.includes(p.id))form.bloglist.push(p.id);else if(!check.checked)form.bloglist=form.bloglist.filter((id:string)=>id!==p.id);changed();render()};label.append(check,el('span',p.title+(p.draft?this.t('（未公开）',' (unpublished)'):'')+' · '+p.id));available.append(label)}
+      if(!matches.length)available.append(el('p',this.t('暂无匹配文章，请先创建文章。','No matching articles. Create an article first.'),'cms-muted'))
+    };search.oninput=render;render();return box
+  }
+  private async fullPreview(path:string){
+    const epoch=this.epoch,body=this.dialog(this.t('完整页面预览','Full page preview'));this.q('dialog').classList.add('cms-dialog-preview')
+    const tools=el('div','','cms-preview-controls'),frame=el('iframe');frame.title=this.t('完整页面预览','Full page preview');frame.className='cms-preview-frame';frame.referrerPolicy='no-referrer'
+    const en=el('select');en.setAttribute('aria-label',this.t('预览语言','Preview language'));for(const [value,label]of [['zh','中文'],['en','English']]){const o=el('option',label);o.value=value;en.append(o)}en.value=/index-en\.mdx?$/.test(path)?'en':this.en?'en':'zh'
+    let generation=0
+    const send=async()=>{
+      const revision=++generation,f=this.file(path);if(!f?.content)return
+      const kind=pathKind(path),english=en.value==='en',parsed=kind==='academic'?{data:JSON.parse(f.content)[english?'en':'zh'],body:''}:readArticle(f.content),data=clone(parsed.data),images:Record<string,string>={}
+      const sample=el('div');sample.innerHTML=articleMarkdown(parsed.body,english)
+      for(const img of sample.querySelectorAll('img')){const src=img.getAttribute('src')||'';try{images[src]=await this.imageUrl(src)}catch{}}
+      if(data.heroImage?.src)data.heroImage.src=await this.imageUrl(data.heroImage.src)
+      if(kind==='academic')for(const item of [...data.publications,...data.projects])if(item.image)item.image=await this.imageUrl(item.image)
+      if(revision!==generation||epoch!==this.epoch||!frame.isConnected)return
+      const id=path.replace(/^src\/content\/(blogs|collection)\//,'').replace(/\/index(?:-en)?\.mdx?$|\.mdx?$/,''),prefix=english?'/en':'',articles=this.availableArticles()
+      const collectionPosts=(data.bloglist||[]).map((id:string)=>{const p=articles.find(p=>p.id===id);return {title:p?.title||id,href:prefix+'/blog/'+id}})
+      const peers=articles.filter(p=>!p.draft&&(!data.category||p.category===data.category)),index=peers.findIndex(p=>p.id===id)
+      const neighbors=index<0?[]:[{post:peers[index-1],direction:'prev'},{post:peers[index+1],direction:'next'}].filter(x=>x.post).map(x=>({title:x.post.title,href:prefix+'/blog/'+x.post.id,direction:x.direction}))
+      if(data.tags)data.tags=[...new Set(data.tags.map((tag:string)=>tag.toLowerCase()))]
+      if(kind==='collection'&&english){data.title=data.title_en||data.title;data.description=data.description_en||data.description}
+      frame.contentWindow?.postMessage({type:'cyril-local-preview',kind,data,body:parsed.body,en:english,fallback:kind==='post'&&english&&!/index-en\.mdx?$/.test(path),images,collectionPosts,neighbors,url:'https://cyril-fan.top'+prefix+'/'+(kind==='collection'?'collection/':'blog/')+id,dark:document.documentElement.classList.contains('dark')},location.origin)
+    }
+    const load=()=>{frame.src=(en.value==='en'?'/en':'')+'/admin/preview/'};frame.onload=()=>void send().catch(error=>this.notice(error.message,true));en.onchange=load
+    tools.append(en,this.btn(this.t('桌面','Desktop'),()=>{frame.style.maxWidth='none'}),this.btn(this.t('手机','Mobile'),()=>{frame.style.maxWidth='390px'}),this.btn(this.t('刷新预览','Refresh preview'),send))
+    body.append(el('p',this.t('仅在当前浏览器渲染，不上传或发布。预览不发送评论。','Rendered only in this browser; nothing is uploaded or published. Comments are not submitted.'),'cms-hint'),tools,frame);load()
   }
   private markdownArea(value:string,change:(v:string)=>void){
     const wrap=el('div','','content-compose'),tools=el('div','','cms-toolbar'),tabs=el('div','','cms-preview-tabs'),panes=el('div','','cms-compose-panes')
@@ -345,14 +415,14 @@ export class ContentEditor extends HTMLElement{
     body.append(el('p',this.t('保留未知字段和原有语法。应用后仅在本地暂存，发布前仍会校验。','Unknown fields and syntax are preserved. Applying saves locally; validation still runs before publishing.')),area,
       this.btn(this.t('应用到本地副本','Apply locally'),async()=>{this.edit(path,area.value);this.q<HTMLDialogElement>('dialog').close();await this.open(path)}))
   }
-  private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');dialog.classList.remove('cms-dialog-compact');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
+  private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');dialog.classList.remove('cms-dialog-compact','cms-dialog-preview');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
   private confirm(title:string,lines:string[]):Promise<boolean>{
     const body=this.dialog(title);for(const line of lines)body.append(el('p',line))
     return new Promise(resolve=>{
       const dialog=this.q<HTMLDialogElement>('dialog');let settled=false
       const finish=(yes:boolean)=>{if(settled)return;settled=true;dialog.removeEventListener('close',closed);this.dialogCancel=undefined;dialog.close();resolve(yes)}
       const closed=()=>finish(false);dialog.addEventListener('close',closed,{once:true});this.dialogCancel=()=>finish(false)
-      const controls=el('div','','cms-inline'),cancel=this.btn(this.t('取消','Cancel'),()=>finish(false))
+      const controls=el('div','','cms-dialog-actions'),cancel=this.btn(this.t('取消','Cancel'),()=>finish(false))
       controls.append(cancel,this.btn(this.t('确认','Confirm'),()=>finish(true),'cms-primary'));body.append(controls);cancel.focus()
     })
   }
@@ -439,20 +509,22 @@ export class ContentEditor extends HTMLElement{
   private async checkStatus(){
     const sub=this.space?.submission;if(!sub?.commitSha)return
     try{const r=await this.call('status',{requestId:sub.requestId,commitSha:sub.commitSha});if(this.space?.submission!==sub)return;sub.state=r.state;await this.persist();this.renderSubmission()
-      if(r.state==='live')this.notice(this.t('已确认正式网站上线。之后的新修改仍保留在本地。','Confirmed live on the website. Newer edits remain local.'))
+      if(r.state==='live'){this.notice(this.t('已确认正式网站上线。之后的新修改仍保留在本地。','Confirmed live on the website. Newer edits remain local.'));await this.cleanCompletedCopies()}
       clearTimeout(this.statusTimer);if(r.state==='committed')this.statusTimer=window.setTimeout(()=>{if(document.visibilityState==='visible')void this.checkStatus()},30000)
     }catch(e){this.notice((e as Error).message,true)}
   }
   private async recover(){
     if(!this.store)return
+    await this.cleanCompletedCopies()
     const body=this.dialog(this.t('恢复本地副本','Restore local copy')),spaces=await this.store.list()
     body.append(el('p',this.t('各窗口使用独立副本。恢复会复制到本窗口，不覆盖其他窗口或 GitHub；废弃副本可单独移除。','Each tab has an independent copy. Restore copies it into this tab, preserving other tabs and GitHub.')))
     const recoverable=spaces.filter(s=>s.id!==this.space?.id&&(s.files.length||s.submission))
     for(const s of recoverable){
       const row=el('section','','cms-local-copy');row.append(el('p',new Date(s.updated).toLocaleString(this.en?'en-GB':'zh-CN',{hour12:false})),el('p',s.files.map(f=>f.path).join('\n')||this.t('仅提交状态','Submission status only')))
+      if(s.submission)row.append(el('p',({committed:this.t('已提交 GitHub，尚未确认上线','Committed; deployment not yet confirmed'),live:this.t('已发布上线','Published live'),failed:this.t('提交失败或结果未知，保留待检查','Failed or uncertain submission; preserved'),'build-failed':this.t('构建失败，保留待处理','Build failed; preserved'),sending:this.t('提交结果待确认','Submission outcome pending')} as Record<string,string>)[s.submission.state]||this.t('状态未知，已保留','Unknown state; preserved'),'cms-muted'))
       row.append(this.btn(this.t('恢复此副本','Restore this copy'),async()=>{
         if(this.space?.files.length&&!await this.confirm(this.t('保留当前副本并切换？','Keep current copy and switch?'),[this.t('当前内容仍保存在另一个本地副本中。','Current content stays in its separate local copy.')]))return
-        await this.persist();this.space={...clone(s),id:crypto.randomUUID(),updated:new Date().toISOString()};await this.persist();this.q<HTMLDialogElement>('dialog').close();this.renderList();this.renderSubmission();if(this.space.files[0])await this.open(this.space.files[0].path);if(this.space.submission?.commitSha)void this.checkStatus()
+        await this.persist();this.space={...clone(s),id:crypto.randomUUID(),updated:new Date().toISOString()};this.holdWorkspace();await this.persist();this.q<HTMLDialogElement>('dialog').close();this.renderList();this.renderSubmission();if(this.space.files[0])await this.open(this.space.files[0].path);if(this.space.submission?.commitSha)void this.checkStatus()
       }),this.btn(this.t('移除此本地副本','Remove this local copy'),async()=>{if(await this.confirm(this.t('移除本地副本？','Remove local copy?'),[s.files.map(f=>f.path).join('\n'),this.t('只影响此浏览器的这个副本。','Only this browser copy is affected.')])){await this.store!.remove(s.id);await this.recover()}}));body.append(row)
     }
     if(!recoverable.length)body.append(el('p',this.t('没有其它可恢复的副本。','No other local copies.')))
@@ -471,7 +543,7 @@ export class ContentEditor extends HTMLElement{
       if(data.version!==2||data.repository!==REPOSITORY||!Array.isArray(data.workspace?.files))throw new Error(this.t('不是此编辑器的本地副本。旧 CMS 备份请通过迁移工具转换。','Not a local editor export. Convert legacy CMS backups with the migration tool.'))
       if(!await this.confirm(this.t('导入本地副本？','Import local copy?'),data.workspace.files.map((f:LocalFile)=>f.path)))return
       for(const f of data.workspace.files)if(!pathKind(f.path)||!Number.isInteger(f.revision))throw new Error('Invalid imported file')
-      await this.persist();this.space={...data.workspace,id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString()}
+      await this.persist();this.space={...data.workspace,id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString()};this.holdWorkspace()
       await this.persist();this.renderList();this.renderSubmission();this.notice(this.t('已导入本地副本，尚未提交。','Imported locally; not submitted.'))
     }catch(e){this.notice((e as Error).message,true)}
     this.q<HTMLInputElement>('[data-import]').value=''

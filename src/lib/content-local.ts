@@ -70,7 +70,39 @@ export class LocalContentStore {
     return result.sort((a,b)=>b.updated.localeCompare(a.updated))
   }
   async remove(id:string){const entry=await this.operation('readonly',s=>s.get(id)) as Sealed|undefined;if(entry&&(entry.owner!==this.owner||entry.repository!==REPOSITORY))throw new Error('Local account mismatch');await this.operation('readwrite',s=>s.delete(id))}
+  /** Compare encrypted records inside the delete transaction; a concurrent save always wins. */
+  async removeIfUnchanged(expected:Workspace){
+    const record=await this.operation('readonly',s=>s.get(expected.id)) as Sealed|undefined
+    if(!record||record.owner!==this.owner||record.repository!==REPOSITORY)return false
+    const bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:decodeBase64(record.iv),additionalData:new TextEncoder().encode(record.id+this.owner+REPOSITORY)},this.key,decodeBase64(record.data))
+    if(new TextDecoder().decode(bytes)!==JSON.stringify(expected))return false
+    return new Promise<boolean>((resolve,reject)=>{
+      const tx=this.db.transaction('workspaces','readwrite'),s=tx.objectStore('workspaces'),r=s.get(expected.id);let removed=false
+      r.onsuccess=()=>{const latest=r.result as Sealed|undefined;if(latest?.data===record.data&&latest.iv===record.iv){s.delete(expected.id);removed=true}}
+      tx.oncomplete=()=>resolve(removed);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)
+    })
+  }
   close(){this.db.close()}
+}
+export const workspaceLock=(owner:string,id:string)=>'cyril-editor:'+REPOSITORY+':'+owner+':'+id
+export const completedCandidate=(s:Workspace)=>!s.files.length&&!!s.submission?.commitSha&&['committed','live'].includes(s.submission.state)
+/** Only empty, positively verified deployed jobs are garbage. Unknown/failed jobs remain recoverable. */
+export async function reconcileCompletedCopies(store:Pick<LocalContentStore,'list'|'removeIfUnchanged'>,check:(s:Submission)=>Promise<{state:string}>,currentId:string,locks:LockManager|undefined,valid=()=>true){
+  if(!locks)return 0 // No reliable cross-tab exclusion: keep all records.
+  let removed=0;const states=new Map<string,Promise<{state:string}>>()
+  for(const copy of await store.list()){
+    if(!valid())break
+    if(copy.id===currentId||!completedCandidate(copy))continue
+    await locks.request(workspaceLock(copy.owner,copy.id),{ifAvailable:true},async lock=>{
+      if(!lock||!valid())return
+      try{
+        const sub=copy.submission!,key=sub.requestId+sub.commitSha
+        if(!states.has(key))states.set(key,check(sub))
+        if((await states.get(key))?.state==='live'&&valid()&&await store.removeIfUnchanged(copy))removed++
+      }catch{ /* Offline, expired tasks and ambiguous deployment status must remain recoverable. */ }
+    })
+  }
+  return removed
 }
 export function markCommitted(files:LocalFile[],submission:Submission,results:{path:string;sha:string|null}[]){
   const selected=new Map(submission.changes.map(c=>[c.path,c])),next:LocalFile[]=[]

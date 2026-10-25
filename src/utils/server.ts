@@ -1,4 +1,5 @@
 import { getCollection, type CollectionEntry } from 'astro:content'
+import { sortPosts } from '../lib/blog-presentation'
 
 export type BlogPostEntry = CollectionEntry<'blog'> | CollectionEntry<'blogEn'>
 
@@ -87,8 +88,8 @@ export async function getPostsForCollection(collection: CollectionEntry<'postCol
 function getYearFromCollection(
   collection: BlogPostEntry
 ): number | undefined {
-  const dateStr = collection.data.updatedDate ?? collection.data.publishDate
-  return dateStr ? new Date(dateStr).getFullYear() : undefined
+  const dateStr = collection.data.publishDate
+  return dateStr ? new Date(dateStr).getUTCFullYear() : undefined
 }
 
 export function groupCollectionsByYear<T extends BlogPostEntry>(
@@ -107,21 +108,12 @@ export function groupCollectionsByYear<T extends BlogPostEntry>(
 
   return Array.from(
     collectionsByYear.entries()
-  ).sort((a, b) => b[0] - a[0])
+  ).map(([year,posts]):[number,T[]]=>[year,posts.sort((a,b)=>b.data.publishDate.valueOf()-a.data.publishDate.valueOf()||a.id.localeCompare(b.id,'en'))]).sort((a, b) => b[0] - a[0])
 }
 
 
 export function sortMDByDate<T extends BlogPostEntry>(collections: T[]): T[] {
-  return [...collections].sort((a, b) => {
-    const aUpdatedDate = a.data.updatedDate ? new Date(a.data.updatedDate).valueOf() : 0
-    const bUpdatedDate = b.data.updatedDate ? new Date(b.data.updatedDate).valueOf() : 0
-    if (aUpdatedDate !== bUpdatedDate) {
-      return bUpdatedDate - aUpdatedDate
-    }
-    const aPublishDate = a.data.publishDate ? new Date(a.data.publishDate).valueOf() : 0
-    const bPublishDate = b.data.publishDate ? new Date(b.data.publishDate).valueOf() : 0
-    return bPublishDate - aPublishDate
-  })
+  return sortPosts(collections)
 }
 
 /** Note: This function doesn't filter draft posts, pass it the result of getAllPosts above to do so. */

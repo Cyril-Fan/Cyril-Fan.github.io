@@ -1,4 +1,5 @@
 ---
+import { tagUrl } from "../../../lib/blog-presentation"
 import { getBlogCollectionEn, getUniqueTagsWithCount } from '@/server'
 
 import PageLayout from '@/layouts/BaseLayout.astro'
@@ -91,7 +92,7 @@ const meta = {
                 {allTags.map(([tag, val]) => (
                   <div class='group'>
                     <Button
-                      href={`/en/tags/${tag}`}
+                      href={tagUrl(tag,true)}
                       style='pill'
                       class={cn(
                         'relative overflow-hidden border border-gray-200/60 bg-white/80 backdrop-blur-md transition-all duration-200 ease-out hover:border-blue-300/80 hover:shadow-lg dark:border-gray-700/60 dark:bg-gray-800/80 dark:hover:border-blue-600/80',

@@ -19,10 +19,10 @@ const academicFields:Field[]=[
   {...t('status','状态','Status'),type:'select',options:['published','accepted','under-review','preprint']},
   list('authors','作者',[t('name','姓名','Name'),t('homepage','主页','Homepage'),{...t('isMe','本人','Me'),type:'checkbox'},{...t('isEqual','共同一作','Equal contribution'),type:'checkbox'},{...t('isCoreContributor','核心贡献者','Core contributor'),type:'checkbox'},{...t('role','角色','Role'),type:'select',options:['','corresponding','project-leader']}],'Authors'),
   {...t('authorsAlphabetical','作者按字母排列','Alphabetical authors'),type:'checkbox'},
-  {...t('abstract','摘要','Abstract'),type:'textarea'},list('links','相关链接',links,'Links'),
+  {...t('abstract','摘要','Abstract'),type:'textarea'},{...t('image','论文配图（可选）','Publication image (optional)'),type:'image'},t('imageAlt','图片说明','Image description'),list('links','相关链接',links,'Links'),
   {...t('citations','引用数（可选）','Citations (optional)'),type:'number'}
  ],'Publications'),
- list('projects','项目',[t('title','名称','Title'),{...t('description','说明','Description'),type:'textarea'},t('category','分类','Category'),{...t('status','状态','Status'),type:'select',options:['active','completed','archived']},{...t('image','图片','Image'),type:'image'},list('links','相关链接',links,'Links')],'Projects')
+ list('projects','项目',[t('title','名称','Title'),{...t('description','说明','Description'),type:'textarea'},t('category','分类','Category'),t('year','年份（可选）','Year (optional)'),{...t('status','状态','Status'),type:'select',options:['active','completed','archived']},{...t('image','图片','Image'),type:'image'},t('imageAlt','图片说明','Image description'),list('links','相关链接',links,'Links')],'Projects')
 ]
 export const jsonFields:Record<string,Field[]>={
  profile:[g('zh','中文',profileFields),g('en','English',profileFields),{...t('avatar','主页头像','Home avatar'),type:'image'},{...t('photo','关于页照片','About photo'),type:'image'},t('email','公开联系邮箱','Public email'),t('github','GitHub 用户名','GitHub username'),t('schoolUrl','学校链接','School link')],

@@ -4,6 +4,7 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readArticle, validateText } from '../../supabase/functions/_shared/git-content'
 import { renderArticleDocument } from './content-render'
+import { readingTime } from './blog-presentation'
 
 /** Never import/compile author files as JavaScript, including the .mdx extension. */
 export function contentFiles(kind:'blog'|'blogEn'|'collection'):Loader {
@@ -21,8 +22,8 @@ export function contentFiles(kind:'blog'|'blogEn'|'collection'):Loader {
         const source=await readFile(file,'utf8'),filePath=relative(root,file).replaceAll('\\','/'),id=kind==='collection'?filePath.slice(base.length+1).replace(/\.mdx?$/,'').replace(/\/index$/,''):filePath.slice(base.length+1).replace(/\/index(?:-en)?\.mdx?$/,'')
         validateText(filePath,source)
         const {data,body}=readArticle(source),parsed=await parseData({id,data,filePath}),rendered=await renderArticleDocument(body,kind==='blogEn')
-        const count=(body.match(/[\u3400-\u9fff]|\b\w+\b/g)||[]).length,minutes=Math.max(1,Math.ceil(count/220))
-        loaded.push({id,data:parsed,body,filePath,digest:generateDigest(source),rendered:{html:rendered.html,metadata:{headings:rendered.headings,frontmatter:{minutesRead:kind==='blogEn'?minutes+' min read':minutes+' 分钟阅读'}}}})
+        const minutes=readingTime(body,kind==='blogEn')
+        loaded.push({id,data:parsed,body,filePath,digest:generateDigest(source),rendered:{html:rendered.html,metadata:{headings:rendered.headings,frontmatter:{minutesRead:minutes}}}})
       }
       store.clear();for(const item of loaded)store.set(item)
     }

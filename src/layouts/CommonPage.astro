@@ -20,6 +20,7 @@ const { title, headings, info, ...props } = Astro.props
 
 <PageLayout meta={{ title }} {...props}>
   {headings?.length && <TOC headings={headings} slot='sidebar' />}
+  {headings?.length && <details slot='mobile-toc'><summary>{Astro.currentLocale==='en'?'On this page':'本页目录'}</summary><TOC headings={headings}/></details>}
 
   <Fragment slot='header'>
     <h1 class='text-2xl font-medium sm:mb-2 sm:text-3xl'>

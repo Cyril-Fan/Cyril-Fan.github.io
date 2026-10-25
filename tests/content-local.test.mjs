@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 await mkdir('work',{recursive:true});const path='work/local-test-'+randomUUID()+'.mjs'
 await build({entryPoints:['src/lib/content-local.ts'],bundle:true,packages:'external',platform:'node',format:'esm',outfile:path})
-const {LocalContentStore,markCommitted,discardLocalFile}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
+const {LocalContentStore,markCommitted,discardLocalFile,reconcileCompletedCopies,workspaceLock}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
 const repository='Cyril-Fan/Cyril-Fan.github.io',secret=Buffer.alloc(32,7).toString('base64')
 function indexedDBFixture(){
  const rows=new Map()
@@ -75,5 +75,31 @@ test('discarding replacement content restores an automatically removed original,
  const remote=[localText(article,'![original](/media/original.webp)')]
  const result=discardLocalFile(s,article,remote,new Set([old]),[])
  assert.deepEqual(result.removed,[image]);assert.deepEqual(result.restored,[old]);assert.deepEqual(result.files,[])
+})
+
+const finished=(id,state='committed')=>({...workspace('owner',id),files:[],submission:{requestId:'request-'+id,commitSha:'commit-'+id,state,changes:[],revisions:{}}})
+const locks=(held=new Set())=>({async request(name,options,run){return run(held.has(name)?null:{name})}})
+test('reconciliation removes confirmed-live original and restored jobs, preserving every uncertain or edited record',async()=>{
+ globalThis.indexedDB=indexedDBFixture();const store=await LocalContentStore.open('owner',secret)
+ const records=[finished('original'),finished('restored'),finished('building'),finished('failed','build-failed'),finished('unknown','failed'),finished('offline'),{...finished('new-text'),files:workspace().files},{...finished('new-image'),files:[localImage()]}]
+ for(const record of records)await store.save(record)
+ const count=await reconcileCompletedCopies(store,async sub=>{if(sub.requestId==='request-offline')throw Error('offline');return {state:sub.requestId==='request-building'?'committed':'live'}},'current',locks())
+ assert.equal(count,2);assert.deepEqual(new Set((await store.list()).map(s=>s.id)),new Set(['building','failed','unknown','offline','new-text','new-image']))
+})
+test('current workspace, active tabs and browsers without Web Locks are never automatically cleared',async()=>{
+ globalThis.indexedDB=indexedDBFixture();const store=await LocalContentStore.open('owner',secret)
+ await store.save(finished('current'));await store.save(finished('active'))
+ let calls=0;const check=async()=>{calls++;return {state:'live'}}
+ assert.equal(await reconcileCompletedCopies(store,check,'current',locks(new Set([workspaceLock('owner','active')]))),0)
+ assert.equal(await reconcileCompletedCopies(store,check,'other',undefined),0);assert.equal(calls,0);assert.equal((await store.list()).length,2)
+})
+test('new edits while deployment is checked win over cleanup, including an unchanged timestamp',async()=>{
+ globalThis.indexedDB=indexedDBFixture();const store=await LocalContentStore.open('owner',secret),old=finished('race');await store.save(old)
+ assert.equal(await reconcileCompletedCopies(store,async()=>{await store.save({...old,files:[localText(),localImage()]});return {state:'live'}},'current',locks()),0)
+ assert.equal((await store.list())[0].files.length,2);assert.equal(await store.removeIfUnchanged(old),false)
+})
+test('account or workspace changes while checking cancel cleanup',async()=>{
+ globalThis.indexedDB=indexedDBFixture();const store=await LocalContentStore.open('owner',secret);await store.save(finished('switch'));let valid=true
+ assert.equal(await reconcileCompletedCopies(store,async()=>{valid=false;return {state:'live'}},'current',locks(),()=>valid),0);assert.equal((await store.list()).length,1)
 })
 

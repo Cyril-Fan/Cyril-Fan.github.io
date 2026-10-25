@@ -31,3 +31,5 @@
 .article-body :is(h1,h2,h3,h4,h5,h6):hover a.anchor,.article-body a.anchor:focus-visible { opacity:1; }
 .article-body .medium-zoom-image--opened { z-index:1001; }
 .medium-zoom-overlay { z-index:1000; }
+.article-body :is(h1,h2,h3,h4,h5,h6)[id] { scroll-margin-top:6rem; }
+@media(max-width:767px){.article-body :is(h1,h2,h3,h4,h5,h6)[id] { scroll-margin-top:9rem; }}

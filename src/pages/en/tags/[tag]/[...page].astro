@@ -1,4 +1,5 @@
 ---
+import { tagSegment } from "../../../../lib/blog-presentation"
 import type { GetStaticPaths, Page } from 'astro'
 import type { CollectionEntry } from 'astro:content'
 
@@ -19,17 +20,17 @@ export const getStaticPaths: GetStaticPaths = async ({ paginate }) => {
     const filterPosts = allPostsByDate.filter((post) => post.data.tags.includes(tag))
     return paginate(filterPosts, {
       pageSize: config.content?.blogPageSize || 8,
-      params: { tag }
+      params: { tag:tagSegment(tag) }, props:{tag}
     })
   })
 }
 
 interface Props {
+  tag: string
   page: Page<CollectionEntry<'blogEn'>>
 }
 
-const { page } = Astro.props
-const { tag } = Astro.params
+const { page,tag } = Astro.props
 
 const meta = {
   description: `View all posts with the tag - ${tag}`,

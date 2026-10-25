@@ -161,3 +161,26 @@
  .cms-tools>[data-refresh],.cms-tools>[data-recover] { font-size:.75rem; padding:.5rem; }
 }
 @media(prefers-reduced-motion:reduce){.cms-search,.cms-search input { transition:none; }}
+.cms-dialog-preview { width:min(96rem,calc(100vw - 2rem));height:94dvh;max-height:94dvh;padding:1rem;overflow:hidden; }
+.cms-dialog-preview [data-dialog] { display:flex;flex-direction:column;height:100%;min-height:0; }
+.cms-dialog-preview [data-dialog]>h2 { padding-right:3rem;flex-shrink:0; }
+.cms-dialog-preview .cms-dialog-close { position:absolute;right:1rem;top:1rem;z-index:2; }
+.cms-preview-controls { display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:1rem 0; }
+.cms-page .cms-preview-controls select { width:auto!important; }
+.cms-preview-frame { display:block;width:100%;flex:1;min-height:0;margin:0 auto;border:1px solid hsl(var(--border));border-radius:.6rem;background:hsl(var(--background)); }
+.cms-collection-picker { border:1px solid hsl(var(--border));padding:1rem;border-radius:.6rem;margin:1.25rem 0; }
+.cms-collection-picker h3 { font-size:1rem;font-weight:600; }
+.cms-collection-picker .cms-hint { margin:.5rem 0 1rem; }
+.cms-collection-picker ol { list-style:decimal inside;display:grid;gap:.5rem;margin-bottom:1rem; }
+.cms-collection-row { display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem;background:hsl(var(--muted)/.5);border-radius:.5rem; }
+.cms-collection-row>span { min-width:0;overflow-wrap:anywhere; }
+.cms-collection-row .cms-inline { flex-shrink:0; }
+.cms-collection-picker input[type=search]+div { max-height:20rem;overflow:auto;padding-top:.5rem; }
+.cms-local-copy { border:1px solid hsl(var(--border));border-radius:.6rem;padding:1rem;margin:1rem 0; }
+.cms-local-copy button { margin-top:.75rem;margin-right:.5rem; }
+.cms-dialog [data-dialog]>button:last-child { display:block;margin:1.3rem 0 0 auto; }
+.cms-dialog :is(textarea,pre)+button { margin-top:1rem; }
+.cms-dialog .cms-review-row { margin:.75rem 0; }
+.cms-metadata { margin-bottom:1.25rem; }
+.cms-metadata[open]>summary { margin-bottom:1rem; }
+@media(max-width:767px){.cms-dialog-preview { width:calc(100vw - 1rem);padding:.75rem; }.cms-preview-controls { gap:.4rem; }.cms-collection-row { align-items:stretch;flex-direction:column; }.cms-collection-row .cms-inline { justify-content:flex-end; }}

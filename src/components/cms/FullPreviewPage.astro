@@ -1,0 +1,188 @@
+---
+import Layout from '../../layouts/ContentLayout.astro'
+import Copyright from '../pages/Copyright.astro'
+import TOC from '../pages/TOC.astro'
+
+import '../../assets/styles/article-content.css'
+import '../../assets/styles/page-presentation.css'
+import 'katex/dist/katex.min.css'
+
+const en = Astro.currentLocale === 'en'
+const blank = { title: '', publishDate: new Date(0), updatedDate: new Date(0) }
+---
+
+<Layout
+  meta={{ title: en ? 'Private local preview' : '本地完整预览' }}
+  highlightColor='hsl(var(--primary) / 1)'
+>
+  <div data-preview-header slot='header'>
+    <p>{en ? 'Waiting for local preview…' : '等待本地预览…'}</p>
+  </div>
+  <TOC headings={[]} slot='sidebar' />
+  <details slot='mobile-toc'>
+    <summary>{en ? 'On this page' : '本页目录'}</summary><TOC headings={[]} />
+  </details>
+  <div class='article-body' data-preview-body></div>
+  <div data-preview-bottom slot='bottom' hidden>
+    <Copyright data={blank} />
+    <nav data-preview-neighbors class='article-neighbors'></nav>
+    <section id='comments' class='preview-comments'>
+      <h2>{en ? 'Conversation' : '留言与交流'}</h2><p>
+        {
+          en
+            ? 'Comments and sign-in appear on the published page. No comments are sent from this preview.'
+            : '正式页面在此显示留言与登录功能；预览不会发送评论。'
+        }
+      </p>
+    </section>
+  </div>
+</Layout>
+<style>
+  .preview-comments {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.8rem;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+  .preview-comments h2 {
+    color: hsl(var(--foreground));
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+  .preview-comments p {
+    font-size: 0.85rem;
+  }
+  .preview-neighbors {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin: 1.5rem 0;
+  }
+</style>
+<script>
+  import { enhanceArticle, renderArticleDocument } from '../../lib/content-render'
+  import {
+    academicHeadings,
+    articleMinutes,
+    dateHTML,
+    renderAcademic,
+    renderArticleHeader,
+    renderArticleNeighbors
+  } from '../../lib/page-presentation'
+  import { tocMarkup } from '../../lib/toc-markup'
+
+  let generation = 0
+  window.addEventListener('message', async (event) => {
+    if (
+      event.source !== parent ||
+      parent === window ||
+      event.origin !== location.origin ||
+      event.data?.type !== 'cyril-local-preview'
+    )
+      return
+    const n = ++generation,
+      { kind, data, body = '', en = false, images = {}, url = '', neighbors = [] } = event.data
+    if (!['post', 'collection', 'academic'].includes(kind)) return
+    document.documentElement.lang = en ? 'en' : 'zh'
+    document.documentElement.classList.toggle('dark', event.data.dark === true)
+    const accent =
+      typeof data.heroImage?.color === 'string' && CSS.supports('color', data.heroImage.color)
+        ? data.heroImage.color
+        : 'hsl(var(--primary) / 1)'
+    document.body.style.setProperty('--highlightColor', accent)
+    const gradient = document.querySelector<HTMLElement>('#highlight-gradient')
+    if (gradient) {
+      gradient.hidden = kind !== 'post'
+      gradient.style.backgroundImage = `linear-gradient(${accent},transparent)`
+    }
+    const header = document.querySelector<HTMLElement>('[data-preview-header]')!,
+      content = document.querySelector<HTMLElement>('[data-preview-body]')!,
+      bottom = document.querySelector<HTMLElement>('[data-preview-bottom]')!
+    let html = '',
+      headings: { depth: number; slug: string; text: string }[] = []
+    try {
+      if (kind === 'academic') {
+        html = renderAcademic(data, en)
+        headings = academicHeadings(en)
+      } else {
+        const rendered = await renderArticleDocument(body, en)
+        html = rendered.html
+        headings = rendered.headings
+      }
+      if (n !== generation) return
+      header.innerHTML =
+        kind === 'academic'
+          ? `<h1 class="text-2xl font-medium sm:mb-2 sm:text-3xl">${en ? 'Academic' : '学术'}</h1>`
+          : renderArticleHeader(data, {
+              en,
+              minutes: kind === 'post' ? articleMinutes(body, en) : '',
+              fallback: event.data.fallback === true
+            })
+      content.innerHTML = html
+      for (const root of [header, content])
+        for (const image of root.querySelectorAll('img')) {
+          const src = image.getAttribute('src') || ''
+          if (images[src]) image.src = images[src]
+        }
+      bottom.hidden = kind !== 'post'
+      const comments = document.querySelector<HTMLElement>('#comments')!
+      comments.hidden = data.comment === false || data.draft === true
+      if (kind === 'post' && !comments.hidden)
+        headings.push({ depth: 2, slug: 'comments', text: en ? 'Conversation' : '留言与交流' })
+      document.querySelectorAll('toc-heading').forEach((old) => {
+        const toc = document.createElement('toc-heading')
+        toc.setAttribute('role', 'navigation')
+        toc.setAttribute('aria-label', en ? 'Table of contents' : '文章目录')
+        toc.innerHTML = tocMarkup(headings, en)
+        old.replaceWith(toc)
+      })
+      const title = document.querySelector('[data-copyright-title]')!
+      title.textContent = data.title || ''
+      const canonical = document.querySelector<HTMLAnchorElement>('[data-copyright-url]')!
+      canonical.textContent = url
+      canonical.href = url || '#'
+      for (const [name, value] of [
+        ['published', data.publishDate],
+        ['updated', data.updatedDate]
+      ]) {
+        const time = document.querySelector<HTMLTimeElement>(`[data-copyright-${name}]`)!
+        const parsed = document.createElement('template')
+        parsed.innerHTML = dateHTML(value, en)
+        time.textContent = parsed.content.textContent
+        time.dateTime = parsed.content.querySelector('time')?.dateTime || ''
+        ;(time.closest('dl>div') as HTMLElement).hidden = !value
+      }
+      const copy = document.querySelector<HTMLElement>('[data-copy-article-link]')!
+      copy.dataset.copyText = url
+      document.querySelector('[data-preview-neighbors]')!.innerHTML = renderArticleNeighbors(
+        neighbors,
+        en
+      )
+      if (kind === 'collection' && Array.isArray(event.data.collectionPosts)) {
+        const list = document.createElement('ol')
+        list.className = 'collection-preview-posts'
+        for (const post of event.data.collectionPosts) {
+          const li = document.createElement('li'),
+            a = document.createElement('a')
+          a.textContent = post.title
+          a.href = post.href
+          li.append(a)
+          list.append(li)
+        }
+        content.append(list)
+      }
+      await enhanceArticle(content)
+    } catch (error) {
+      content.textContent =
+        (en ? 'Preview unavailable: ' : '暂时无法预览：') + (error as Error).message
+    }
+  })
+  // Keep preview navigation inside this document; external destinations open separately.
+  document.addEventListener('click', (event) => {
+    const a = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null
+    if (!a || a.getAttribute('href')?.startsWith('#')) return
+    event.preventDefault()
+    if (/^https?:/.test(a.href)) window.open(a.href, '_blank', 'noopener,noreferrer')
+  })
+</script>

@@ -25,8 +25,8 @@ const formatDate = (date: Date) => date.toLocaleDateString(english ? 'en-US' : '
   class={cn('relative flex min-w-0 flex-col gap-y-3 rounded-xl border border-border px-3 py-3 sm:px-4', className)}
   data-article-copyright
 >
-  <div class='font-medium text-foreground'>{title}</div>
-  <a href={canonicalURL} class='break-all text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground'>
+  <div data-copyright-title class='font-medium text-foreground'>{title}</div>
+  <a data-copyright-url href={canonicalURL} class='break-all text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground'>
     {canonicalURL}
   </a>
 
@@ -38,14 +38,14 @@ const formatDate = (date: Date) => date.toLocaleDateString(english ? 'en-US' : '
     <div>
       <dt class='text-muted-foreground'>{english ? 'Published' : '发布日期'}</dt>
       <dd class='text-foreground'>
-        <time datetime={publishDate.toISOString()}>{formatDate(publishDate)}</time>
+        <time data-copyright-published datetime={publishDate.toISOString()}>{formatDate(publishDate)}</time>
       </dd>
     </div>
     {updatedDate && (
       <div>
         <dt class='text-muted-foreground'>{english ? 'Updated' : '更新日期'}</dt>
         <dd class='text-foreground'>
-          <time datetime={updatedDate.toISOString()}>{formatDate(updatedDate)}</time>
+          <time data-copyright-updated datetime={updatedDate.toISOString()}>{formatDate(updatedDate)}</time>
         </dd>
       </div>
     )}

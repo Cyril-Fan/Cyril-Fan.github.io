@@ -6,6 +6,7 @@ import ts from 'typescript'
 import * as git from '../supabase/functions/_shared/git-content.ts'
 import * as markdown from '../src/lib/article-markdown.ts'
 import * as fields from '../src/lib/content-fields.ts'
+import * as blog from '../src/lib/blog-presentation.ts'
 const source=(await readFile('src/lib/content-editor.ts','utf8')).replaceAll('import.meta.env.PUBLIC_SUPABASE_URL',"'https://fixture.invalid'").replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY',"'fixture-public'")
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
 const localModule={exports:{}}
@@ -14,13 +15,14 @@ const profile=await readFile('src/data/profile.json','utf8'),academic=await read
 const markup='<content-editor><p data-message></p><p data-gate></p><div data-shell hidden><nav>'+[['profile','首页与关于'],['blog','博客'],['academic','学术与项目'],['friend','友链'],['media','图片']].map(([k,n])=>'<button data-kind="'+k+'">'+n+'</button>').join('')+'</nav><div data-category-tools hidden><button data-back-blog>博客目录</button><span data-category-name></span><button data-create>新建文章</button><button data-create-collection>新建合集</button></div><button data-refresh>刷新</button><button data-review>发布</button><button data-recover>恢复本地副本</button><button data-export>导出</button><button data-import-trigger>从文件恢复</button><input data-import type=file><div data-search-box><button data-search-toggle>查找内容</button><input data-search><button data-search-clear>清空查找</button></div><div class="cms-workspace"><aside class="cms-sidebar"><div data-list></div></aside><div data-editor></div></div><div data-submission></div><p data-save></p></div><dialog><form method=dialog><button>关闭</button></form><div data-dialog></div></dialog></content-editor>'
 
 const tick=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Promise(setImmediate)}
-async function setup(t,{role='owner',saved=new Map()}={}){
+async function setup(t,{role='owner',saved=new Map(),locks,initialStatus='live'}={}){
  const dom=new JSDOM(markup,{url:'https://fixture.invalid/admin',runScripts:'outside-only'}),w=dom.window;t.after(()=>w.close())
  w.structuredClone=structuredClone;w.URL.createObjectURL=()=> 'blob:fixture';w.URL.revokeObjectURL=()=>{}
+ if(locks)Object.defineProperty(w.navigator,'locks',{value:locks})
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))}
  const files=new Map([[git.PROFILE,profile],[git.ACADEMIC,academic],[git.LINKS,friends]].map(([path,content])=>[path,{path,content,sha:'a'.repeat(40),encoding:'utf-8'}]))
  const calls=[];let override
- class MemoryStore{static async open(){return new MemoryStore()}async save(s){saved.set(s.id,structuredClone(s))}async list(){return [...saved.values()].filter(s=>s.owner==='owner')}async remove(id){saved.delete(id)}close(){}}
+ class MemoryStore{static async open(){return new MemoryStore()}async save(s){saved.set(s.id,structuredClone(s))}async list(){return [...saved.values()].filter(s=>s.owner==='owner').map(s=>structuredClone(s))}async remove(id){saved.delete(id)}async removeIfUnchanged(s){if(JSON.stringify(saved.get(s.id))!==JSON.stringify(s))return false;saved.delete(s.id);return true}close(){}}
  const markCommitted=(files,sub,result)=>files.filter(f=>!sub.changes.some(c=>c.path===f.path&&sub.revisions[f.path]===f.revision&&c.content===f.content)).map(f=>{const sent=sub.changes.find(c=>c.path===f.path);return sent?{...f,baseSha:result.find(r=>r.path===f.path).sha,baseText:sent.content}:f})
  const client={auth:{getSession:async()=>({data:{session:role==='guest'?null:{user:{id:role},access_token:'fixture'}}})}}
  w.fetch=async(url,options)=>{
@@ -31,7 +33,7 @@ async function setup(t,{role='owner',saved=new Map()}={}){
    if(input.action==='list')result={owner:'owner',localKey:'fixture',repository:git.REPOSITORY,head:'b'.repeat(40),entries:[...files.values()].map(f=>({path:f.path,sha:f.sha,size:f.content.length,kind:git.pathKind(f.path),writable:true}))}
    else if(input.action==='read')result={head:'b'.repeat(40),files:input.paths.map(p=>files.get(p)||{path:p,sha:null,content:null})}
    else if(input.action==='publish'){result={state:'committed',commitSha:'c'.repeat(40),files:input.changes.map(c=>({path:c.path,sha:c.content===null?null:'d'.repeat(40)}))};for(const c of input.changes){if(c.content===null)files.delete(c.path);else files.set(c.path,{...c,sha:'d'.repeat(40)})}}
-   else if(input.action==='status')result={state:'live'}
+   else if(input.action==='status')result={state:initialStatus}
    else if(input.action==='references')result={references:[]}
    else throw Error('Unknown action '+input.action)
    return {ok:true,json:async()=>result}
@@ -42,11 +44,12 @@ async function setup(t,{role='owner',saved=new Map()}={}){
    if(name==='./content-render')return {enhanceArticle:async()=>{}}
    if(name==='./content-local')return {...localModule.exports,LocalContentStore:MemoryStore,markCommitted}
    if(name==='./content-fields')return fields
+   if(name==='./blog-presentation')return blog
    if(name==='./cms-image')return {encodeCMSImage:()=>{throw Error('Browser codec acceptance required')}}
    if(name.includes('_shared/git-content'))return git
    throw Error(name)
  };w.module={exports:{}};w.exports=w.module.exports;w.eval(code);w.module.exports.installContentEditor();await tick()
- const root=w.document.querySelector('content-editor'),find=text=>[...root.querySelectorAll('button')].find(b=>b.textContent===text&&!b.closest('[hidden]')&&(!b.closest('dialog')||b.closest('dialog').open))
+ const root=w.document.querySelector('content-editor'),find=text=>[...root.querySelectorAll('button')].find(b=>(b.textContent===text||b.textContent.startsWith(text+' ('))&&!b.closest('[hidden]')&&(!b.closest('dialog')||b.closest('dialog').open))
  const click=async text=>{const b=find(text);assert.ok(b,'button '+text);b.click();await tick()}
  const fill=(name,value)=>{const i=root.querySelector('[name="'+name+'"]');assert.ok(i,'input '+name);i.value=value;i.dispatchEvent(new w.Event('input',{bubbles:true}))}
  const open=async kind=>{await click(kind);await tick()}
@@ -98,6 +101,29 @@ test('blog folders contain articles and collections and creation is local with n
  const search=ui.root.querySelector('[data-search]');search.value='reading-list';search.dispatchEvent(new ui.w.Event('input'))
  assert.equal(ui.root.querySelectorAll('[data-list] button').length,1)
  assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('collection picker selects, reorders and removes membership without deleting articles',async t=>{
+ const ui=await setup(t);await ui.click('博客');ui.root.querySelectorAll('.cms-folder')[1].click();await tick()
+ for(const name of ['first','second']){await ui.click('新建文章');ui.root.querySelector('dialog input').value=name;await ui.click('建立本地副本');ui.fill('title',name)}
+ await ui.click('新建合集');ui.root.querySelector('dialog input').value='series';await ui.click('建立本地副本')
+ const picker=ui.root.querySelector('.cms-collection-picker');for(let i=0;i<2;i++){picker.querySelectorAll('label')[i].querySelector('input').click();await tick()}
+ const before=picker.querySelectorAll('ol li')[1].querySelector('span').textContent;picker.querySelectorAll('ol li')[1].querySelector('button').click();await tick();assert.equal(picker.querySelectorAll('ol li')[0].querySelector('span').textContent,before)
+ picker.querySelector('ol li').querySelectorAll('button')[2].click();await tick()
+ const files=[...ui.saved.values()].at(-1).files;assert.equal(files.filter(f=>git.pathKind(f.path)==='post').length,2);assert.equal(git.readArticle(files.find(f=>git.pathKind(f.path)==='collection').content).data.bloglist.length,1)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+const testLocks=()=>{const held=new Set();return {held,async request(name,options,fn){if(typeof options==='function'){held.add(name);try{return await options({name})}finally{held.delete(name)}}return fn(held.has(name)?null:{name})}}}
+const oldJob=id=>({id,owner:'owner',repository:git.REPOSITORY,updated:'2026-01-01T00:00:00Z',files:[],submission:{requestId:id,commitSha:'c'.repeat(40),state:'committed',changes:[],revisions:{}}})
+test('entering editor reconciles confirmed deployment and refreshes restore list without restoring copies',async t=>{
+ const saved=new Map([['original',oldJob('original')],['restored',oldJob('restored')]]),ui=await setup(t,{saved,locks:testLocks()});await tick()
+ assert.equal(saved.size,0);assert.match(ui.root.querySelector('[data-message]').textContent,/已清理 2/);await ui.click('恢复本地副本');assert.match(ui.root.querySelector('[data-dialog]').textContent,/没有其它/)
+})
+test('build-in-progress and active tab jobs remain recoverable on entry',async t=>{
+ const saved=new Map([['building',oldJob('building')]]),locks=testLocks();locks.held.add(localModule.exports.workspaceLock('owner','building'))
+ const ui=await setup(t,{saved,locks});assert.equal(saved.size,1);assert.ok(!ui.calls.some(c=>c.action==='status'))
+ locks.held.clear();const other=await setup(t,{saved,locks,initialStatus:'committed'});assert.equal(saved.size,1);assert.ok(other.calls.some(c=>c.action==='status'))
 })
 
 

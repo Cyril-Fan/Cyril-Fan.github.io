@@ -9,6 +9,7 @@ import { Comment } from '@/components/advanced'
 import { ArticleBottom, Copyright, Hero, TOC } from '@/components/pages'
 import PageLayout from '@/layouts/ContentLayout.astro'
 import { contentImage } from '../lib/content-image'
+import { readingTime } from '../lib/blog-presentation'
 
 interface Props {
   post: CollectionEntry<'blog'> | CollectionEntry<'blogEn'>
@@ -18,7 +19,7 @@ interface Props {
 }
 
 const {
-  post: { id, data, filePath },
+  post: { id, data, filePath, body },
   posts,
   headings,
   remarkPluginFrontmatter
@@ -39,19 +40,21 @@ const socialImage = heroImage
     ? contentImage(heroImage.src,filePath)
     : ''
   : '/avatar/avatar.png'
-const articleDate = updatedDate?.toISOString() ?? publishDate.toISOString()
+const articleDate = publishDate.toISOString()
+const articleModifiedDate = updatedDate?.toISOString()
 const primaryColor = data.heroImage?.color ?? 'hsl(var(--primary) / var(--tw-text-opacity, 1))'
 const tocHeadings=[...headings,...(!isDraft&&enableComment?[{depth:2,slug:'comments',text:Astro.currentLocale==='en'?'Conversation':'留言与交流'}]:[])]
 ---
 
 <PageLayout
-  meta={{ articleDate, description, ogImage: socialImage, title }}
+  meta={{ articleDate, articleModifiedDate, description, ogImage: socialImage, title }}
   highlightColor={primaryColor}
   back={Astro.currentLocale === 'en' ? '/en/blog/all' : '/blog/all'}
 >
   {!!tocHeadings.length && <TOC headings={tocHeadings} slot='sidebar' />}
+  {!!tocHeadings.length && <details slot='mobile-toc'><summary>{Astro.currentLocale==='en'?'On this page':'本页目录'}</summary><TOC headings={tocHeadings}/></details>}
 
-  <Hero {data} {filePath} {remarkPluginFrontmatter} slot='header' />
+  <Hero {data} {filePath} remarkPluginFrontmatter={{...remarkPluginFrontmatter,minutesRead:readingTime(body||'',Astro.currentLocale==='en')}} fallback={Astro.currentLocale==='en'&&!/index-en\.mdx?$/.test(filePath||'')} slot='header' />
 
   <slot />
 

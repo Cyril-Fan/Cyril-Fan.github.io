@@ -1,8 +1,7 @@
 ---
 import type { MarkdownHeading } from 'astro'
 
-import { generateToc } from '@/plugins/toc'
-import TOCHeading from './TOCHeading.astro'
+import { tocMarkup } from '../../lib/toc-markup'
 
 interface Props {
   headings: MarkdownHeading[]
@@ -12,14 +11,11 @@ interface Props {
 
 const { headings, class: className, ...props } = Astro.props
 
-const toc = generateToc(headings)
+const html = tocMarkup(headings,Astro.currentLocale==='en')
 ---
 
 <toc-heading class={className} role='navigation' aria-label={Astro.currentLocale === 'en' ? 'Table of contents' : '文章目录'} {...props}>
-  <h2 class='font-semibold'>{Astro.currentLocale === 'en' ? 'CONTENTS' : '目录'}</h2>
-  <ul class='mt-4 text-card-foreground'>
-    {toc.map((heading) => <TOCHeading heading={heading} />)}
-  </ul>
+  <Fragment set:html={html} />
 </toc-heading>
 
 <style>
@@ -125,6 +121,8 @@ const toc = generateToc(headings)
           const directHeading = this.headings.find((heading) => heading.id === link.slug)
           if (!directHeading) return
           e.preventDefault()
+          const mobileMenu=this.closest<HTMLDetailsElement>('.mobile-toc details')
+          if(mobileMenu)mobileMenu.open=false
           const fragment = link.element.getAttribute('href') || ''
           if (window.location.hash !== fragment) history.pushState(null, '', fragment)
           directHeading.scrollIntoView({

@@ -17,6 +17,7 @@ const { meta, highlightColor, ...props } = Astro.props
 <PageLayout {meta} {highlightColor} {...props}>
   <main class='content-layout mt-6'>
     <div class='min-w-0' data-toc-content>
+      <div class='mobile-toc'><slot name='mobile-toc' /></div>
       <article>
         {/* Content header */}
         <div id='content-header' class='animate'>
@@ -55,8 +56,15 @@ const { meta, highlightColor, ...props } = Astro.props
 
 <style>
   .content-side-column { display:none; }
+  .mobile-toc { position:sticky;top:4.5rem;z-index:20;margin-bottom:1.5rem;background:hsl(var(--background)/.97);border-radius:.7rem; }
+  .mobile-toc:empty { display:none; }
+  .mobile-toc :global(details) { border:1px solid hsl(var(--border));border-radius:.7rem;padding:.75rem 1rem; }
+  .mobile-toc :global(summary) { cursor:pointer;font-size:.9rem; }
+  .mobile-toc :global(toc-heading) { max-height:45vh;overflow:auto;margin-top:.75rem;font-size:.85rem; }
+  @media(max-width:767px){ :global(#comments) { scroll-margin-top:9rem; } }
 
   @media (min-width:768px) {
+    .mobile-toc { display:none; }
     .content-layout { display:grid; grid-template-columns:minmax(0, 1fr) 15rem; column-gap:2.5rem; }
     .content-side-column { display:flex; min-width:0; flex-direction:column; }
     .sidebar-track { flex:1; min-height:0; }

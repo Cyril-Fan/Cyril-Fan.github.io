@@ -1,6 +1,7 @@
 ---
+import { tagUrl, readingTime } from "../../lib/blog-presentation"
 import { contentImage } from '../../lib/content-image'
-import { render, type CollectionEntry } from 'astro:content'
+import type { CollectionEntry } from 'astro:content'
 import type { HTMLTag, Polymorphic } from 'astro/types'
 import { getRelativeLocaleUrl } from 'astro:i18n'
 
@@ -10,15 +11,17 @@ import { Button, FormattedDate, Icon } from '@/components/user'
 type Props<Tag extends HTMLTag> = Polymorphic<{ as: Tag }> & {
   post: CollectionEntry<'blog'> | CollectionEntry<'blogEn'>
   detailed?: boolean
+  dateMode?: 'activity' | 'published'
   class?: string
 }
 
-const { as: Tag = 'div', post, detailed = false, class: className } = Astro.props
+const { as: Tag = 'div', post, detailed = false, dateMode = 'activity', class: className } = Astro.props
 
 const { id, data } = post
 
-const { remarkPluginFrontmatter } = await render(post)
-const postDate = data.updatedDate ?? data.publishDate
+const wasUpdated = dateMode==='activity' && data.updatedDate && data.updatedDate > data.publishDate
+const postDate = wasUpdated ? data.updatedDate! : data.publishDate
+const minutesRead=readingTime(post.body||'',Astro.currentLocale==='en')
 
 const heroImageProps = data.heroImage ? {
   src: contentImage(data.heroImage.src,post.filePath),
@@ -71,7 +74,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
       )
     }
 
-    <FormattedDate class='min-w-[95px] py-1 text-xs' date={postDate} />
+    <span class='post-date min-w-[95px] py-1 text-xs'><FormattedDate date={postDate} /><small class='block'>{wasUpdated ? (Astro.currentLocale==='en'?'Updated':'更新') : (Astro.currentLocale==='en'?'Published':'发布')}</small></span>
 
     <Tag class='z-10 flex-grow'>
       {/* title */}
@@ -118,7 +121,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
               {/* reading time */}
               <span class='flex items-center gap-1'>
                 <Icon name='time' class='size-4' />
-                {remarkPluginFrontmatter.minutesRead}
+                {minutesRead}
               </span>
               {/* language */}
               {data.language && (
@@ -139,7 +142,7 @@ function getLocalizedUrl(locale: string | undefined, path: string) {
       <ul class='tag-list mt-1 flex flex-wrap gap-2'>
         {data.tags.map((tag: string) => (
           <li>
-            <Button title={tag} href={getLocalizedUrl(Astro.currentLocale, `/tags/${tag}`)} style='pill' />
+            <Button title={tag} href={tagUrl(tag,Astro.currentLocale==='en')} style='pill' />
           </li>
         ))}
       </ul>

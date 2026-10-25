@@ -15,7 +15,7 @@ interface Props {
 
 const currentLocale = Astro.currentLocale || 'zh'
 const {
-  meta: { articleDate, description = currentLocale === 'en' ? (config.description_en || config.description) : config.description, ogImage, title },
+  meta: { articleDate, articleModifiedDate, description = currentLocale === 'en' ? (config.description_en || config.description) : config.description, ogImage, title },
   highlightColor
 } = Astro.props
 
@@ -24,7 +24,7 @@ const langAttr = currentLocale === 'en' ? 'en' : 'zh'
 
 <html lang={langAttr} data-pagefind-ignore={/^\/(?:en\/)?admin(?:\/|$)/.test(Astro.url.pathname) ? 'all' : undefined}>
   <head>
-    <BaseHead {articleDate} {description} {ogImage} {title} />
+    <BaseHead {articleDate} {articleModifiedDate} {description} {ogImage} {title} />
     <ThemeProvider />
   </head>
 

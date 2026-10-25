@@ -167,3 +167,13 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 数据库密码、service_role 密钥、Resend 密钥、SMTP 密码不应进入任何 GitHub 文件。数据库迁移提交到 GitHub **不会自动执行到正式 Supabase**；需要按 `supabase/README.md` 单独部署。
 
 源代码里还保留了主题提供的部分未启用组件，例如旧的 `GitHubActivityCalendar.astro`、`Substats.astro`。修改前先确认当前页面是否实际引用；以本地图和页面入口为准。
+
+
+### 共享文章、学术与预览渲染 / Shared presentation
+
+- `src/lib/blog-presentation.ts`：排序、标签安全链接、阅读时长 / ordering, safe tag URLs, reading time.
+- `src/lib/page-presentation.ts` 与 `src/assets/styles/page-presentation.css`：文章头部/相邻文章与学术卡片，正式站和完整预览共用 / shared article and Academic presentation.
+- `src/lib/toc-markup.ts`、`src/components/pages/TOC.astro`：共用目录结构、滚动定位与评论锚点 / shared TOC markup and behavior.
+- `src/components/cms/FullPreviewPage.astro`，`/admin/preview/` 与 `/en/admin/preview/`：无私有内容的预览外壳，仅接收同浏览器编辑器传入的暂存内容 / empty preview shells populated locally.
+- `src/lib/content-local.ts`：加密本地副本、未引用新图清理、已上线旧任务核对清理 / local recovery and safe cleanup.
+- `tests/page-presentation.test.mjs`、`tests/content-local.test.mjs`、`tests/content-ui.test.mjs`：展示和并发安全隔离测试 / isolated presentation and concurrent recovery tests.

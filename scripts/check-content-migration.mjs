@@ -52,8 +52,8 @@ A footnote[^1].
   const fixtures = [
     [join(directories[5],'index.md'),writeArticle(newArticle('zh','tech'),{title:'Nested category article'},'## Nested\n\n```CPP\n#include <iostream>\nint main(){ return 0; }\n```')],
     [join(directories[7],'index.md'),'---\ntitle: Nested collection\ncategory: tech\nbloglist: [tech/migration-nested]\n---\n'],
-    [join(directories[0],'index.mdx'),article('迁移验收文章') + body + '\n<Aside type="tip" title="Static theme component">\nSafe MDX content\n</Aside>\n'],
-    [join(directories[0],'index-en.mdx'),article('Migration verification') + body],
+    [join(directories[0],'index.mdx'),article('迁移验收文章','updatedDate: 2026-10-24\n').replace('tags: [Migration]', 'tags: [Migration, C++, C#, a/b, a?b, 100%, 深度 学习]') + body + '\n<Aside type="tip" title="Static theme component">\nSafe MDX content\n</Aside>\n'],
+    [join(directories[0],'index-en.mdx'),article('Migration verification','updatedDate: 2026-10-24\n').replace('tags: [Migration]', 'tags: [Migration, C++, C#, a/b, a?b, 100%, 深度 学习]') + body],
     [join(directories[1],'index.md'),article('中文回退验收') + body],
     [join(directories[2],'index.md'),article('NEVER_PUBLISH_MIGRATION_DRAFT','draft: true\n') + body],
     [collection,'---\ntitle: 迁移验收合集\ntitle_en: Migration collection\nbloglist: [migration-check, migration-fallback]\n---\n'],
@@ -81,6 +81,14 @@ A footnote[^1].
     assert.equal(cmsHTML.querySelector('script[data-cms-unsafe]'),null,'Raw HTML never executes in CMS posts')
     const html = await readFile(join(output,locale,'blog/migration-check/index.html'),'utf8')
     const doc = parse(html)
+    assert.equal(doc.querySelector('meta[property="article:published_time"]').getAttribute('content'),'2026-10-18T00:00:00.000Z')
+    assert.equal(doc.querySelector('meta[property="article:modified_time"]').getAttribute('content'),'2026-10-24T00:00:00.000Z')
+    for(const link of doc.querySelectorAll('.article-tags a')) {
+      const target=decodeURIComponent(link.getAttribute('href')).replace(/^\//,'')
+      assert.ok((await readFile(join(output,target,'index.html'),'utf8')).includes('迁移验收文章') || locale)
+    }
+    assert.ok(doc.querySelector('.content-side-column a[href="#comments"]'))
+    assert.ok(doc.querySelector('.mobile-toc a[href="#comments"]'))
     assert.ok(doc.querySelector('.katex'),'Math survives the migration')
     assert.ok(doc.querySelector('table'),'GFM tables survive the migration')
     assert.ok(doc.querySelector('input[type="checkbox"]'),'GFM tasks survive the migration')
@@ -96,6 +104,8 @@ A footnote[^1].
     assert.doesNotMatch(list,/NEVER_PUBLISH_MIGRATION_DRAFT/)
     const fallback = await readFile(join(output,locale,'blog/migration-fallback/index.html'),'utf8')
     assert.match(fallback,/中文回退验收/)
+    if(locale)assert.ok(parse(fallback).querySelector('[data-language-fallback]'))
+    assert.equal(doc.querySelector('[data-language-fallback]'),null)
     const collectionHtml = await readFile(join(output,locale,'collection/migration-check/index.html'),'utf8')
     assert.match(collectionHtml,/migration-fallback/)
   }

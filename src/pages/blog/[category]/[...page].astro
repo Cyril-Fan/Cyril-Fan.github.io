@@ -1,4 +1,5 @@
 ---
+import { tagUrl } from "../../../lib/blog-presentation"
 import type { GetStaticPaths, Page } from 'astro'
 import type { CollectionEntry } from 'astro:content'
 
@@ -167,7 +168,7 @@ const meta = {
                   <ul class='text-bgColor flex flex-wrap gap-2'>
                     {uniqueTags.map((tag) => (
                       <li>
-                        <Button title={tag} href={`/tags/${tag}`} style='pill' />
+                        <Button title={tag} href={tagUrl(tag)} style='pill' />
                       </li>
                     ))}
                   </ul>
