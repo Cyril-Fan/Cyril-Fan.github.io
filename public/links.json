@@ -5,13 +5,6 @@
       "desc": "",
       "link_list": [
         {
-          "name": "具野 · Elio",
-          "intro": "软件工程、嵌入式与具身智能，让代码走进真实世界。",
-          "link": "https://jy.xn--wut303ivvd.space/",
-          "avatar": "https://jy.xn--wut303ivvd.space/favicon.svg",
-          "feed": "https://jy.xn--wut303ivvd.space/rss.xml"
-        },
-        {
           "avatar": "/media/image-2d4af05b9f25b23dde3a.webp",
           "name": "Axi",
           "intro": "一只可爱小猫",
@@ -33,11 +26,18 @@
           "feed": "https://royzhao.cn/rss.xml"
         },
         {
-          "avatar": "/media/image-09c368718f4f582f55ae.webp",
+          "avatar": "https://VYS3N.github.io/images/avatar.webp",
           "name": "VYS3N",
           "intro": "SliBullet",
           "link": "https://vys3n.github.io/",
           "feed": "https://vys3n.github.io/rss.xml"
+        },
+        {
+          "name": "具野 · Elio",
+          "intro": "软件工程、嵌入式与具身智能，让代码走进真实世界。",
+          "link": "https://jy.xn--wut303ivvd.space/",
+          "avatar": "https://jy.xn--wut303ivvd.space/favicon.svg",
+          "feed": "https://jy.xn--wut303ivvd.space/rss.xml"
         }
       ]
     }
