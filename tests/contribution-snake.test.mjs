@@ -13,6 +13,7 @@ import * as calendarHelpers from '../src/lib/github-contributions.ts'
 
 const read = file => readFileSync(new URL(file, import.meta.url), 'utf8')
 const metadata = JSON.parse(read('../src/assets/contributions.json'))
+const fixtureCommit = metadata.sourceCommit || 'a'.repeat(40)
 const snapshot = JSON.parse(read('../src/assets/contribution-calendar.json'))
 const calendar = calendarHelpers.normalizeContributions(snapshot)
 const light = read(`../public${metadata.light}`), dark = read(`../public${metadata.dark}`)
@@ -23,8 +24,8 @@ function feed(override = {}) {
   const calls = []
   const fetcher = async (url, options) => {
     calls.push({url,options})
-    if (url === PROFILE_REF) return response({object:{sha:metadata.sourceCommit}})
-    assert.ok(url.includes(`/${metadata.sourceCommit}/assets/`), 'Every resource must be commit pinned')
+    if (url === PROFILE_REF) return response({object:{sha:fixtureCommit}})
+    assert.ok(url.includes(`/${fixtureCommit}/assets/`), 'Every resource must be commit pinned')
     const name = url.split('/').at(-1)
     const value = override[name] ?? ({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark})[name]
     if (value instanceof Error) throw value
@@ -56,7 +57,7 @@ test('updates fetch all resources at one commit, omit credentials and keep token
     assert.equal(call.options.headers?.Authorization,call.url === PROFILE_REF ? 'Bearer test-token' : undefined)
   }
   const unchanged = feed()
-  assert.equal(await fetchContributionBundle({fetcher:unchanged.fetcher,now,currentCommit:metadata.sourceCommit}),null)
+  assert.equal(await fetchContributionBundle({fetcher:unchanged.fetcher,now,currentCommit:fixtureCommit}),null)
   assert.equal(unchanged.calls.length,1)
 })
 
@@ -221,4 +222,27 @@ test('failed image decoding or network keeps the old visible pair and calendar i
     assert.equal(ui.host.querySelectorAll('[data-date]').length,10)
     assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,'old total')
   }
+})
+
+test('animated cell IDs are base 36, including letters, without relaxing color or coordinate validation', () => {
+  const id = light.match(/\.c\.(c[0-9a-z]+)\{fill:/)[1]
+  const renamed = light.replace(`.c.${id}{`, '.c.czz9{').replace(`class="c ${id}"`, 'class="c czz9"')
+  assert.equal(validateProfileSnake(renamed,calendar,'light').width,metadata.width)
+  assert.throws(()=>validateProfileSnake(renamed.replace('class="c czz9"','class="c c-unsafe"'),calendar,'light'))
+})
+
+test('GitHub API quota falls back to raw files only when the complete calendar and both animations agree', async () => {
+  const calls=[]
+  const fetcher=async(url,options)=>{
+    calls.push({url,options})
+    if(url===PROFILE_REF) return new Response('rate limited',{status:403})
+    assert.ok(url.startsWith('https://raw.githubusercontent.com/Cyril-Fan/Cyril-Fan/main/assets/'))
+    return response({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark}[url.split('/').at(-1)])
+  }
+  const bundle=await fetchContributionBundle({fetcher,now,currentCommit:fixtureCommit})
+  assert.equal(bundle.sourceCommit,null,'Do not invent a Git revision for a branch read')
+  assert.equal(bundle.calendar.total,calendar.total)
+  assert.equal((await validatePublishedContributionBundle({version:1,...bundle},now)).dataHash,bundle.dataHash)
+  assert.ok(calls.every(call=>call.options.credentials==='omit'))
+  await assert.rejects(fetchContributionBundle({now,fetcher:async(url,options)=>url.endsWith('-dark.svg')?response(light):fetcher(url,options)}))
 })

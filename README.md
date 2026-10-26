@@ -33,7 +33,7 @@ npm run preview
 
 `npm ci` 按锁文件安装依赖；`npm test` 执行认证、评论、Markdown、主题、图标、目录与贡献图回归；`npm run test:database` 在本地 PGlite 中验证权限，不连接正式数据库。`build` 读取本人 GitHub 资料仓库同一提交的日历和两套原版蛇动画，校验通过后生成静态日历，再执行 Astro 检查、生成统一图标和 `dist/`，逐页校验后生成搜索索引。请通过 `preview` 验证站内搜索。
 
-构建与浏览器共用 `contribution-feed.ts`：先读取 `Cyril-Fan/Cyril-Fan` 的 main 提交号，再按这个固定提交获取日历、浅色 SVG 和深色 SVG。校验日历连续性、总数、时间、资料仓库的 `snake_calendar_hash`、每个 SVG 格子的坐标与实际颜色等级。直接保留 GitHub 主页的原版 Platane/snk 动画，不再使用本站自写寻路。资料工作流生成到一半、读取失败或文件不一致时，不替换完整版本。
+构建与浏览器共用 `contribution-feed.ts`：先读取 `Cyril-Fan/Cyril-Fan` 的 main 提交号，再按这个固定提交获取日历、浅色 SVG 和深色 SVG。若匿名提交查询被限流，则读取 main 的公开文件，仍须通过整包校验；此时 sourceCommit 为 null，不伪造提交号。校验日历连续性、总数、时间、资料仓库的 `snake_calendar_hash`、每个 SVG 格子的坐标与实际颜色等级（包括原版 base36 字母编号 ca、cb 等）。直接保留 GitHub 主页的原版 Platane/snk 动画，不再使用本站自写寻路。资料工作流生成到一半、读取失败或文件不一致时，不替换完整版本。
 
 网站工作流每小时尝试更新构建快照。浏览器在首页可见时另检查最新资料提交，每个页面最多每 5 分钟一次；两个新图解码完成后，才同时更新动画、日历和总数。GitHub 不可用时会读取本站最新发布的完整快照；构建也优先恢复线上较新的整包，再尝试 GitHub。失败不会伪造更新日期或把新版本换回旧版本，超过 36 小时会提示延迟，不影响静态日历查询。浏览器请求不带本站登录凭据或页面地址，CI 的短期 token 只发给 GitHub API。GitHub 数据、任务队列和 CDN 仍可能延迟；悬停贡献总数可查看数据日期及 24 小时制更新时间。
 

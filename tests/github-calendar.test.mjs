@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { contributionCells, contributionWeeks, isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
+import { contributionCells, contributionWeeks, contributionMonthLabels, isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
 import { siteDaysOnline } from '../src/lib/site-days.ts'
 const fixture = (start = '2025-10-19') => {
   const begin = Date.parse(`${start}T00:00:00Z`)
@@ -11,6 +11,21 @@ const fixture = (start = '2025-10-19') => {
   }))
   return { contributions, total: { lastYear: contributions.reduce((sum, day) => sum + day.count, 0) } }
 }
+
+test('rolling-year labels omit the earlier repeated month and never collide at the leading edge', () => {
+  for (let offset = 0; offset < 366; offset++) {
+    const start = new Date(Date.UTC(2024, 0, 1) + offset * 86400000).toISOString().slice(0, 10)
+    const days = fixture(start).contributions
+    for (const en of [false, true]) {
+      const labels = contributionMonthLabels(days, en)
+      assert.equal(new Set(labels.map(label => label.month)).size, labels.length)
+      labels.slice(1).forEach((label, index) => assert.ok(label.column - labels[index].column >= 3))
+    }
+  }
+  const labels = contributionMonthLabels(fixture('2025-10-26').contributions)
+  assert.equal(labels[0].label, '11月')
+  assert.equal(labels.at(-1).label, '10月')
+})
 
 test('a complete real-shaped year is normalized in date order without mutating the feed', () => {
   const input = fixture()

@@ -56,6 +56,21 @@ export function contributionCells(days: ContributionDay[]) {
   return contributionWeeks(days).flatMap((week, x) => week.flatMap((day, y) => day ? [{ ...day, x, y }] : []))
 }
 
+/** A rolling year may start and end in the same month. Keep its latest label,
+ * and omit a short leading month if it would collide with the next label. */
+export function contributionMonthLabels(days: ContributionDay[], en = false) {
+  const weeks = contributionWeeks(days)
+  const labels = weeks.flatMap((week, column) => {
+    const day = week.find(day => day !== null)
+    if (!day || (column > 0 && day.date.slice(0, 7) === weeks[column - 1].find(day => day !== null)?.date.slice(0, 7))) return []
+    return [{ column, month: day.date.slice(5, 7), label: en
+      ? new Date(`${day.date}T00:00:00Z`).toLocaleDateString('en', { month: 'short', timeZone: 'UTC' })
+      : `${Number(day.date.slice(5, 7))}月` }]
+  })
+  return labels.filter((label, index) => !labels.slice(index + 1).some(next => next.month === label.month) &&
+    (!labels[index + 1] || labels[index + 1].column - label.column >= 3))
+}
+
 /** GitHub may finish the current UTC day after midnight; never accept an older year. */
 export function isCurrentContributionCalendar(calendar: ContributionCalendar, now = new Date()): boolean {
   const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`)

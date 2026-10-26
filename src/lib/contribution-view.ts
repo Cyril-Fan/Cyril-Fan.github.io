@@ -1,5 +1,5 @@
 import { fetchContributionBundle, fetchPublishedContributionBundle, REFRESH_INTERVAL_MS } from './contribution-feed'
-import { contributionWeeks } from './github-contributions'
+import { contributionWeeks, contributionMonthLabels } from './github-contributions'
 import type { ContributionBundle } from './contribution-feed'
 import type { ContributionDay } from './github-contributions'
 
@@ -67,7 +67,7 @@ export class ContributionSnake extends HTMLElement {
       if (Date.parse(bundle.fetchedAt) < Date.parse(this.dataset.updated || '1970-01-01')) return
       const count = this.querySelector<HTMLElement>('[data-contribution-total]')
       const updateCaption = () => {
-        this.dataset.sourceCommit = bundle.sourceCommit
+        this.dataset.sourceCommit = bundle.sourceCommit || ''
         this.dataset.dataHash = bundle.dataHash
         this.dataset.updated = bundle.fetchedAt
         if (count) {
@@ -95,13 +95,12 @@ export class ContributionSnake extends HTMLElement {
           return node
         }
         const weeks = contributionWeeks(bundle.calendar.contributions)
+        for (const { column, label } of contributionMonthLabels(bundle.calendar.contributions, en)) {
+          const text = create('text', { class:'month-label', x:String(column * 16 + 2), y:'-12' })
+          text.textContent = label
+          fragment.append(text)
+        }
         weeks.forEach((week, column) => {
-          const first = week.find(day => day !== null)
-          if (first && (column === 0 || first.date.slice(5, 7) !== weeks[column - 1].find(day => day !== null)?.date.slice(5, 7))) {
-            const text = create('text', { class:'month-label', x:String(column * 16 + 2), y:'-12' })
-            text.textContent = en ? new Date(`${first.date}T00:00:00Z`).toLocaleDateString('en', { month:'short', timeZone:'UTC' }) : `${Number(first.date.slice(5, 7))}月`
-            fragment.append(text)
-          }
           week.forEach((day, row) => {
             if (!day) return
             const rect = create('rect', { class:`contribution-day level-${day.level}`, x:String(column * 16 + 2), y:String(row * 16 + 2), width:'12', height:'12', rx:'2', role:'button', tabindex:'-1', 'data-date':day.date, 'data-count':String(day.count), 'data-level':String(day.level), 'aria-label':label(day) })

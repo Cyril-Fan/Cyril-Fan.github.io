@@ -1,7 +1,7 @@
 ---
 import assets from '../../assets/contributions.json'
 import snapshot from '../../assets/contribution-calendar.json'
-import { normalizeContributions, contributionWeeks, contributionGeometry, contributionPalettes } from '../../lib/github-contributions'
+import { normalizeContributions, contributionWeeks, contributionGeometry, contributionPalettes, contributionMonthLabels } from '../../lib/github-contributions'
 const en = Astro.currentLocale === 'en'
 const data = normalizeContributions(snapshot)
 if (!data) throw new Error('Contribution calendar is invalid; run the data sync before building.')
@@ -12,11 +12,7 @@ const first = days[0].date
 const last = days[days.length - 1].date
 const description = en ? `${data.total} contributions · ${first} – ${last}` : `${data.total} 次贡献 · ${first} – ${last}`
 const dayLabel = (day: typeof days[number]) => en ? `${day.date}: ${day.count} contributions` : `${day.date}：${day.count} 次贡献`
-const monthLabels = weeks.flatMap((week, column) => {
-  const day = week.find(day => day !== null)
-  if (!day || (column > 0 && day.date.slice(5, 7) === weeks[column-1].find(day => day !== null)?.date.slice(5, 7))) return []
-  return [{ column, label: en ? new Date(`${day.date}T00:00:00Z`).toLocaleDateString('en', { month:'short', timeZone:'UTC' }) : `${Number(day.date.slice(5,7))}月` }]
-})
+const monthLabels = contributionMonthLabels(days, en)
 const { pitch, size, inset, height } = contributionGeometry
 const canvasWidth = (weeks.length + 2) * pitch
 const paletteStyle = Object.entries(contributionPalettes).flatMap(([theme, palette]) => [

@@ -67,3 +67,10 @@ if (targetUrl !== '/' && targetUrl.endsWith('/')) {
     <span class="text-xs font-medium">{languages[safeCurrentLocale]}</span>
   </div>
 </a>
+
+<style>
+  #language-switch-btn { position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;height:34px;padding:6px;flex:none; }
+  #language-switch-btn :global(svg) { width:16px;height:16px;display:block;flex:none; }
+  #language-switch-btn span:not(.sr-only) { line-height:20px; }
+  @media(pointer:coarse) { #language-switch-btn::after { content:'';position:absolute;inset:-5px 0; } }
+</style>

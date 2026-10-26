@@ -35,7 +35,7 @@ async function saveBundle(bundle, root) {
   await writeJson(new URL('src/assets/contributions.json', root), metadata)
   await mkdir(new URL('public/data/', root), { recursive:true })
   await writeJson(new URL('public/data/contributions.json', root), { version:1, ...bundle })
-  console.log(`[contributions] GitHub profile ${bundle.sourceCommit.slice(0, 7)}: ${bundle.calendar.total} contributions; original Platane/snk animation, ${bundle.duration}ms.`)
+  console.log(`[contributions] GitHub profile ${bundle.sourceCommit?.slice(0, 7) || 'main (calendar hash verified)'}: ${bundle.calendar.total} contributions; original Platane/snk animation, ${bundle.duration}ms.`)
   return metadata
 }
 
@@ -52,7 +52,7 @@ export async function verifyContributionBundle({ root = defaultRoot, now = new D
   const calendar = normalizeContributions(snapshot)
   if (!calendar || snapshot.dataHash !== await calendarHash(calendar) || metadata.dataHash !== snapshot.dataHash || metadata.fetchedAt !== snapshot.fetchedAt || metadata.dataThrough !== calendar.contributions.at(-1).date || metadata.rendererVersion !== RENDERER || metadata.sourceCommit !== snapshot.sourceCommit) throw new Error('Contribution bundle identity mismatch')
   const age = now.getTime() - Date.parse(snapshot.fetchedAt)
-  if (!Number.isFinite(age) || age < -300_000 || !/^[a-f0-9]{40}$/.test(metadata.sourceCommit)) throw new Error('Invalid contribution snapshot identity or timestamp')
+  if (!Number.isFinite(age) || age < -300_000 || (metadata.sourceCommit !== null && !/^[a-f0-9]{40}$/.test(metadata.sourceCommit))) throw new Error('Invalid contribution snapshot identity or timestamp')
   if (requireFresh && (!isCurrentContributionCalendar(calendar, now) || age > MAX_SOURCE_AGE_MS)) throw new Error('Contribution bundle is stale')
   for (const theme of ['light', 'dark']) {
     const path = metadata[theme]

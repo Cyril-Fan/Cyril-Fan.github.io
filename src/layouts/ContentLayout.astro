@@ -56,7 +56,7 @@ const { meta, highlightColor, ...props } = Astro.props
 
 <style>
   .content-side-column { display:none; }
-  .mobile-toc { position:sticky;top:4.5rem;z-index:20;margin-bottom:1.5rem;background:hsl(var(--background)/.97);border-radius:.7rem; }
+  .mobile-toc { margin-bottom:1.5rem;background:hsl(var(--background)/.97);border-radius:.7rem; }
   .mobile-toc:empty { display:none; }
   .mobile-toc :global(details) { border:1px solid hsl(var(--border));border-radius:.7rem;padding:.75rem 1rem; }
   .mobile-toc :global(summary) { cursor:pointer;font-size:.9rem; }

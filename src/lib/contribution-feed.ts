@@ -24,11 +24,12 @@ export function validateProfileSnake(svg: string, calendar: ContributionCalendar
   for (const [key, value] of [['ce', palette.colors[0]], ['cb', palette.border], ['cs', palette.snake], ...palette.colors.map((color, level) => [`c${level}`, color])]) {
     if (!new RegExp(`--${key}:${value}(?:;|})`).test(svg)) throw new Error('Contribution theme mismatch')
   }
-  const levels = new Map([...svg.matchAll(/\.c\.(c\d+)\{fill:var\(--c([1-4])\);/g)].map(match => [match[1], Number(match[2])]))
+  // Platane numbers animated cells in base 36 (c0 … c9, ca … cz, c10).
+  const levels = new Map([...svg.matchAll(/\.c\.(c[0-9a-z]+)\{fill:var\(--c([1-4])\);/g)].map(match => [match[1], Number(match[2])]))
   const actual = new Map<string, number>()
   for (const match of svg.matchAll(/<rect\b([^>]+)\/>/g)) {
     const attrs = Object.fromEntries([...match[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(attr => [attr[1], attr[2]]))
-    if (!/^c(?: c\d+)?$/.test(attrs.class ?? '')) continue
+    if (!/^c(?: c[0-9a-z]+)?$/.test(attrs.class ?? '')) continue
     const key = `${attrs.x},${attrs.y}`
     const level = attrs.class === 'c' ? 0 : levels.get(attrs.class.split(' ')[1])
     if (actual.has(key) || level === undefined) throw new Error('Invalid contribution SVG cells')
@@ -43,7 +44,7 @@ export function validateProfileSnake(svg: string, calendar: ContributionCalendar
 }
 
 export interface ContributionBundle {
-  sourceCommit: string
+  sourceCommit: string | null
   fetchedAt: string
   checkedAt: string
   dataHash: string
@@ -68,7 +69,7 @@ interface FeedOptions {
  * Its age is visible to readers; an upstream outage must not erase valid history. */
 export async function validatePublishedContributionBundle(input: unknown, now = new Date()): Promise<ContributionBundle> {
   const bundle = input as ContributionBundle & { version?: number }
-  if (!bundle || bundle.version !== 1 || !/^[a-f0-9]{40}$/.test(bundle.sourceCommit) ||
+  if (!bundle || bundle.version !== 1 || (bundle.sourceCommit !== null && !/^[a-f0-9]{40}$/.test(bundle.sourceCommit)) ||
       !/^[a-f0-9]{64}$/.test(bundle.dataHash) || typeof bundle.light !== 'string' || typeof bundle.dark !== 'string') throw new Error('Invalid published contribution bundle')
   const calendar = normalizeContributions({ contributions: bundle.calendar?.contributions, total: { lastYear: bundle.calendar?.total } })
   const fetched = Date.parse(bundle.fetchedAt), checked = Date.parse(bundle.checkedAt)
@@ -107,7 +108,7 @@ export async function fetchPublishedContributionBundle({ fetcher = fetch, now = 
   return validatePublishedContributionBundle(JSON.parse(new TextDecoder().decode(bytes)), now)
 }
 
-/** Pin all three files to one commit; reject unfinished profile updates. */
+/** Prefer one commit; validate all three files together even when the ref API is throttled. */
 export async function fetchContributionBundle({ fetcher = fetch, now = new Date(), signal, currentCommit, token }: FeedOptions = {}): Promise<ContributionBundle | null> {
   const timed = AbortSignal.timeout(20_000)
   const requestSignal = signal ? AbortSignal.any([signal, timed]) : timed
@@ -119,11 +120,18 @@ export async function fetchContributionBundle({ fetcher = fetch, now = new Date(
     if (text.length > 1_500_000) throw new Error('Contribution response too large')
     return text
   }
-  const head = JSON.parse(await get(PROFILE_REF))
-  const sourceCommit: string = head?.object?.sha
-  if (!/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error('Invalid GitHub profile commit')
-  if (sourceCommit === currentCommit) return null
-  const base = `https://raw.githubusercontent.com/Cyril-Fan/Cyril-Fan/${sourceCommit}/assets/`
+  let sourceCommit: string | null = null
+  try {
+    const head = JSON.parse(await get(PROFILE_REF))
+    if (!/^[a-f0-9]{40}$/.test(head?.object?.sha)) throw new Error('Invalid GitHub profile commit')
+    sourceCommit = head.object.sha
+  } catch {
+    if (requestSignal.aborted) throw requestSignal.reason
+    // The anonymous API can be throttled while raw files remain available.
+    // A branch snapshot is accepted only after hash + both SVG cell validations.
+  }
+  if (sourceCommit && sourceCommit === currentCommit) return null
+  const base = `https://raw.githubusercontent.com/Cyril-Fan/Cyril-Fan/${sourceCommit || 'main'}/assets/`
   const [json, light, dark] = await Promise.all(['profile-data.json', 'github-contribution-grid-snake.svg', 'github-contribution-grid-snake-dark.svg'].map(name => get(base + name)))
   const profile = JSON.parse(json)
   if (profile.login !== 'Cyril-Fan' || typeof profile.updated !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(profile.updated)) throw new Error('Invalid GitHub profile snapshot')

@@ -118,7 +118,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
           })
         }
         <div class='flex w-full grow flex-row justify-end gap-x-3 md:w-fit md:gap-x-5'>
-          <a class='px-1 py-2 transition-none md:px-2' href={getLocalizedUrl(Astro.currentLocale, '/search')} title={english ? 'Search' : '站内搜索'} aria-current={getAriaCurrent('/search')}>
+          <a class='header-search px-1 py-2 transition-none md:px-2' href={getLocalizedUrl(Astro.currentLocale, '/search')} title={english ? 'Search' : '站内搜索'} aria-current={getAriaCurrent('/search')}>
             <span class='sr-only'>{english ? 'Search' : '站内搜索'}</span>
             <Icon name='search' class='size-5' />
           </a>
@@ -127,7 +127,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     </div>
 
     <!-- buttons -->
-    <div class='z-30 flex gap-x-4 group-[.not-top]:gap-x-2' style='transition:gap 0.3s'>
+    <div class='header-controls z-30 flex items-center gap-x-4 group-[.not-top]:gap-x-2' style='transition:gap 0.3s'>
       <LanguageSwitch />
       <button
         id='toggleDarkMode'
@@ -361,6 +361,12 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   }
 
   /* dark light mode toggle */
+  /* Match the theme's actual 34px controls; Icon's em sizing must not override them. */
+  #toggleDarkMode, #toggleMenu { box-sizing:border-box;width:34px;height:34px;padding:6px;align-items:center;justify-content:center;flex:none;position:relative; }
+  #toggleDarkMode :global(svg), #toggleMenu :global(svg), .header-search :global(svg) { width:20px;height:20px;display:block;flex:none; }
+  #toggleDarkMode :global(svg.hidden) { display:none; }
+  .header-search { display:flex;align-items:center;justify-content:center;min-width:36px;height:36px;box-sizing:border-box; }
+  @media(pointer:coarse) { #toggleDarkMode::after,#toggleMenu::after { content:'';position:absolute;inset:-5px; } }
   #toggleDarkMode {
     &[data-theme='dark'] {
       & .system {

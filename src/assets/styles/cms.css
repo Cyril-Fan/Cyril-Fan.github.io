@@ -108,9 +108,18 @@
 .cms-media-card button { font-size:.73rem; padding:.35rem .5rem; }
 .cms-dialog { position:fixed; inset:0; margin:auto; width:min(56rem,calc(100vw - 2rem)); max-height:85dvh; overflow:auto; border:1px solid hsl(var(--border)); border-radius:.8rem; padding:1.5rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
 .cms-dialog::backdrop { background:#0008; backdrop-filter:blur(3px); }
-.cms-dialog-close { float:right; margin:0 0 .5rem .5rem; }
-.cms-page .cms-dialog-close,.cms-page [data-search-clear] { display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:10px;line-height:1; }
-.cms-dialog-close svg,[data-search-clear] svg { width:22px;height:22px;display:block; }
+.cms-page .cms-dialog-close { position:absolute;top:1.5rem;right:1.5rem;display:grid;place-items:center;width:32px;height:32px;min-height:32px;padding:6px;line-height:1; }
+.cms-dialog [data-dialog]>h2 { min-height:32px;display:flex;align-items:center;padding-right:2.75rem; }
+.cms-page [data-search-clear] { display:grid;place-items:center;width:32px;height:32px;min-height:32px;padding:6px;line-height:1; }
+.cms-dialog-close svg,[data-search-clear] svg { width:18px;height:18px;display:block; }
+@media(pointer:coarse){.cms-dialog-close::after { content:'';position:absolute;inset:-6px; }}
+.cms-page [data-back-blog] { display:inline-flex;align-items:center;gap:.35rem; }
+.cms-page [data-back-blog] svg { width:16px;height:16px;flex:none; }
+.cms-back-shaft { transform:scaleX(0);transform-origin:6px 12px;transition:transform .2s ease; }
+.cms-back-head { transform:translateX(3px);transition:transform .2s ease; }
+[data-back-blog]:is(:hover,:focus-visible) .cms-back-shaft { transform:scaleX(1); }
+[data-back-blog]:is(:hover,:focus-visible) .cms-back-head { transform:translateX(0); }
+@media(prefers-reduced-motion:reduce){.cms-back-shaft,.cms-back-head { transition:none; }}
 .cms-dialog h2 { font-size:1.2rem; font-weight:650; margin-bottom:1rem; }
 .cms-dialog p { line-height:1.7; margin:.5rem 0; }
 .cms-confirm { width:min(30rem,calc(100vw - 2rem)); }

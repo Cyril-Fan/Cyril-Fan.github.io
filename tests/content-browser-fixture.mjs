@@ -6,14 +6,14 @@ import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
 import { parse } from 'node-html-parser'
 import { pathKind,validateText,validateImage,decodeBase64,fileReferences } from '../supabase/functions/_shared/git-content.ts'
-const root=process.cwd(),dist=resolve(root,'.content-check-dist'),port=Number(process.env.CONTENT_FIXTURE_PORT||9361)
+const root=process.cwd(),dist=resolve(root,process.env.CONTENT_FIXTURE_DIST||'.content-check-dist'),port=Number(process.env.CONTENT_FIXTURE_PORT||9361)
 const hash=data=>createHash('sha1').update('blob '+Buffer.byteLength(data)+'\0').update(data).digest('hex')
 const files=new Map()
 const siteLinks=JSON.parse(await readFile(resolve(root,'public/links.json'),'utf8'))
 const fixtureImages=[...new Set([...siteLinks.friends.flatMap(g=>g.link_list.filter(f=>f.avatar?.startsWith('/')).map(f=>'public'+f.avatar)),...(await readdir(resolve(root,'public/media'))).filter(name=>/\.(png|webp|gif|jpe?g)$/i.test(name)).map(name=>'public/media/'+name),'public/avatar/avatar.png','src/assets/avatar.png'])]
 for(const path of ['src/data/profile.json','src/data/academic.json','public/links.json',...fixtureImages]){const bytes=await readFile(resolve(root,path));files.set(path,{path,sha:hash(bytes),content:bytes.toString(pathKind(path)==='media'?'base64':'utf8'),encoding:pathKind(path)==='media'?'base64':'utf-8'})}
 const html=parse(await readFile(resolve(dist,'admin/index.html'),'utf8'))
-const editor=html.querySelector('content-editor').outerHTML,styles='<meta charset="utf-8">'+html.querySelectorAll('link[rel=stylesheet],head style').map(x=>x.outerHTML).join('')
+const editor=html.querySelector('content-editor').outerHTML,styles='<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'+html.querySelectorAll('link[rel=stylesheet],head style').map(x=>x.outerHTML).join('')
 const fixturePost='src/content/blogs/tech/preview-fixture/index.md';
 const fixtureBody='---\ntitle: Isolated reading preview\ndescription: Local acceptance only, never published\npublishDate: 2026-10-18\nupdatedDate: 2026-10-24\ncategory: tech\ntags: [C++, C#, a/b]\ncomment: true\nheroImage:\n  src: /avatar/avatar.png\n  alt: Preview image\n---\n\n## Reading test\n\nLong text with **emphasis**, [a link](https://example.org) and $x^2$.\n\n### Code\n\n```cpp\n#include <iostream>\nint main() { std::cout << 42; }\n```\n\n## Table and math\n\n| Name | Value |\n| --- | --- |\n| Example | 42 |\n\n$$\nE = mc^2\n$$\n\n![Local image](/avatar/avatar.png)\n';
 files.set(fixturePost,{path:fixturePost,sha:hash(fixtureBody),content:fixtureBody,encoding:'utf-8'});
