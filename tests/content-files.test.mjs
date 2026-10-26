@@ -36,6 +36,35 @@ test('full article syntax renders safe GFM, math, nested blocks, and stable head
   assert.match(articleMarkdown('```python title="example.py"\nprint(1)\n```'),/data-meta="title=&#x22;example.py&#x22;"/)
   assert.match(prepareThemeSource('$$x^2$$\n<Collapse title="X">'),/:::details X/)
 })
+test('theme asides reuse trusted Axi icons without allowing author SVG or attributes',()=>{
+  const source=['note','tip','caution','danger'].map(kind=>':::'+kind+' '+kind+' title\n\n**Safe content**\n\n:::').join('\n\n')+'\n\n<svg onload="alert(1)"><path d="author-path" /></svg>'
+  const doc=new JSDOM(articleMarkdown(source)).window.document
+  for(const kind of ['note','tip','caution','danger']){
+    const block=doc.querySelector('aside.theme-'+kind),icon=block.querySelector('.theme-block-title>svg')
+    assert.equal(block.querySelector('.theme-block-title').textContent,kind+' title')
+    assert.equal(icon.getAttribute('aria-hidden'),'true');assert.equal(icon.getAttribute('viewBox'),'0 0 24 24')
+    assert.ok(icon.querySelector('path').getAttribute('d').length>30)
+    assert.equal(block.querySelector('strong').textContent,'Safe content')
+  }
+  assert.equal(doc.querySelectorAll('svg').length,4)
+  assert.equal(doc.querySelector('[onload], script, path[d="author-path"]'),null)
+  assert.match(doc.body.textContent,/<svg onload=/)
+})
+
+test('safe Steps keeps numbered circles on the outer list, start values and ordinary nested lists',()=>{
+  const body='3. First step\n\n   1. Nested item\n   2. Another nested item\n\n4. Second step'
+  const directive=new JSDOM(articleMarkdown(':::steps\n\n'+body+'\n\n:::')).window.document
+  const component=new JSDOM(articleMarkdown('<Steps>\n\n'+body+'\n\n</Steps>')).window.document
+  for(const doc of [directive,component]){
+    const list=doc.querySelector('.theme-steps>.sl-steps')
+    assert.ok(list);assert.equal(list.getAttribute('role'),'list');assert.equal(list.getAttribute('start'),'3')
+    assert.equal(list.style.getPropertyValue('--sl-steps-start'),'2')
+    assert.equal(list.children.length,2);assert.match(list.children[0].textContent,/First step/)
+    assert.equal(list.querySelector('ol').className,'');assert.equal(doc.querySelectorAll('.sl-steps').length,1)
+  }
+  assert.equal(directive.body.innerHTML,component.body.innerHTML)
+})
+
 test('image checks preserve real WebP bytes and reject mismatched/script formats',async()=>{
   const bytes=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer();validateImage('public/media/test.webp',bytes)
   assert.throws(()=>validateImage('public/media/test.png',bytes));assert.throws(()=>validateImage('public/media/test.svg',bytes))

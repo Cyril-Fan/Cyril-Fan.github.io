@@ -114,6 +114,125 @@ test('collection picker selects, reorders and removes membership without deletin
  assert.ok(!ui.calls.some(c=>c.action==='publish'))
 })
 
+async function createPreviewDocument(ui,name,kind='post'){
+ if(ui.root.querySelector('[data-category-tools]').hidden){await ui.click('博客');ui.root.querySelectorAll('.cms-folder')[1].click();await tick()}
+ await ui.click(kind==='collection'?'新建合集':'新建文章')
+ ui.root.querySelector('dialog input').value=name;await ui.click('建立本地副本')
+ return ui.root.querySelector('[data-editor] iframe')
+}
+const previewTick=async()=>{await new Promise(r=>setTimeout(r,220));await tick()}
+function observePreview(ui,frame){
+ assert.ok(frame,'article preview is immediately available in the editor')
+ const messages=[],peer=frame.contentWindow
+ peer.postMessage=(payload,origin)=>messages.push({payload:structuredClone(payload),origin})
+ const signal=(type,options={})=>ui.w.dispatchEvent(new ui.w.MessageEvent('message',{data:{type},origin:ui.w.location.origin,source:peer,...options}))
+ return {messages,signal,latest:()=>messages.at(-1)?.payload}
+}
+
+test('new article shows a private whole-article preview and accepts only its own frame handshake',async t=>{
+ const ui=await setup(t),frame=await createPreviewDocument(ui,'whole-article'),preview=observePreview(ui,frame)
+ assert.equal(frame.getAttribute('src'),'/admin/preview/')
+ assert.equal(frame.title,'当前文章整体预览')
+ assert.equal(frame.style.visibility,'hidden')
+ preview.signal('cyril-preview-ready',{origin:'https://other.invalid'});preview.signal('cyril-preview-ready',{source:ui.w});await tick()
+ assert.equal(preview.messages.length,0)
+ preview.signal('cyril-preview-ready');await tick()
+ assert.equal(preview.latest().kind,'post');assert.equal(preview.latest().compact,true)
+ assert.equal(preview.latest().url,'https://cyril-fan.top/blog/tech/whole-article')
+ assert.equal(preview.messages.at(-1).origin,ui.w.location.origin)
+ assert.equal(preview.latest().data.title,ui.root.querySelector('[name="title"]').value)
+ const status=frame.parentElement.querySelector('[role="status"]')
+ preview.signal('cyril-preview-rendered',{source:ui.w});assert.equal(status.hidden,false);assert.equal(frame.style.visibility,'hidden')
+ preview.signal('cyril-preview-rendered');assert.equal(status.hidden,true);assert.equal(frame.style.visibility,'visible')
+ ui.fill('title','Retain my draft');const area=ui.root.querySelector('[aria-label="Markdown 正文"]');area.value='Unpublished text stays local';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}));await tick()
+ const savedBeforeError=JSON.stringify([...ui.saved.values()])
+ preview.signal('cyril-preview-error',{origin:'https://other.invalid'});preview.signal('cyril-preview-error',{source:ui.w});assert.equal(status.hidden,true)
+ preview.signal('cyril-preview-error');assert.equal(status.hidden,false);assert.match(status.textContent,/文章暂时无法渲染，编辑内容已保留/)
+ assert.equal(ui.root.querySelector('[name="title"]').value,'Retain my draft');assert.equal(area.value,'Unpublished text stays local');assert.equal(JSON.stringify([...ui.saved.values()]),savedBeforeError)
+ assert.ok(!ui.files.has('src/content/blogs/tech/whole-article/index.md'))
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('whole-article preview tracks current metadata, body, theme and English fallback without publishing',async t=>{
+ const ui=await setup(t),frame=await createPreviewDocument(ui,'live-edit'),preview=observePreview(ui,frame)
+ preview.signal('cyril-preview-ready');await tick()
+ ui.fill('title','Current title');ui.fill('description','Current description');ui.fill('tags','C++, Deep Learning, c++');ui.fill('publishDate','2026-02-03');ui.fill('updatedDate','2026-04-05')
+ const area=ui.root.querySelector('[aria-label="Markdown 正文"]');area.value='## Local heading\n\nCurrent article body with $x^2$.';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}))
+ ui.w.document.documentElement.classList.add('dark');await previewTick()
+ const sent=preview.latest();assert.equal(sent.data.title,'Current title');assert.equal(sent.data.description,'Current description');assert.deepEqual(sent.data.tags,['c++','deep learning'])
+ assert.equal(sent.data.publishDate,'2026-02-03');assert.equal(sent.data.updatedDate,'2026-04-05');assert.equal(sent.body,area.value);assert.equal(sent.dark,true)
+ const language=frame.parentElement.querySelector('select');language.value='en';language.dispatchEvent(new ui.w.Event('change'))
+ assert.equal(frame.getAttribute('src'),'/en/admin/preview/')
+ const english=observePreview(ui,frame);english.signal('cyril-preview-ready');await tick()
+ assert.equal(english.latest().en,true);assert.equal(english.latest().fallback,true);assert.equal(english.latest().data.title,'Current title')
+ assert.equal(english.latest().url,'https://cyril-fan.top/en/blog/tech/live-edit')
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('clearing an existing cover and optional article fields removes their YAML keys and preserves unrelated content',async t=>{
+ const ui=await setup(t),path='src/content/blogs/tech/cover-clear/index.md'
+ const original='---\ntitle: Original title\ndescription: Original description\npublishDate: 2026-02-03\nupdatedDate: 2026-03-04\ncategory: tech\ntags: [cpp]\nheroImage:\n  src: /avatar/avatar.png\n  alt: Preview image\n  width: 800\nsource: https://example.com/source\npixivLink: "12345"\ncustomField: Preserve this\ncomment: true\n---\n## Original body\n\nKeep this text.\n'
+ ui.files.set(path,{path,sha:'a'.repeat(40),content:original,encoding:'utf-8'});await ui.click('刷新');await ui.click('博客');ui.root.querySelectorAll('.cms-folder')[1].click();await tick();ui.root.querySelector('[data-list] button').click();await tick()
+ ui.fill('title','Updated title');ui.fill('description','Updated description');await ui.click('清除');await tick()
+ assert.equal(ui.root.querySelector('[name="heroImage.src"]').value,'')
+ ui.fill('source','');ui.fill('updatedDate','');ui.fill('pixivLink','');await tick();await ui.click('编辑原文件')
+ const edited=git.readArticle(ui.root.querySelector('.cms-source').value)
+ for(const key of ['heroImage','source','updatedDate','pixivLink'])assert.equal(Object.hasOwn(edited.data,key),false,key+' is removed from YAML')
+ assert.equal(edited.data.title,'Updated title');assert.equal(edited.data.description,'Updated description');assert.equal(edited.data.customField,'Preserve this');assert.equal(edited.data.publishDate,'2026-02-03');assert.deepEqual(edited.data.tags,['cpp']);assert.equal(edited.data.comment,true);assert.equal(edited.body,git.readArticle(original).body)
+ assert.equal(ui.files.get(path).content,original);assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('new collection preview reflects selected article order and removals as well as its own text',async t=>{
+ const ui=await setup(t)
+ for(const name of ['one','two']){await createPreviewDocument(ui,name);ui.fill('title','Article '+name)}
+ const frame=await createPreviewDocument(ui,'reading-order','collection'),preview=observePreview(ui,frame)
+ preview.signal('cyril-preview-ready');await tick();assert.equal(preview.latest().kind,'collection');assert.deepEqual(preview.latest().collectionPosts,[])
+ const picker=ui.root.querySelector('.cms-collection-picker')
+ for(let i=0;i<2;i++){picker.querySelectorAll('label')[i].querySelector('input').click();await tick()}
+ picker.querySelectorAll('ol li')[1].querySelector('button').click();await tick()
+ ui.fill('title','A useful collection');const area=ui.root.querySelector('[aria-label="Markdown 正文"]');area.value='Collection introduction';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}));await previewTick()
+ assert.equal(preview.latest().data.title,'A useful collection');assert.equal(preview.latest().body,'Collection introduction')
+ assert.deepEqual(preview.latest().collectionPosts.map(p=>p.title),[...picker.querySelectorAll('ol li>span')].map(s=>s.textContent))
+ assert.ok(preview.latest().collectionPosts.every(p=>p.href.startsWith('/blog/tech/')))
+ picker.querySelector('ol li').querySelectorAll('button')[2].click();await previewTick();assert.equal(preview.latest().collectionPosts.length,1)
+ assert.equal([...ui.saved.values()].at(-1).files.filter(f=>git.pathKind(f.path)==='post').length,2)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('Academic retains its section Markdown preview without offering the article-page preview',async t=>{
+ const ui=await setup(t);await ui.open('学术与项目')
+ assert.equal(ui.find('全屏文章预览'),undefined);assert.equal(ui.root.querySelector('[data-editor] iframe'),null)
+ assert.ok(ui.root.querySelector('[aria-label="实时预览"]'))
+ const area=ui.root.querySelector('[aria-label="Markdown 正文"]');area.value='## Research note';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}));await previewTick()
+ assert.match(ui.root.querySelector('[aria-label="实时预览"]').textContent,/Research note/)
+})
+
+test('closing full-screen preview stops its updates while inline preview stays live; switching sections stops the old frame',async t=>{
+ const ui=await setup(t),inlineFrame=await createPreviewDocument(ui,'lifecycle'),inline=observePreview(ui,inlineFrame)
+ inline.signal('cyril-preview-ready');await tick();await ui.click('全屏文章预览')
+ const dialog=ui.root.querySelector('dialog'),fullFrame=dialog.querySelector('iframe'),full=observePreview(ui,fullFrame)
+ full.signal('cyril-preview-ready');await tick();assert.equal(full.latest().compact,false)
+ dialog.close();const fullCount=full.messages.length
+ ui.fill('title','Edited after closing');full.signal('cyril-preview-ready');await previewTick()
+ assert.equal(full.messages.length,fullCount);assert.equal(inline.latest().data.title,'Edited after closing')
+ const inlineCount=inline.messages.length;await ui.open('友链');assert.equal(inlineFrame.isConnected,false)
+ inline.signal('cyril-preview-ready');ui.w.document.documentElement.classList.toggle('dark');await previewTick();assert.equal(inline.messages.length,inlineCount)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('sign-out and editor removal tear down both article preview channels and private frame contents',async t=>{
+ for(const teardown of ['sign-out','remove']){
+  const ui=await setup(t),frame=await createPreviewDocument(ui,'private-preview'),inline=observePreview(ui,frame)
+  ui.fill('title','Private working title');inline.signal('cyril-preview-ready');await tick();await ui.click('全屏文章预览')
+  const fullFrame=ui.root.querySelector('dialog iframe'),full=observePreview(ui,fullFrame);full.signal('cyril-preview-ready');await tick()
+  const inlineCount=inline.messages.length,fullCount=full.messages.length
+  if(teardown==='sign-out'){ui.role('guest');await tick()}else ui.root.remove()
+  assert.equal(ui.root.querySelectorAll('iframe').length,0);assert.ok(!ui.root.textContent.includes('Private working title'))
+  inline.signal('cyril-preview-ready');full.signal('cyril-preview-ready');ui.w.document.documentElement.classList.toggle('dark');await previewTick()
+  assert.equal(inline.messages.length,inlineCount);assert.equal(full.messages.length,fullCount)
+ }
+})
+
 const testLocks=()=>{const held=new Set();return {held,async request(name,options,fn){if(typeof options==='function'){held.add(name);try{return await options({name})}finally{held.delete(name)}}return fn(held.has(name)?null:{name})}}}
 const oldJob=id=>({id,owner:'owner',repository:git.REPOSITORY,updated:'2026-01-01T00:00:00Z',files:[],submission:{requestId:id,commitSha:'c'.repeat(40),state:'committed',changes:[],revisions:{}}})
 test('entering editor reconciles confirmed deployment and refreshes restore list without restoring copies',async t=>{

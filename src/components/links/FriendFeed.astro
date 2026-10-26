@@ -19,11 +19,11 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   <script type='application/json' data-feed-data set:html={JSON.stringify({friends,feeds,checkedAt:lastUpdated}).replace(/</g,'\\u003c')} />
   <template data-feed-row><article class='feed-article' role='listitem' data-feed-article><button class='feed-author' type='button'><img class='no-lightbox' width='40' height='40' alt='' loading='lazy'/><span></span></button><a class='feed-title' target='_blank' rel='noopener noreferrer'></a><time></time></article></template>
   <div class='feed-panel'>
-    <div class='feed-panel-header'><span>{en?'Recent posts':'最近文章'}</span><div class='feed-panel-actions'><button type='button' data-random-refresh disabled={!articles.length}>{en?'Random read':'随便读读'}</button><button type='button' data-check-update>{en?'Refresh':'刷新'}</button></div></div>
-    <section class='random-card' data-random-panel hidden aria-label={en ? 'Random read' : '随机阅读'}>
+    <div class='feed-panel-header'><span>{en?'Recent posts':'最近文章'}</span><div class='feed-panel-actions'><button type='button' data-random-refresh aria-expanded='false' aria-controls='friend-feed-random' disabled={!articles.length}>{en?'Random read':'随便读读'}</button><button type='button' data-check-update>{en?'Refresh':'刷新'}</button></div></div>
+    <section class='random-card' id='friend-feed-random' data-random-panel hidden aria-label={en ? 'Random read' : '随机阅读'}>
       <a data-random-title target='_blank' rel='noopener noreferrer'></a>
       <span class='feed-meta' data-random-meta></span>
-      <button type='button' data-close-random aria-label={en?'Close random recommendation':'收起随机推荐'}>×</button>
+      <button type='button' data-close-random class='feed-close' aria-label={en?'Close random recommendation':'收起随机推荐'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button>
     </section>
     <div class='feed-articles' role='list' aria-label={en?'Recent posts':'近期文章'}>
       {articles.map(article => {
@@ -48,7 +48,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
     <span data-feed-stale hidden={!stale}>{en ? 'Some feeds are temporarily unavailable; saved posts remain available.' : '部分订阅暂时无法更新，已保留上次可用的文章。'}</span>
   </div>
   <dialog class='author-dialog' aria-labelledby='feed-author-title'>
-    <div class='author-dialog-header'><h3 id='feed-author-title'></h3><button type='button' data-close-author aria-label={en ? 'Close recent posts' : '关闭近期文章'}>×</button></div>
+    <div class='author-dialog-header'><h3 id='feed-author-title'></h3><button type='button' data-close-author class='feed-close' aria-label={en ? 'Close recent posts' : '关闭近期文章'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button></div>
     <a data-author-site target='_blank' rel='noopener noreferrer'>{en ? 'Visit this blog' : '访问博客'} ↗</a>
     <ul data-author-articles></ul>
   </dialog>
@@ -94,6 +94,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         list.replaceChildren(fragment);cards=[...list.querySelectorAll<HTMLElement>('[data-feed-article]')];lastRandom=-1
         this.querySelector<HTMLElement>('[data-random-panel]')!.hidden=true
         this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.disabled=!cards.length
+        this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.setAttribute('aria-expanded','false')
         this.querySelector('[data-feed-counts]')!.textContent=en?`${data.friends.length} blogs · ${data.feeds.filter(f=>f.status==='ok').length} feeds available`:`${data.friends.length} 位朋友 · ${data.feeds.filter(f=>f.status==='ok').length} 个订阅可用`
         const checked=this.querySelector<HTMLTimeElement>('[data-feed-checked] time')!;checked.dateTime=data.checkedAt;checked.textContent=new Intl.DateTimeFormat(en?'en-GB':'zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(data.checkedAt))
         this.querySelector<HTMLElement>('[data-feed-stale]')!.hidden=!data.feeds.some(f=>f.status==='unavailable')
@@ -114,12 +115,17 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         target.textContent = source.textContent
         this.querySelector<HTMLElement>('[data-random-meta]')!.textContent = `${card.querySelector('[data-name]')?.getAttribute('data-name')} · ${card.querySelector('time')?.textContent}`
         this.querySelector<HTMLElement>('[data-random-panel]')!.hidden = false
+        this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.setAttribute('aria-expanded','true')
       }
       this.addEventListener('click', async event => {
         const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button') : null
         if (button?.hasAttribute('data-load-more')) { count += 8; paginate() }
         if (button?.hasAttribute('data-random-refresh')) random()
-        if (button?.hasAttribute('data-close-random')) this.querySelector<HTMLElement>('[data-random-panel]')!.hidden=true
+        if (button?.hasAttribute('data-close-random')) {
+          this.querySelector<HTMLElement>('[data-random-panel]')!.hidden=true
+          const opener=this.querySelector<HTMLButtonElement>('[data-random-refresh]')!
+          opener.setAttribute('aria-expanded','false');opener.focus()
+        }
         if (button?.hasAttribute('data-check-update')) {
           button.disabled=true;button.setAttribute('aria-busy','true')
           const result=await checkUpdates(true)
@@ -190,6 +196,8 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
   .author-dialog h3 { font-weight:600; }
   .author-dialog button { font-size:1.5rem; min-width:2.75rem; min-height:2.75rem; }
+  .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2.75rem; height:2.75rem; flex:none; padding:.5rem; border:1px solid hsl(var(--border)); border-radius:.5rem; }
+  .feed-close svg { width:1.375rem; height:1.375rem; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   .author-dialog a { color:hsl(var(--primary)); }
   [data-author-articles] { padding:0; margin-top:1rem; }
   :global([data-author-articles] li) { display:flex; flex-direction:column; gap:.3rem; padding:.8rem 0; border-top:1px solid hsl(var(--border)); }

@@ -596,6 +596,38 @@ for (const language of ['zh', 'en']) {
     assert.match(ui.status.textContent, language === 'en' ? /action succeeded.*could not refresh/i : /操作已完成.*刷新失败/)
   })
 
+  test(`${language}: leaf comments have one delete action and parent deletion actions stay adjacent`, async (context) => {
+    const ui = await setup(context, language, { identity: member({ is_admin:true }), rows: [row(1,{can_delete:true,has_replies:false}),row(2,{can_delete:true,has_replies:true})] })
+    const label=language==='en'?'Delete this comment and its replies':'删除此条及其回复',single=language==='en'?'Delete':'删除'
+    const menu=id=>[...ui.select(`#comment-${row(id).id} .comment-menu-choices`).querySelectorAll('button')].map(button=>button.textContent)
+    assert.equal(menu(1).filter(text=>text===single).length,1)
+    assert.equal(menu(1).includes(label),false)
+    assert.deepEqual(menu(2).slice(-2),[single,label], 'Server has_replies remains authoritative when children are on another page')
+    ui.select(`#comment-${row(2).id} .comment-menu-choices`).lastElementChild.click()
+    assert.equal(ui.select('dialog').open,true)
+    assert.match(ui.select('dialog').textContent,language==='en'?/Delete this comment and its replies\?/ : /删除此条及其回复？/)
+    ui.select('dialog').close('cancel')
+  })
+
+  test(`${language}: deleting an unreplied comment reloads without a placeholder`, async (context) => {
+    const ui = await setup(context, language, { identity:member(), rows:[row(1,{can_delete:true,has_replies:false})] })
+    const single=language==='en'?'Delete':'删除'
+    ui.handlers.comment_delete=()=>{ui.rows=[];return ok(null)}
+    ;[...ui.list.querySelectorAll('button')].find(button=>button.textContent===single).click()
+    assert.match(ui.select('dialog').textContent,language==='en'?/Without replies, no placeholder/ : /没有回复时不留占位/)
+    ui.select('dialog').close('confirm')
+    await until(()=>ui.calls.some(call=>call.name==='comment_delete')&&!ui.textarea.disabled,'leaf deletion refresh')
+    assert.equal(ui.list.querySelectorAll('.comment-item').length,0)
+    assert.equal(ui.calls.find(call=>call.name==='comment_delete').args.p_branch,false)
+  })
+
+  test(`${language}: deleted parents retain only branch deletion for an administrator`, async (context) => {
+    const ui = await setup(context, language, { identity:member({is_admin:true}), rows:[row(1,{deleted:true,body:'',can_delete:true,has_replies:true})] })
+    const labels=[...ui.list.querySelectorAll('.comment-menu-choices button')].map(button=>button.textContent)
+    assert.equal(labels.includes(language==='en'?'Delete':'删除'),false)
+    assert.equal(labels.at(-1),language==='en'?'Delete this comment and its replies':'删除此条及其回复')
+  })
+
   test(`${language}: a banned account sees its own delete action but cannot reply or post`, async (context) => {
     const ui = await setup(context, language, { identity: member({ can_post: false, banned: true }), rows: [row(1, { can_delete: true })] })
     assert.equal(ui.post.disabled, true)

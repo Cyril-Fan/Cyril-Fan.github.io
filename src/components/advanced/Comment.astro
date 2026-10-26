@@ -131,6 +131,9 @@ const ownerAvatar = profile.avatar || '/avatar/avatar.png'
   site-comments .comment-markdown :not(pre) > code { font-size:.85em; padding:.15em .35em; border-radius:.25rem; background:hsl(var(--muted)); overflow-wrap:anywhere; }
   site-comments .comment-markdown pre:not(.shiki) { max-width:100%; overflow-x:auto; padding:1rem; border:1px solid hsl(var(--border)); border-radius:.5rem; background:hsl(var(--muted) / .6); font-size:.875rem; line-height:1.65; tab-size:4; }
   site-comments .comment-markdown pre code { white-space:pre; }
+  /* Keep the language bar compact; the copy button owns the touch target height. */
+  site-comments .article-body .article-code-bar { min-height:2rem; padding:0 .65rem; }
+  site-comments .article-body .article-code-bar button { min-height:2rem; padding:.1rem .4rem; }
   site-comments .comment-markdown table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; margin:.8rem 0; font-size:.85rem; }
   site-comments .comment-markdown :is(th,td) { border:1px solid hsl(var(--border)); padding:.45rem .65rem; min-width:5rem; }
   site-comments .comment-markdown th { background:hsl(var(--muted)); font-weight:600; }
@@ -224,6 +227,7 @@ const ownerAvatar = profile.avatar || '/avatar/avatar.png'
   @media (pointer:coarse) {
     site-comments button, site-comments summary { min-height:2.75rem; }
     site-comments .comment-item-actions button, site-comments .comment-menu summary { min-height:2.75rem; }
+    site-comments .article-body .article-code-bar button { min-height:2.75rem; }
   }
   site-comments dialog::backdrop { background:rgb(0 0 0 / .45); }
   site-comments .comment-dialog-actions { justify-content:flex-end; margin-top:1.25rem; }

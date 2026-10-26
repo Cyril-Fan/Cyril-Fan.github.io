@@ -34,6 +34,8 @@ export class ContentEditor extends HTMLElement{
   private dialogCancel?:()=>void
   private releaseWorkspace?:()=>void
   private cleanupRunning=false
+  private inlinePreviewDispose?:()=>void
+  private dialogPreviewDispose?:()=>void
   private t(zh:string,en:string){return this.en?en:zh}
   private q<T extends HTMLElement=HTMLElement>(s:string){return this.querySelector<T>(s)!}
   private notice(text:string,error=false){const p=this.q('[data-message]');p.textContent=text;p.dataset.error=String(error)}
@@ -66,6 +68,7 @@ export class ContentEditor extends HTMLElement{
   }
   disconnectedCallback(){this.abort?.abort();this.abort=undefined;this.clear()}
   private clear(){
+    this.inlinePreviewDispose?.();this.dialogPreviewDispose?.()
     this.releaseWorkspace?.();this.releaseWorkspace=undefined
     this.epoch++;this.owner='';this.store?.close();this.store=undefined;this.space=undefined
     this.dialogCancel?.();this.q<HTMLDialogElement>('dialog').close();this.q('[data-dialog]').replaceChildren()
@@ -138,7 +141,7 @@ export class ContentEditor extends HTMLElement{
       if(image.encoding==='base64'&&!image.baseSha&&image.content&&fileReferences(content,image.path,path))image.mediaOwners=[...new Set([...(image.mediaOwners||[]),path])]
     }
     if(path===this.current){const heading=this.querySelector('.cms-editor-head h2');if(heading)heading.textContent=this.label(path)}
-    void this.persist();this.updateStatus();this.renderList()
+    void this.persist();this.updateStatus();this.renderList();this.dispatchEvent(new CustomEvent('content-preview-change',{detail:{path}}))
   }
   private async persist(){
     if(!this.space)return
@@ -164,6 +167,7 @@ export class ContentEditor extends HTMLElement{
   }
   private categoryLabel(category:string){return ({research:this.t('科研','Research'),tech:this.t('技术','Technical'),daily:this.t('日常','Daily Life')} as Record<string,string>)[category]||category}
   private async selectView(view:string,category=''){
+    this.inlinePreviewDispose?.()
     const generation=++this.sectionGeneration
     this.view=view;this.category=category;this.current='';this.q<HTMLInputElement>('[data-search]').value=''
     this.renderList()
@@ -206,6 +210,7 @@ export class ContentEditor extends HTMLElement{
     target.append(el('div',this.t('选择已有内容，或在右上角创建文章与合集。','Select existing content, or create an article or collection above.'),'cms-empty'))
   }
   private async open(path:string){
+    this.inlinePreviewDispose?.()
     this.current=path;const kind=pathKind(path)!;this.view=['post','collection'].includes(kind)?'blog':kind;if(this.view==='blog')this.category=contentCategory(path,this.file(path)?.content);this.renderList()
     if(!this.file(path)){const r=await this.call('read',{paths:[path]});this.remote.set(path,r.files[0])}
     if(this.current!==path)return
@@ -214,7 +219,7 @@ export class ContentEditor extends HTMLElement{
     const header=el('div','','cms-editor-head');header.append(el('h2',this.label(path)),el('code',path,'cms-path'));target.append(header)
     const actions=el('div','','cms-actions')
     actions.append(this.btn(this.t('放弃本地修改','Discard local edits'),()=>this.discard(path)),this.btn(this.t('重新读取 GitHub','Reload from GitHub'),()=>this.refresh()),this.btn(this.t('编辑原文件','Edit source'),()=>this.sourceEditor(path)))
-    if(['post','collection','academic'].includes(kind))actions.append(this.btn(this.t('完整页面预览','Full page preview'),()=>this.fullPreview(path)))
+    if(['post','collection'].includes(kind))actions.append(this.btn(this.t('全屏文章预览','Full article preview'),()=>this.fullPreview(path)))
     if(path!==PROFILE&&path!==ACADEMIC&&path!==LINKS)actions.append(this.btn(this.t('删除文件','Delete file'),()=>this.stageDelete(path),'cms-danger'))
     else actions.append(this.btn(this.t('清空内容…','Clear content…'),()=>this.clearFixed(path)))
     if(kind==='post'&&!/index-en\.mdx?$/.test(path))actions.append(this.btn(this.t('编辑英文版','Edit English version'),async()=>{
@@ -336,7 +341,7 @@ export class ContentEditor extends HTMLElement{
     }
     info.append(this.form(pathKind(path)==='post'?articleFields.filter(f=>f.key!=='category'||!/^src\/content\/blogs\/(research|tech|daily)\//.test(path)):collectionFields.filter(f=>f.key!=='bloglist'),form,metadataChange));target.append(info)
     if(pathKind(path)==='collection')target.append(this.collectionPicker(form,metadataChange))
-    target.append(this.markdownArea(parsed.body,text=>this.edit(path,writeArticle(this.file(path)!.content!,{},text))))
+    target.append(this.markdownArea(parsed.body,text=>this.edit(path,writeArticle(this.file(path)!.content!,{},text)),path))
   }
   private availableArticles(){
     const paths=[...new Set([...this.entries.map(e=>e.path),...this.space?.files.map(f=>f.path)||[]])].filter(p=>pathKind(p)==='post'&&!/index-en\.mdx?$/.test(p)&&this.file(p)?.content)
@@ -359,36 +364,51 @@ export class ContentEditor extends HTMLElement{
     };search.oninput=render;render();return box
   }
   private async fullPreview(path:string){
-    const epoch=this.epoch,body=this.dialog(this.t('完整页面预览','Full page preview'));this.q('dialog').classList.add('cms-dialog-preview')
-    const tools=el('div','','cms-preview-controls'),frame=el('iframe');frame.title=this.t('完整页面预览','Full page preview');frame.className='cms-preview-frame';frame.referrerPolicy='no-referrer'
-    const en=el('select');en.setAttribute('aria-label',this.t('预览语言','Preview language'));for(const [value,label]of [['zh','中文'],['en','English']]){const o=el('option',label);o.value=value;en.append(o)}en.value=/index-en\.mdx?$/.test(path)?'en':this.en?'en':'zh'
-    let generation=0
+    const body=this.dialog(this.t('全屏文章预览','Full article preview'));this.q('dialog').classList.add('cms-dialog-preview')
+    this.dialogPreviewDispose=this.mountArticlePreview(body,path,false)
+    this.q('dialog').addEventListener('close',()=>this.dialogPreviewDispose?.(),{once:true})
+  }
+  private mountArticlePreview(container:HTMLElement,path:string,compact:boolean){
+    const epoch=this.epoch,controller=new AbortController(),tools=el('div','','cms-preview-controls'),frame=el('iframe'),status=el('p',this.t('正在载入文章预览…','Loading article preview…'),'cms-preview-state')
+    status.setAttribute('role','status');frame.title=this.t('当前文章整体预览','Current article preview');frame.className='cms-preview-frame';frame.referrerPolicy='no-referrer'
+    const en=el('select');en.setAttribute('aria-label',this.t('预览界面语言','Preview interface language'));for(const [value,label]of [['zh','中文界面'],['en','English UI']]){const o=el('option',label);o.value=value;en.append(o)}en.value=/index-en\.mdx?$/.test(path)?'en':this.en?'en':'zh'
+    let generation=0,timer:number|undefined,timeout:number|undefined,ready=false
     const send=async()=>{
+      if(controller.signal.aborted||!frame.isConnected)return
       const revision=++generation,f=this.file(path);if(!f?.content)return
       const kind=pathKind(path),english=en.value==='en',parsed=kind==='academic'?{data:JSON.parse(f.content)[english?'en':'zh'],body:''}:readArticle(f.content),data=clone(parsed.data),images:Record<string,string>={}
       const sample=el('div');sample.innerHTML=articleMarkdown(parsed.body,english)
       for(const img of sample.querySelectorAll('img')){const src=img.getAttribute('src')||'';try{images[src]=await this.imageUrl(src)}catch{}}
       if(data.heroImage?.src)data.heroImage.src=await this.imageUrl(data.heroImage.src)
       if(kind==='academic')for(const item of [...data.publications,...data.projects])if(item.image)item.image=await this.imageUrl(item.image)
-      if(revision!==generation||epoch!==this.epoch||!frame.isConnected)return
+      if(revision!==generation||epoch!==this.epoch||!frame.isConnected||controller.signal.aborted)return
       const id=path.replace(/^src\/content\/(blogs|collection)\//,'').replace(/\/index(?:-en)?\.mdx?$|\.mdx?$/,''),prefix=english?'/en':'',articles=this.availableArticles()
       const collectionPosts=(data.bloglist||[]).map((id:string)=>{const p=articles.find(p=>p.id===id);return {title:p?.title||id,href:prefix+'/blog/'+id}})
       const peers=articles.filter(p=>!p.draft&&(!data.category||p.category===data.category)),index=peers.findIndex(p=>p.id===id)
       const neighbors=index<0?[]:[{post:peers[index-1],direction:'prev'},{post:peers[index+1],direction:'next'}].filter(x=>x.post).map(x=>({title:x.post.title,href:prefix+'/blog/'+x.post.id,direction:x.direction}))
       if(data.tags)data.tags=[...new Set(data.tags.map((tag:string)=>tag.toLowerCase()))]
       if(kind==='collection'&&english){data.title=data.title_en||data.title;data.description=data.description_en||data.description}
-      frame.contentWindow?.postMessage({type:'cyril-local-preview',kind,data,body:parsed.body,en:english,fallback:kind==='post'&&english&&!/index-en\.mdx?$/.test(path),images,collectionPosts,neighbors,url:'https://cyril-fan.top'+prefix+'/'+(kind==='collection'?'collection/':'blog/')+id,dark:document.documentElement.classList.contains('dark')},location.origin)
+      frame.contentWindow?.postMessage({type:'cyril-local-preview',kind,data,body:parsed.body,en:english,compact,fallback:kind==='post'&&english&&!/index-en\.mdx?$/.test(path),images,collectionPosts,neighbors,url:'https://cyril-fan.top'+prefix+'/'+(kind==='collection'?'collection/':'blog/')+id,dark:document.documentElement.classList.contains('dark')},location.origin)
     }
-    const load=()=>{frame.src=(en.value==='en'?'/en':'')+'/admin/preview/'};frame.onload=()=>void send().catch(error=>this.notice(error.message,true));en.onchange=load
-    tools.append(en,this.btn(this.t('桌面','Desktop'),()=>{frame.style.maxWidth='none'}),this.btn(this.t('手机','Mobile'),()=>{frame.style.maxWidth='390px'}),this.btn(this.t('刷新预览','Refresh preview'),send))
-    body.append(el('p',this.t('仅在当前浏览器渲染，不上传或发布。预览不发送评论。','Rendered only in this browser; nothing is uploaded or published. Comments are not submitted.'),'cms-hint'),tools,frame);load()
+    const update=()=>void send().catch(error=>{status.textContent=this.t('预览暂不可用：','Preview unavailable: ')+error.message})
+    const schedule=()=>{clearTimeout(timer);timer=window.setTimeout(update,180)}
+    const load=()=>{ready=false;status.hidden=false;frame.style.visibility='hidden';status.textContent=this.t('正在载入文章预览…','Loading article preview…');clearTimeout(timeout);frame.src=(en.value==='en'?'/en':'')+'/admin/preview/';timeout=window.setTimeout(()=>{if(!ready)status.textContent=this.t('预览加载较慢，编辑内容已保留。可点击“重载预览”。','Preview is taking longer. Your edits are safe; try Reload preview.')},10000)}
+    frame.onload=update;en.onchange=load
+    const message=(event:MessageEvent)=>{if(event.origin!==location.origin||event.source!==frame.contentWindow||controller.signal.aborted)return;if(event.data?.type==='cyril-preview-ready')update();if(event.data?.type==='cyril-preview-rendered'){ready=true;clearTimeout(timeout);status.hidden=true;frame.style.visibility='visible'}if(event.data?.type==='cyril-preview-error'){clearTimeout(timeout);status.hidden=false;status.textContent=this.t('文章暂时无法渲染，编辑内容已保留。请检查正文或重载预览。','The article could not render. Your edits are safe. Check the source or reload preview.')}}
+    window.addEventListener('message',message,{signal:controller.signal})
+    this.addEventListener('content-preview-change',schedule,{signal:controller.signal})
+    const theme=new MutationObserver(schedule);theme.observe(document.documentElement,{attributes:true,attributeFilter:['class']})
+    tools.append(en,this.btn(this.t('重载预览','Reload preview'),load))
+    if(!compact)tools.append(this.btn(this.t('桌面宽度','Desktop width'),()=>{frame.style.maxWidth='none'}),this.btn(this.t('手机宽度','Mobile width'),()=>{frame.style.maxWidth='430px'}))
+    container.append(el('p',this.t('当前文稿的整篇效果 · 随编辑自动更新 · 不会发布','Current article · updates as you edit · not published'),'cms-hint'),tools,status,frame);load()
+    return ()=>{controller.abort();theme.disconnect();clearTimeout(timer);clearTimeout(timeout);generation++;frame.onload=null}
   }
-  private markdownArea(value:string,change:(v:string)=>void){
+  private markdownArea(value:string,change:(v:string)=>void,articlePath?:string){
     const wrap=el('div','','content-compose'),tools=el('div','','cms-toolbar'),tabs=el('div','','cms-preview-tabs'),panes=el('div','','cms-compose-panes')
     const area=el('textarea');area.className='cms-md-editor';area.value=value;area.setAttribute('aria-label',this.t('Markdown 正文','Markdown body'))
     const preview=el('div','','prose dark:prose-invert max-w-none cms-md-preview article-body');preview.setAttribute('aria-label',this.t('实时预览','Live preview'))
     let previewRevision=0
-    const render=()=>{const revision=++previewRevision,epoch=this.epoch;preview.innerHTML=articleMarkdown(area.value,this.en);void this.previewImages(preview).then(()=>{if(revision===previewRevision&&epoch===this.epoch&&preview.isConnected)void enhanceArticle(preview)})}
+    const render=()=>{if(articlePath)return;const revision=++previewRevision,epoch=this.epoch;preview.innerHTML=articleMarkdown(area.value,this.en);void this.previewImages(preview).then(()=>{if(revision===previewRevision&&epoch===this.epoch&&preview.isConnected)void enhanceArticle(preview)})}
     const insert=(before:string,after='',placeholder='text')=>{const start=area.selectionStart,end=area.selectionEnd,selected=area.value.slice(start,end)||placeholder;area.setRangeText(before+selected+after,start,end,'select');area.focus();change(area.value);render()}
     const commands:[string,string,string,string][]=[
       ['H2','\n## ','\n',this.t('标题','Heading')],['H3','\n### ','\n',this.t('小标题','Subheading')],['B','**','**',this.t('粗体','bold')],['I','*','*',this.t('斜体','italic')],['S','~~','~~',this.t('删除线','strike')],
@@ -405,9 +425,10 @@ export class ContentEditor extends HTMLElement{
     for(const [label,before,after,sample]of commands)tools.append(this.btn(label,()=>insert(before,after,sample)))
     tools.append(this.btn(this.t('图片','Image'),()=>this.imagePicker(path=>insert('\n![',']('+path+')\n\n*'+this.t('图片说明','Caption')+'*\n',this.t('替代文字','Alt text')))))
     const examples=el('details','','cms-examples');examples.append(el('summary',this.t('语法与示例','Syntax & examples')),el('p',this.t('支持 Markdown、GFM 表格/任务/脚注、数学公式，以及 :::note / tip / caution / danger、:::details、:::steps。MDX 仅支持不含脚本的静态 Aside、Collapse、Spoiler、Steps；不执行 import、表达式或事件属性。','Markdown, GFM tables/tasks/footnotes, math, :::note / tip / caution / danger, :::details and :::steps. MDX accepts static Aside, Collapse, Spoiler and Steps only; imports, expressions and event handlers do not execute.')))
-    for(const [mode,label]of [['edit',this.t('编辑','Edit')],['preview',this.t('预览','Preview')],['split',this.t('并排','Split')]])tabs.append(this.btn(label,()=>{wrap.dataset.mode=mode;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===label)))}))
+    for(const [mode,label]of [['edit',this.t('编辑','Edit')],['preview',articlePath?this.t('文章预览','Article preview'):this.t('预览','Preview')],['split',this.t('并排','Split')]])tabs.append(this.btn(label,()=>{wrap.dataset.mode=mode;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===label)))}))
     wrap.dataset.mode='split'
     area.addEventListener('input',()=>{change(area.value);clearTimeout(this.previewTimer);this.previewTimer=window.setTimeout(render,180)})
+    if(articlePath){preview.className='cms-md-preview cms-article-preview';preview.setAttribute('aria-label',this.t('文章整体预览','Full article preview'));this.inlinePreviewDispose=this.mountArticlePreview(preview,articlePath,true)}
     panes.append(area,preview);wrap.append(tools,tabs,panes,examples);render();return wrap
   }
   private sourceEditor(path:string){
@@ -415,7 +436,7 @@ export class ContentEditor extends HTMLElement{
     body.append(el('p',this.t('保留未知字段和原有语法。应用后仅在本地暂存，发布前仍会校验。','Unknown fields and syntax are preserved. Applying saves locally; validation still runs before publishing.')),area,
       this.btn(this.t('应用到本地副本','Apply locally'),async()=>{this.edit(path,area.value);this.q<HTMLDialogElement>('dialog').close();await this.open(path)}))
   }
-  private dialog(title:string){const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');dialog.classList.remove('cms-dialog-compact','cms-dialog-preview');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
+  private dialog(title:string){this.dialogPreviewDispose?.();const dialog=this.q<HTMLDialogElement>('dialog'),body=this.q('[data-dialog]');dialog.classList.remove('cms-dialog-compact','cms-dialog-preview');body.replaceChildren(el('h2',title));if(!dialog.open)dialog.showModal();return body}
   private confirm(title:string,lines:string[]):Promise<boolean>{
     const body=this.dialog(title);for(const line of lines)body.append(el('p',line))
     return new Promise(resolve=>{
@@ -599,7 +620,8 @@ export class ContentEditor extends HTMLElement{
     body.append(this.uploader(select,avatar));const grid=el('div','','cms-media-grid');body.append(grid);await this.mediaCards(grid,select)
   }
   private async mediaLibrary(selected=''){
-    const target=this.q('[data-editor]');target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('替换会创建带内容指纹的新图片，并与所选引用一起提交。可同时清理无引用旧图；仍被其他内容引用的图片会保留。','Replacing creates a new content-addressed image and updates selected references in the same commit. Unused originals can be removed in the same commit; shared references keep the original safe.'),'cms-hint'),this.uploader(()=>this.mediaLibrary()),this.btn(this.t('清理未引用的本地图片','Clean unused local images'),()=>this.cleanLocalImages()))
+    const target=this.q('[data-editor]'),tools=el('div','','cms-media-tools');tools.append(this.uploader(()=>this.mediaLibrary()),this.btn(this.t('清理未引用的本地图片','Clean unused local images'),()=>this.cleanLocalImages()))
+    target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('这里显示 GitHub 与本地新增的网站图片。改用外部网址不会自动删除旧文件；可先查看引用，再选择删除并发布。','Images stored in GitHub or added locally. Switching to an external URL keeps the original file; check its references before selecting Delete and publishing.'),'cms-hint'),tools)
     const grid=el('div','','cms-media-grid');target.append(grid);await this.mediaCards(grid,undefined,selected)
   }
   private async mediaCards(grid:HTMLElement,select?:(path:string)=>unknown,selected=''){
@@ -607,14 +629,14 @@ export class ContentEditor extends HTMLElement{
     const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>(p+' '+this.imageLabel(p)).toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
     for(const path of paths){
       if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
-      const card=el('section','','cms-media-card'),img=el('img');img.alt=this.imageLabel(path);img.loading='lazy';card.append(img,el('strong',this.imageLabel(path)),el('p',path,'cms-path'));grid.append(card)
+      const card=el('section','','cms-media-card'),img=el('img'),thumb=el('div','','cms-media-thumb'),actions=el('div','','cms-media-actions');img.alt=this.imageLabel(path);img.loading='lazy';thumb.append(img);card.append(thumb,el('strong',this.imageLabel(path)),el('p',path,'cms-path'),actions);grid.append(card)
       try{img.src=await this.imageUrl(publicImage(path))}catch{img.alt=this.t('暂时无法预览','Preview unavailable')}
-      if(select)card.append(this.btn(this.t('使用图片','Use image'),()=>select(publicImage(path))))
+      if(select)actions.append(this.btn(this.t('使用图片','Use image'),()=>select(publicImage(path))))
       else{
-        card.append(this.btn(this.t('查看引用','References'),async()=>{const r=await this.call('references',{path});const body=this.dialog(path);body.append(el('p',r.references.join('\n')||this.t('未发现源码引用。','No source references found.')))}),
+        actions.append(this.btn(this.t('查看引用','References'),async()=>{const r=await this.call('references',{path});const body=this.dialog(path);body.append(el('p',r.references.join('\n')||this.t('未发现源码引用。','No source references found.')))}),
           this.btn(this.t('替换图片…','Replace image…'),()=>this.replaceImage(path)),
           this.btn(this.t('删除图片…','Delete image…'),()=>this.stageDelete(path),'cms-danger'))
-        if(this.space!.files.some(f=>f.path===path))card.append(this.btn(this.t('放弃本地修改','Discard local edits'),()=>this.discard(path)))
+        if(this.space!.files.some(f=>f.path===path))actions.append(this.btn(this.t('放弃本地修改','Discard local edits'),()=>this.discard(path)))
       }
       if(selected===path)card.dataset.selected='true'
     }

@@ -11,8 +11,14 @@ export type CommentRow = {
   parent_nickname: string | null; parent_deleted: boolean; author_banned: boolean | null;
   avatar_path?: string | null;
   root_id?: string; root_created_at?: string; root_unavailable?: boolean; gap_before?: boolean;
+  has_replies?: boolean;
 }
 export type CommentMe = { nickname: string | null; can_post: boolean; is_admin: boolean; banned: boolean; moderation_enabled: boolean; avatar_key?: string | null; avatar_path?: string | null }
+/** Server flag covers replies beyond the loaded page; fallback supports an older reader during rollout. */
+export function commentHasReplies(row: CommentRow, rows: CommentRow[]) {
+  if(typeof row.has_replies === 'boolean') return row.has_replies
+  return rows.some(reply => reply.parent_id === row.id)
+}
 const commentTimestamp = (value: string) => {
   // PostgreSQL timestamps retain microseconds; Date.parse alone truncates them
   // and could reorder two replies written within the same millisecond.

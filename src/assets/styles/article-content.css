@@ -1,14 +1,24 @@
 .article-body .theme-block { margin:1rem 0; padding:.85rem 1rem; border:1px solid hsl(var(--border)); border-radius:.75rem; overflow:hidden; }
-.article-body .theme-block:not(details) { border-left:6px solid hsl(var(--primary)); background:hsl(var(--primary)/.07); }
-.article-body .theme-block.theme-tip { border-left-color:#7777df; background:#7777df12; }
-.article-body .theme-block.theme-caution { border-left-color:#d9a623; background:#d9a62312; }
-.article-body .theme-block.theme-danger { border-left-color:#d14778; background:#d1477812; }
-.article-body .theme-block-title { margin:0; font-weight:600; color:hsl(var(--primary)); }
+.article-body .theme-block:not(details) { --aside-color:var(--primary);border-left:8px solid hsl(var(--aside-color)); background:hsl(var(--aside-color)/.07); }
+.article-body .theme-block.theme-tip { --aside-color:234 60% 60%; }
+.article-body .theme-block.theme-caution { --aside-color:41 90% 50%; }
+.article-body .theme-block.theme-danger { --aside-color:339 90% 60%; }
+.article-body .theme-block-title { margin:0; font-weight:500; color:hsl(var(--aside-color,var(--primary))); }
+.article-body aside>.theme-block-title { display:flex;align-items:center;gap:.5rem; }
+.article-body .theme-block-icon { width:1.375rem;height:1.375rem;flex:none; }
 .article-body details.theme-block>summary { cursor:pointer; padding:.2rem 0; list-style:disclosure-closed; }
 .article-body details.theme-block[open]>summary { list-style:disclosure-open; margin-bottom:.75rem; }
 .article-body .theme-block>:last-child { margin-bottom:0; }
 .article-body .theme-spoiler:not(:hover):not(:focus-within)>:not(.theme-block-title) { filter:blur(.4rem); }
-.article-body .theme-steps ol { list-style-type:decimal; }
+/* Axi's Steps circles and guide lines; scope to the outer list so nested lists remain ordinary. */
+.article-body .theme-block.theme-steps { border:0;background:none;padding:0;overflow:visible; }
+.article-body .theme-steps>.sl-steps { --bullet-size:1.75rem;--bullet-margin:.375rem;list-style:none!important;counter-reset:steps-counter var(--sl-steps-start,0);padding-inline-start:0!important; }
+.article-body .sl-steps>li { counter-increment:steps-counter;position:relative;padding-inline-start:calc(var(--bullet-size) + 1rem);padding-bottom:1px;min-height:calc(var(--bullet-size) + var(--bullet-margin)); }
+.article-body .sl-steps>li+li { margin-top:0; }
+.article-body .sl-steps>li::before { content:counter(steps-counter);position:absolute;top:0;inset-inline-start:0;width:var(--bullet-size);height:var(--bullet-size);line-height:var(--bullet-size);font-size:.8125rem;font-weight:600;text-align:center;color:hsl(var(--foreground));background:hsl(var(--primary-foreground));border-radius:99rem;box-shadow:inset 0 0 0 1px hsl(var(--border)); }
+.article-body .sl-steps>li:not(:last-child)::after { content:'';position:absolute;top:calc(var(--bullet-size) + var(--bullet-margin));bottom:var(--bullet-margin);inset-inline-start:calc((var(--bullet-size) - 1px)/2);width:1px;background:hsl(var(--border)); }
+.article-body .sl-steps>li>:first-child { --step-line-height:1.75em;--step-shift:calc(.5*(var(--bullet-size) - var(--step-line-height)));margin-top:0;transform:translateY(var(--step-shift));margin-bottom:var(--step-shift); }
+.article-body .sl-steps>li>:first-child:where(h1,h2,h3,h4,h5,h6) { --step-line-height:1.2em; }
 .article-body .article-code { position:relative; border:1px solid hsl(var(--border)); border-radius:.7rem; overflow:hidden; margin:1.25rem 0; background:hsl(var(--muted)); }
 .article-body .article-code-bar { display:flex; justify-content:space-between; align-items:center; gap:.65rem; min-height:2rem; padding:.25rem .85rem; border-bottom:1px solid hsl(var(--border)); color:hsl(var(--muted-foreground)); font:400 .75rem/1.5 Consolas,"Liberation Mono",Menlo,monospace; }
 .article-body .code-title { margin-right:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

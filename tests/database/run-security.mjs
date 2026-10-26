@@ -67,6 +67,11 @@ try {
   if (installation.flatMap(result => result.rows ?? []).some(row => Object.values(row).some(value => value !== true))) {
     throw new Error('006 installation/grant checks failed.');
   }
+  stage = '011 read-only installation verification';
+  const deletionInstallation = await db.exec(await readFile(path.join(root, 'supabase/verify_011.sql'), 'utf8'));
+  if (deletionInstallation.flatMap(result => result.rows ?? []).some(row => Object.values(row).some(value => value !== true))) {
+    throw new Error('011 installation/grant checks failed.');
+  }
   stage = 'security regression';
   const results = await db.exec(await readFile(path.join(here, 'security-regression.sql'), 'utf8'));
   const summary = results.flatMap((result) => result.rows ?? [])
@@ -84,6 +89,10 @@ try {
   const threadAssertions = Number(threadResults.flatMap((result) => result.rows ?? [])
     .find((row) => Object.hasOwn(row, 'thread_assertions_passed'))?.thread_assertions_passed ?? 0);
   if (threadAssertions < 45) throw new Error('Conversation assertions did not complete.');
+  stage = 'leaf deletion visibility and reply-menu regression';
+  const deletionResults = await db.exec(await readFile(path.join(here, 'comment-deletion-regression.sql'), 'utf8'));
+  const deletionAssertions = Number(deletionResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'deletion_assertions_passed'))?.deletion_assertions_passed ?? 0);
+  if (deletionAssertions < 20) throw new Error('Comment deletion assertions did not complete.');
   stage = 'anonymous page-view privacy and retry regression';
   const trafficResults = await db.exec(await readFile(path.join(here, 'traffic-regression.sql'), 'utf8'));
   const trafficAssertions = Number(trafficResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'traffic_assertions_passed'))?.traffic_assertions_passed ?? 0);
@@ -91,7 +100,7 @@ try {
   stage = 'legacy CMS retirement isolation';
   await db.exec(await readFile(path.join(here,'cms-retirement.sql'),'utf8'));
   console.log('PASS: legacy CMS removed; comment, avatar and traffic structures retained.');
-  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions + trafficAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions; ${trafficAssertions} on anonymous page views).`);
+  console.log(`PASS: migrations applied; ${Number(summary.assertions_passed) + upgradeAssertions + threadUpgradeAssertions + avatarAssertions + threadAssertions + deletionAssertions + trafficAssertions} real PostgreSQL assertions passed (${upgradeAssertions + threadUpgradeAssertions} on existing data upgrades; ${avatarAssertions} on avatar metadata/RLS; ${threadAssertions} on conversation ordering/email permissions; ${deletionAssertions} on deletion visibility; ${trafficAssertions} on anonymous page views).`);
   console.log('PGlite uses one backend. Multi-connection lock contention is not exercised by this suite.');
   console.log('Avatar tests model Storage metadata only; real JPEG upload, MIME/size enforcement and CDN caching require integration checks.');
 } catch (error) {

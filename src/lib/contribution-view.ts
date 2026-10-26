@@ -13,8 +13,8 @@ export class ContributionSnake extends HTMLElement {
     if (!button) return
     const en = this.dataset.lang === 'en'
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const calendar = this.querySelector<HTMLElement>('.contribution-calendar')
-    const animation = this.querySelector<HTMLElement>('.snake-animated')
+    const calendar = this.querySelector<SVGGElement>('.contribution-calendar')
+    const animation = this.querySelector<SVGGElement>('.snake-animated')
     const date = this.querySelector<HTMLInputElement>('[data-contribution-date]')
     const output = this.querySelector<HTMLOutputElement>('[data-contribution-detail]')
     let squares = Array.from(this.querySelectorAll<SVGElement>('[data-date]'))
@@ -77,11 +77,11 @@ export class ContributionSnake extends HTMLElement {
         }
       }
       if (bundle.dataHash === this.dataset.dataHash) { updateCaption(); return }
-      const light = this.querySelector<HTMLImageElement>('.snake-light')
-      const dark = this.querySelector<HTMLImageElement>('.snake-dark')
-      const svg = calendar?.querySelector('svg')
+      const light = this.querySelector<SVGImageElement>('.snake-light')
+      const dark = this.querySelector<SVGImageElement>('.snake-dark')
+      const svg = this.querySelector<SVGSVGElement>('.contribution-surface')
       const canvas = this.querySelector<HTMLElement>('.contribution-canvas')
-      if (!light || !dark || !svg || !canvas) return
+      if (!light || !dark || !svg || !canvas || !calendar) return
       const urls = [bundle.light, bundle.dark].map(text => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(text))
       {
         await Promise.all(urls.map(async url => { const image = new Image(); image.src = url; await image.decode() }))
@@ -109,12 +109,12 @@ export class ContributionSnake extends HTMLElement {
           })
         })
         // The visible pair, date cells and count change in one task after both images decode.
-        light.src = urls[0]; dark.src = urls[1]
-        for (const image of [light, dark]) { image.width = bundle.width; image.height = bundle.height }
+        light.setAttribute('href',urls[0]); dark.setAttribute('href',urls[1])
+        for (const image of [light, dark]) { image.setAttribute('width',String(bundle.width)); image.setAttribute('height',String(bundle.height)) }
         svg.setAttribute('viewBox', `-16 -32 ${bundle.width} ${bundle.height}`)
         svg.setAttribute('width', String(bundle.width)); svg.setAttribute('height', String(bundle.height))
         svg.setAttribute('aria-label', en ? `${bundle.calendar.total} contributions` : `${bundle.calendar.total} 次贡献`)
-        svg.replaceChildren(fragment)
+        calendar.replaceChildren(fragment)
         canvas.style.aspectRatio = `${bundle.width}/${bundle.height}`
         squares = Array.from(svg.querySelectorAll<SVGElement>('[data-date]'))
         if (date) { date.min = bundle.calendar.contributions[0].date; date.max = bundle.dataThrough }

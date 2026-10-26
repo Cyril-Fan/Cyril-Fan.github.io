@@ -526,7 +526,7 @@ select comment_test.create_comment('links-owner','/links','A link exchange reque
 select comment_test.assert(jsonb_array_length(public.comment_thread_list('/links'))=1, 'verified owner can publish in links discussion');
 select comment_test.assert(not exists(select 1 from jsonb_array_elements(public.comment_thread_list('/links')) r where r ? 'email'), 'links public list does not expose email');
 select public.comment_delete(comment_test.id('links-owner'),false);
-select comment_test.assert((public.comment_thread_list('/links')->0->>'deleted')::boolean, 'links deletion preserves normal tombstone behavior');
+select comment_test.assert(public.comment_thread_list('/links')='[]'::jsonb, 'deleting an unreplied links comment leaves no visible tombstone');
 reset role;
 delete from comment_private.admins where user_id='10000000-0000-0000-0000-000000000001';
 set local role authenticated;

@@ -1,6 +1,6 @@
 /** Local-only acceptance sandbox. All edits and publishing stay in memory. */
 import { createServer } from 'node:http'
-import { readFile,stat } from 'node:fs/promises'
+import { readFile,stat,readdir } from 'node:fs/promises'
 import { resolve,extname,sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
@@ -10,7 +10,7 @@ const root=process.cwd(),dist=resolve(root,'.content-check-dist'),port=Number(pr
 const hash=data=>createHash('sha1').update('blob '+Buffer.byteLength(data)+'\0').update(data).digest('hex')
 const files=new Map()
 const siteLinks=JSON.parse(await readFile(resolve(root,'public/links.json'),'utf8'))
-const fixtureImages=siteLinks.friends.flatMap(g=>g.link_list.map(f=>'public'+f.avatar))
+const fixtureImages=[...new Set([...siteLinks.friends.flatMap(g=>g.link_list.filter(f=>f.avatar?.startsWith('/')).map(f=>'public'+f.avatar)),...(await readdir(resolve(root,'public/media'))).filter(name=>/\.(png|webp|gif|jpe?g)$/i.test(name)).map(name=>'public/media/'+name),'public/avatar/avatar.png','src/assets/avatar.png'])]
 for(const path of ['src/data/profile.json','src/data/academic.json','public/links.json',...fixtureImages]){const bytes=await readFile(resolve(root,path));files.set(path,{path,sha:hash(bytes),content:bytes.toString(pathKind(path)==='media'?'base64':'utf8'),encoding:pathKind(path)==='media'?'base64':'utf-8'})}
 const html=parse(await readFile(resolve(dist,'admin/index.html'),'utf8'))
 const editor=html.querySelector('content-editor').outerHTML,styles='<meta charset="utf-8">'+html.querySelectorAll('link[rel=stylesheet],head style').map(x=>x.outerHTML).join('')

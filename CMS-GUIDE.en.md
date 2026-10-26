@@ -7,7 +7,7 @@ Sign in with the existing owner account. The editor reads the original GitHub fi
 
 1. Choose Home & About, Blog, Academic, Friends or Images. Fixed forms open directly. Blog contains Research, Technical and Daily Life folders, each with articles and collections.
 2. Open a file or create content. Edits and new images are automatically saved in this browser, without changing GitHub.
-3. Use the Markdown toolbar and live preview. Desktop supports split view; on phones switch between Edit and Preview. Tools use the text selection or cursor.
+3. Use the Markdown toolbar. Articles open with the editor on the left and the current full article preview on the right; on phones switch between Edit and Article preview. Tools use the text selection or cursor.
 4. Choose Review & publish, inspect the original/local comparison and select the files to submit. Include new images referenced by selected content.
 5. Submit the selection as one Git commit. “Committed to GitHub · building” is separate from “Published live”; the latter requires the live release marker.
 
@@ -23,7 +23,7 @@ Ctrl/Cmd+S saves locally. Browsers may warn before leaving, but forced mobile sh
 
 - Articles: `src/content/blogs/<research|tech|daily>/<folder>/index.md`; English: `index-en.md`. Creation asks only for a folder name; use Edit English version afterwards. Legacy paths remain supported. The English site falls back to Chinese when no translation exists.
 - Forms support title, summary, dates, category, tags, cover, source and comments. Unknown frontmatter fields are preserved; use Edit source when needed.
-- Markdown supports headings, emphasis, lists, links, images, captions, tables, footnotes, code and math. Theme extensions include `:::note / tip / caution / danger`, `:::details`, `:::steps` and `:::spoiler`.
+- Markdown supports headings, emphasis, lists, links, images, captions, tables, footnotes, code and math. Theme extensions include `:::note / tip / caution / danger`, `:::details`, `:::steps` and `:::spoiler`. Aside blocks use Axi's icons and type colors; Steps use numbered circles and connecting lines while nested lists remain ordinary lists.
 - Safe MDX accepts standalone static Aside, Collapse, Spoiler and Steps tags with literal type/title attributes. Imports, exports, JavaScript expressions, event handlers and arbitrary components are not executed. Raw HTML is displayed as text.
 - Collections: `src/content/collection/<category>/<folder>/index.md`, managed inside each Blog category; bilingual metadata, cover, body and an ordered list of article slugs.
 - Friends: edit the canonical JSON, upload/choose avatars, add optional feeds. Names always display in dictionary order.
@@ -32,6 +32,8 @@ Ctrl/Cmd+S saves locally. Browsers may warn before leaving, but forced mobile sh
 ## Images and deletion
 
 Static uploads use lossless WebP at the original resolution; transparency is retained without automatic resizing. GIF, APNG, animated WebP and AVIF keep their original bytes. Content-addressed filenames prevent stale caches and duplicate uploads. Replace an image and selected references together; the default cleanup option stages deletion of an original only when all references have been updated. Shared originals remain protected. New image, content references and safe deletion publish atomically. Use Clean unused local images to discard unattached browser uploads. Original files on your computer are untouched.
+
+Image cards wrap long filenames and paths, and keep each preview within its card. Changing a friend's avatar to an external URL leaves the existing GitHub image in the library; it does not upload another copy. To remove the old file, inspect its references, stage deletion only if unused, then publish. Changing an avatar URL never deletes the original implicitly.
 
 Reference checks include source code. Hard-coded application references cannot be changed by the content editor. Deletion is staged locally, confirmed and then removes the current GitHub file. There is no CMS recycle bin: recovery uses Git history without rewriting it. Existing comments are retained. Fixed pages offer Clear content, which keeps the page itself.
 
@@ -52,14 +54,20 @@ Articles, comments and editor previews share the VS Code Light+ / Dark+ code pal
 Discard removes the selected file and automatically collects its associated new images when no references remain, including earlier image selections. Images needed by other content, other browser copies or pending submissions remain; unreadable recovery copies also prevent automatic collection. Existing GitHub images and other workspace records are never deleted. Replacement-generated deletion of an original is undone if restored content needs it. Unattached library uploads and exported backups remain. Empty IndexedDB workspaces are deleted and preview URLs revoked; browser database compaction controls when physical disk usage falls.
 
 
-## Full-page preview and collections
+## Live article preview and collections
 
-Use **Full page preview** for the complete article or Academic layout, including the production header, body styles, math, highlighted code, table of contents and article footer. Switch between desktop/mobile width and Chinese/English. Content stays in this browser; comments use a non-interactive placeholder. The inline Markdown preview remains available while writing. Untranslated Chinese articles display an explicit fallback notice in English.
+The pane beside the article editor shows **the whole article currently being written**. Metadata and body changes update it automatically, including the title, summary, dates, tags, cover, math, highlighted code, table of contents and footer. It shares the published rendering and styles. On phones, switch to Article preview; the larger full-article preview remains available for extra space and desktop/mobile widths. Reload preview retries a slow frame without removing edits.
 
-Collections use a searchable article picker. Select articles, move them up/down, or remove membership without deleting the original article. Academic fields include publication images and descriptions, authors and contribution roles, venue/status/year, resource labels, and project year/image/details. Publications group by descending year and retain manual order within each year; project order stays manual.
+The preview language selector changes the site interface and date formatting; it does not translate the current document. Use Edit English version to write a translation. Chinese articles display a fallback notice in the English interface. Preview content stays in this browser, and comments use a non-interactive placeholder without sending anything.
+
+Collections use a searchable article picker. Select articles, move them up/down, or remove membership without deleting the original article. Academic has no full-page preview entry; edit its structured forms directly. These cover Axi's main academic fields, including publication images and descriptions, authors and contribution roles, venue/status/year, resource labels, and project year/image/details. Publications group by descending year and retain manual order within each year; project order stays manual. Empty lists remain empty without invented achievements.
 
 Blog lists use the latest valid publication/update activity. Archives group and display original publication dates; publication and modification metadata are separate. Special tags such as C++, C#, spaces and Chinese receive safe static URLs automatically.
 
 ## Cleanup of old deployment records
 
 Entering the editor or opening recovery checks old empty committed jobs. Only a fresh server confirmation of **live** deployment permits deletion, including the original record left behind by recovery. Drafts, new images, failed/unknown jobs, offline checks, active tabs and edits made during a check are retained. Cross-tab Web Locks and an atomic encrypted-record comparison protect concurrent saves. Browsers without Web Locks keep old records. Current empty, confirmed-live records continue to be removed automatically. The restore count/list is refreshed; this never writes to GitHub or removes account/comment data.
+
+## Deleting comments
+
+Authors may delete their own comments; the owner can moderate all comments. A comment without visible replies offers only Delete and leaves no placeholder after deletion. A comment with surviving replies keeps a deletion notice and those replies. For comments with replies, the owner also sees Delete this comment and its replies beside Delete, with a separate confirmation. There is no restore action. The database retains erased rows needed for safe retries, not their deleted bodies.

@@ -98,7 +98,7 @@ const code=ts.transpileModule(read('../src/lib/contribution-view.ts'),{compilerO
 const flush=async()=>{for(let i=0;i<12;i++) await Promise.resolve();await new Promise(setImmediate)}
 function view(context,{en=false,remote=async()=>null,published=async()=>{throw Error('offline')},reduced=false,decode=async()=>{}}={}) {
   const cells=Array.from({length:10},(_,i)=>`<rect class="contribution-day level-0" role="button" data-date="2026-10-${String(i+1).padStart(2,'0')}" data-count="${i}" tabindex="${i===9?0:-1}" aria-label="day ${i}: ${i} contributions"></rect>`).join('')
-  const dom=new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><div class="snake-animated"><img class="snake-light" src="/old-light.svg"><img class="snake-dark" src="/old-dark.svg"></div><div class="contribution-calendar"><svg>${cells}</svg></div></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
+  const dom=new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><svg class="contribution-surface" viewBox="-16 -32 880 192"><g class="snake-animated"><image class="snake-light" href="/old-light.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/><image class="snake-dark" href="/old-dark.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/></g><g class="contribution-calendar">${cells}</g></svg></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
   context.after(()=>dom.window.close())
   const {window}=dom
   const media=new window.EventTarget();media.matches=reduced
@@ -190,11 +190,21 @@ test('calendar, count and both images update only after both new images decode; 
   await flush()
   assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,'old total')
   assert.equal(ui.cells.length,10)
-  assert.equal(ui.host.querySelector('.snake-light').getAttribute('src'),'/old-light.svg')
+  assert.equal(ui.host.querySelector('.snake-light').getAttribute('href'),'/old-light.svg')
   release();await flush()
   assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,`${calendar.total} 次贡献`)
   assert.equal(ui.host.querySelectorAll('[data-date]').length,calendar.contributions.length)
-  assert.match(ui.host.querySelector('.snake-dark').src,/^data:image\/svg\+xml;/)
+  assert.match(ui.host.querySelector('.snake-dark').getAttribute('href'),/^data:image\/svg\+xml;/)
+  const surface=ui.host.querySelector('.contribution-surface')
+  assert.equal(surface.getAttribute('viewBox'),`-16 -32 ${bundle.width} ${bundle.height}`)
+  for(const image of surface.querySelectorAll('image')){
+    assert.equal(image.getAttribute('width'),String(bundle.width));assert.equal(image.getAttribute('height'),String(bundle.height))
+    assert.equal(image.getAttribute('x'),'-16');assert.equal(image.getAttribute('y'),'-32')
+    assert.equal(image.ownerSVGElement,surface,'Animation and static cells share one viewport after refresh')
+  }
+  assert.equal(surface.querySelector('[data-date]').ownerSVGElement,surface)
+  ui.button.click();ui.button.click()
+  assert.equal(ui.host.querySelector('.contribution-surface'),surface,'Switching modes cannot resize or replace the viewport')
   const active=ui.host.querySelector('[data-level="1"]')
   active.dispatchEvent(new ui.window.MouseEvent('click',{bubbles:true}))
   assert.equal(ui.input.value,active.dataset.date)
@@ -206,8 +216,8 @@ test('failed image decoding or network keeps the old visible pair and calendar i
   const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
   for(const options of [{remote:async()=>{throw new Error('Offline')}},{remote:async()=>bundle,decode:async()=>{throw new Error('Bad SVG')}}]) {
     const ui=view(context,options);await flush()
-    assert.equal(ui.host.querySelector('.snake-light').getAttribute('src'),'/old-light.svg')
-    assert.equal(ui.host.querySelector('.snake-dark').getAttribute('src'),'/old-dark.svg')
+    assert.equal(ui.host.querySelector('.snake-light').getAttribute('href'),'/old-light.svg')
+    assert.equal(ui.host.querySelector('.snake-dark').getAttribute('href'),'/old-dark.svg')
     assert.equal(ui.host.querySelectorAll('[data-date]').length,10)
     assert.equal(ui.host.querySelector('[data-contribution-total]').textContent,'old total')
   }

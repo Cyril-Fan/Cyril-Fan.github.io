@@ -62,6 +62,41 @@ Production retirement completed on 2026-10-24: the old CMS schema, 14 RPCs, stor
 
 Guides: [中文](../CMS-GUIDE.md) · [English](../CMS-GUIDE.en.md).
 
+## Deploying comment reply visibility (011)
+
+`migrations/202610260011_comment_reply_visibility.sql` replaces only
+`comment_thread_list` and its execution grants. Apply it after the existing
+migrations through `010`, before publishing the matching comment UI. It does
+not delete stored comments or change Auth, profiles, avatars, traffic, CMS
+credentials, or write RPCs. Erased rows remain for idempotent retry protection;
+their cleared bodies are not restored.
+
+The reader now returns `has_replies`, computed before pagination from surviving
+descendants visible to the current caller. A deleted leaf is absent from the
+conversation, while a deleted ancestor remains only when needed to connect
+visible replies. Pending or hidden descendants do not disclose their existence
+to readers who cannot see them. Focus and ordinary pagination use the same
+visibility rules. The legacy `comment_list` reader remains unchanged for older
+clients.
+
+1. Select the existing production project and run `verify_011.sql`. It is
+   read-only and returns boolean checks, not commenter data. Before installation,
+   `visibility_upgrade_present` is false.
+2. Run the complete `202610260011_comment_reply_visibility.sql` migration once as
+   the database migration owner. It uses one transaction and reloads the
+   PostgREST schema cache. Do not run test bootstrap, fixtures, or regression SQL
+   against production.
+3. Run `verify_011.sql` again; every check must be true. Then deploy the matching
+   frontend. Owner menus use adjacent Delete and Delete this comment and its
+   replies actions; the branch action appears only when the reader reports
+   surviving visible replies. Authors retain their existing own-comment rights.
+4. Verify display and menu behavior without deleting real comments for testing.
+   Leaf deletion, reply preservation, cross-page replies, pending visibility and
+   retry cases belong in `npm run test:database` and the isolated browser fixture.
+   A local pass does not establish production installation; record actual
+   deployment and acceptance separately in
+   [CMS-IMPLEMENTATION.md](../docs/CMS-IMPLEMENTATION.md).
+
 ## Project setup
 
 1. Enable email/password Auth with **Confirm email** enabled, configure the
@@ -104,7 +139,7 @@ token validation failures can also be rejected before an RPC executes.
 | `comment_me()` | JSON `{nickname,can_post,is_admin,banned,moderation_enabled,avatar_key,avatar_path}`. Anonymous, unconfirmed, or stale sessions receive no identity or privileges, including null avatar fields. A valid banned account has `banned:true`, `can_post:false`, `is_admin:false` and retains its own avatar fields for removal. Administrator names are always `Cyril Fan`, including before their first post; their avatar fields are null because the frontend uses the site's fixed portrait. |
 | `comment_profile_update(p_nickname)` | Same JSON as `comment_me`. Requires the caller's verified, active, unbanned session. Updates only that caller's profile; a user ID cannot be supplied. Admin input is ignored in favor of `Cyril Fan`. |
 | `comment_list(p_thread,p_before=null,p_before_id=null,p_limit=30)` | Rows `{id,parent_id,nickname,body,created_at,deleted,can_delete,is_admin_author,parent_nickname,parent_deleted,is_pending,author_banned,avatar_path}`. Comment and parent names use current profiles, including historical comments and deletion placeholders. The avatar path also follows the current profile/object, and is null for administrators, missing objects and banned authors. Never returns email, author UUID, IP, or session ID. `author_banned` is null unless the caller is an active admin. |
-| `comment_thread_list(p_thread,p_after_id=null,p_limit=30,p_focus_id=null)` | JSON array with the same public comment fields plus `{root_id,root_created_at,root_unavailable}`. Original comments sort newest first; every reply in the same conversation, including replies to replies, follows its original in chronological order with an ID tie-breaker. Normal calls return at most `p_limit` individual comments (1–100), never an unbounded tree. The last normal-page comment ID continues the stream. Optional focus mode returns only the requested visible comment and its visible original/anchor (at most two rows; limit must be at least two), with `gap_before` indicating visible replies omitted between the normal cursor and target. It never changes the normal paging cursor. An unavailable original is replaced by an anchor derived only from a visible comment; its private fields and invisible parent IDs are omitted. Email is never returned, even to the owner. |
+| `comment_thread_list(p_thread,p_after_id=null,p_limit=30,p_focus_id=null)` | JSON array with the same public comment fields plus `{root_id,root_created_at,root_unavailable,has_replies}`. `has_replies` reflects surviving descendants visible to this caller across the whole conversation, not just the loaded page. Deleted leaves are omitted; deleted ancestors remain only for visible surviving replies. Original comments sort newest first; every reply in the same conversation, including replies to replies, follows its original in chronological order with an ID tie-breaker. Normal calls return at most `p_limit` individual comments (1–100), never an unbounded tree. The last normal-page comment ID continues the stream. Optional focus mode returns only the requested visible comment and its visible original/anchor (at most two rows; limit must be at least two), with `gap_before` indicating visible replies omitted between the normal cursor and target. It never changes the normal paging cursor. An unavailable original is replaced by an anchor derived only from a visible comment; its private fields and invisible parent IDs are omitted. Email is never returned, even to the owner. |
 | `comment_author_email(p_thread,p_comment_id)` | Current author email or null for an unavailable account. Requires the verified, active, unbanned administrator session before looking up the comment. Only comments in the requested article that have not been hidden are eligible. Anonymous execution is revoked; ordinary authenticated users are rejected by `require_actor(true)`. No email snapshot is stored in comment tables. The frontend calls this only from the owner's “View author email” menu, keeps the result in page memory, and clears it when refreshing, signing out, changing accounts, losing permissions or disconnecting. |
 | `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized thread, body, and parent. Nickname is mutable metadata and does not affect retries. An existing profile wins over a stale form; the supplied name initializes a missing profile. Admins may omit the nickname value (`null`) and always publish as `Cyril Fan`. |
 | `comment_delete(p_id,p_branch=false)` | Void. Author clears only their own body; banned authors retain this right. Admin can clear any one body or set `p_branch=true` to erase and hide that comment and all descendants in the same thread. |
@@ -115,8 +150,10 @@ token validation failures can also be rejected before an RPC executes.
 
 The frontend must display `nickname` as **plain text** and pass `body` only through
 the site's audited Markdown sanitization/rendering pipeline. Never insert raw
-comment content through `innerHTML`. A deleted row's body is the empty string and should render a
-localized deletion placeholder. There is no edit/restore RPC.
+comment content through `innerHTML`. A deleted row's body is the empty string.
+The conversation reader omits erased leaves; retained ancestors render a localized
+deletion placeholder so other people's replies stay connected. The database keeps
+the erased rows for safe retries. There is no edit/restore RPC.
 
 ## Display names
 

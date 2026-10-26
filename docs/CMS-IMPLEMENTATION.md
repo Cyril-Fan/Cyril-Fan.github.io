@@ -89,3 +89,18 @@ GitHub 和 Pages 存在队列/CDN 延迟；提交成功不等于上线。没有 
 - 隔离文章与测试论文未提交至 GitHub，测试副本仅存本机隔离来源。合入远端最新友链与图片提交后发布，保留真实内容。
 
 Limits: browser acceptance uses responsive Edge, not physical iOS hardware. Unknown/expired task status is retained rather than guessed. Browsers without Web Locks retain old jobs for manual review. Preview comments are placeholders, and safe MDX is a constrained subset. No schema/data migration or real-data deletion is required for this update.
+
+## 2026-10-26 文章创作与界面修正
+
+- 文章编辑调整为桌面左侧 Markdown、右侧当前文稿的整篇实时预览；元信息和正文输入自动更新，手机通过编辑/文章预览切换。大幅预览保留为备用入口，支持桌面/手机宽度和重载。复用正式文章头部、Markdown、代码、公式、目录和文末展示，不上传未提交内容；评论仅用非交互说明占位。界面语言选择不翻译文稿，英文内容仍通过英文副本编辑。
+- 按站长本轮明确要求，移除学术整页预览入口。学术继续使用双语结构化表单，覆盖 Axi 的背景、简历、研究兴趣、论文作者/贡献角色、会议/年份/状态/摘要/引用数、图片及资源链接，以及项目类别/状态/图片/顺序。不新增他人资料或虚构成果。
+- 直接核对 Axi-Theme 的 [BlogPost](https://github.com/Axi404/Axi-Theme/blob/main/src/layouts/BlogPost.astro)、[Aside](https://github.com/Axi404/Axi-Theme/blob/main/src/components/user/Aside.astro)、[Steps](https://github.com/Axi404/Axi-Theme/blob/main/src/components/user/Steps.astro) 和 [Academic](https://github.com/Axi404/Axi-Theme/blob/main/src/pages/academic/index.astro) 源码。安全内容渲染器补齐提示块图标、原有色系和侧边框、步骤圆形编号及连接线；嵌套列表和起始序号保留。仅注入内置可信图标，未允许任意 SVG、CSS、HTML 或 MDX 程序。
+- 图片库限制卡片内图片尺寸，长文件名和路径可换行，避免跨卡片溢出。友链头像改为外部网址只修改引用，仍保留 GitHub 原图；通过引用检查和明确删除提交决定是否清理，不因暂时无引用而自动删除真实文件。
+- 后台弹窗和朋友圈随机推荐等关闭按钮统一更清晰的叉号与居中方式，保留可访问名称和触摸点击区域。评论代码栏收紧上下留白，不改变代码内容、高亮或复制功能。
+- 静态贡献方块和动态蛇图使用同一个 SVG 坐标与画布尺寸，主题和模式切换保留同一缩放基准；数据刷新同步更新共用画布与内容，避免窄屏两种模式出现尺寸跳变。
+- 评论迁移 `011` 仅升级会话读取 RPC，在分页前按当前读者可见的存活回复计算 `has_replies`。删除后无回复的留言不显示占位；仍连接其他回复的父留言保留占位。站长的“删除”和“删除此条及其回复”相邻，后者只在有回复时显示。数据库保留清空正文后的记录用于幂等重试，不物理删评论行，也不改账号、头像、统计和写入权限。部署顺序与只读检查见 [Supabase README](../supabase/README.md#deploying-comment-reply-visibility-011)。
+
+- 验证：315 项 Node 回归及 23 项编辑器交互测试通过；数据库 361 项断言通过，包含新增 22 项删除可见性断言。Astro 检查 0 错误、0 警告（12 项已有提示）；隔离内容构建覆盖 79 页的图标、导航及安全元数据。测试文章未加入公开源文件。
+- Edge 隔离验收覆盖桌面和 430 px 手机尺寸、深浅主题、中英文预览界面、正文/元数据实时同步、封面清除、恢复本地文稿、提示块/步骤/代码/公式/表格，以及普通用户和访客访问隔离。长文件名图片卡片未溢出；430 px 下两种贡献模式的共用画布均为 374 × 81.594 CSS px。正式 Supabase 已执行迁移 `011`，`verify_011.sql` 六项布尔核对全部为真，未改动真实评论内容。
+
+限制：响应式视口与 Chromium 触屏模拟不等同于真实 iPhone WebKit 硬件验收；PGlite 隔离数据库不模拟多连接锁竞争，已有写入事务锁保持原样。文章预览在浏览器本地渲染，评论仅展示位置说明，不发送测试评论。正式发布仍由主分支 GitHub Actions 构建并部署，构建状态与页面上线需分别确认。

@@ -1,5 +1,5 @@
 import { getCommentClient, type CommentAuthChangeDetail } from './comment-auth'
-import { commentError, groupCommentRows, type CommentRow, type CommentMe } from './comment-utils'
+import { commentError, commentHasReplies, groupCommentRows, type CommentRow, type CommentMe } from './comment-utils'
 import { prepareCommentAvatar, commentAvatarUrl, captureAvatarAuthorization, saveCommentAvatar, removeCommentAvatar, commentAvatarMessage } from './comment-avatar'
 import { renderCommentMarkdown } from './comment-markdown'
 
@@ -414,16 +414,18 @@ export class SiteComments extends HTMLElement {
           summary.addEventListener('click',event=>{if(this.busy) event.preventDefault()},{signal:this.lifetime!.signal})
           menu.append(summary)
           const choices=this.node('div',undefined,'comment-menu-choices')
-          if(!row.deleted && row.can_delete) action(choices,this.t('删除','Delete'),()=>void this.removeComment(row,false))
           if(this.me.is_admin) {
             const emailVisible=this.authorEmails.has(row.id)
             action(choices,emailVisible ? this.t('隐藏作者邮箱','Hide author email') : this.t('查看作者邮箱','View author email'),()=>{
               if(this.authorEmails.has(row.id)) this.hideAuthorEmail(row)
               else void this.showAuthorEmail(row)
             })
-            action(choices,row.parent_id || row.root_unavailable ? this.t('清理此条及其回复','Remove comment and replies') : this.t('清理整串','Remove thread'),()=>void this.removeComment(row,true))
             if(!row.is_admin_author) action(choices,row.author_banned ? this.t('解除封禁','Unban author') : this.t('封禁作者','Ban author'),()=>void this.ban(row))
           }
+          // Destructive actions stay adjacent, at the end of the menu. Reply
+          // availability comes from the server, not just the current page.
+          if(!row.deleted && row.can_delete) action(choices,this.t('删除','Delete'),()=>void this.removeComment(row,false))
+          if(this.me.is_admin && commentHasReplies(row,displayedRows)) action(choices,this.t('删除此条及其回复','Delete this comment and its replies'),()=>void this.removeComment(row,true))
           menu.append(choices); actions.append(menu)
         }
         item.append(actions)
@@ -706,8 +708,8 @@ export class SiteComments extends HTMLElement {
   private async removeComment(row:CommentRow,branch:boolean) {
     if(this.busy) return
     const lifetime=this.lifetime, account=this.accountVersion
-    const branchTitle=row.parent_id || row.root_unavailable ? this.t('清理这条留言及其回复？','Remove this comment and its replies?') : this.t('清理整串讨论？','Remove this entire thread?')
-    const approved=await this.confirm(branch?branchTitle:this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将被隐藏，正文会清空，无法恢复。','This comment and all its replies will be hidden and their content cleared. This cannot be undone.'):this.t('正文会清空并显示删除占位，其他人的回复会保留。此操作无法恢复。','The content will be cleared and replaced with a deletion notice. Other people’s replies stay. This cannot be undone.'))
+    const branchTitle=this.t('删除此条及其回复？','Delete this comment and its replies?')
+    const approved=await this.confirm(branch?branchTitle:this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将被隐藏，正文会清空，无法恢复。','This comment and all its replies will be hidden and their content cleared. This cannot be undone.'):this.t('正文会清空。没有回复时不留占位；如已有回复，则保留删除占位和其他人的回复。此操作无法恢复。','The content will be cleared. Without replies, no placeholder remains; otherwise a deletion notice and other people’s replies stay. This cannot be undone.'))
     if(approved && this.current(lifetime,account)) await this.mutate('comment_delete',{p_id:row.id,p_branch:branch})
   }
   private async ban(row:CommentRow) {
