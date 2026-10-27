@@ -299,6 +299,7 @@
 }
 .interest-title:lang(zh) {
   font-size: 1.125rem;
+  font-weight: 400;
 }
 .interest-description {
   margin: 0.4rem 0 0;
