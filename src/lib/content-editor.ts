@@ -771,7 +771,7 @@ export class ContentEditor extends HTMLElement{
   }
   private async mediaLibrary(selected=''){
     const target=this.q('[data-editor]'),tools=el('div','','cms-media-tools');tools.append(this.uploader(()=>this.mediaLibrary()),this.btn(this.t('清理未引用的本地图片','Clean unused local images'),()=>this.cleanLocalImages()))
-    target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('这里显示 GitHub 与本地新增的网站图片。改用外部网址不会自动删除旧文件；可先查看引用，再选择删除并发布。','Images stored in GitHub or added locally. Switching to an external URL keeps the original file; check its references before selecting Delete and publishing.'),'cms-hint'),tools)
+    target.replaceChildren(el('h2',this.t('网站图片','Website images')),el('p',this.t('这里显示 GitHub 与本地新增的网站图片。可先查看图片引用；替换和删除在发布前只保存在本机。','Images stored in GitHub or added locally. Check references before replacing or deleting; changes stay local until publishing.'),'cms-hint'),tools)
     const grid=el('div','','cms-media-grid');target.append(grid);await this.mediaCards(grid,undefined,selected)
   }
   private async mediaCards(grid:HTMLElement,select?:(path:string)=>unknown,selected=''){
