@@ -309,7 +309,9 @@ export class ContentEditor extends HTMLElement{
         const controls=el('div','','cms-field-actions')
         controls.append(this.btn(this.t('选择 / 上传图片','Select / upload image'),()=>this.imagePicker(path=>{value[f.key]=path;input.value=path;changed();void showImage()},f.key==='avatar')),
           this.btn(this.t('清除','Clear'),()=>{value[f.key]='';input.value='';changed();void showImage()}))
-        const group=el('div','','cms-image-field');group.append(label,controls,image);box.append(group);void showImage();continue
+        const group=el('div','','cms-image-field');group.append(label,controls,image)
+        if(this.current===PROFILE&&f.key==='avatar')group.append(el('p',this.t('主页、站长评论与友链资料共用此头像，发布后同步更新。清除后使用默认头像。','Home, owner comments and link-exchange details share this avatar after publishing. Clear to use the default.'),'cms-hint'))
+        box.append(group);void showImage();continue
       }
       box.append(label)
     }

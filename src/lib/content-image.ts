@@ -1,3 +1,4 @@
+import { profileAvatarSource } from './profile-avatar'
 const images=import.meta.glob<string>('/src/{assets,content}/**/*.{png,jpg,jpeg,webp,gif,avif}',{eager:true,query:'?url',import:'default'})
 export function contentImage(value:string|undefined,sourcePath=''){
   if(!value)return ''
@@ -13,5 +14,5 @@ export function resolveArticleImages(html:string,sourcePath=''){
 }
 // The homepage and every comment panel use the same build-resolved source.
 export function profileAvatar(value:string|undefined){
-  return contentImage(value)||images['/src/assets/avatar.png']
+  return contentImage(profileAvatarSource(value))
 }

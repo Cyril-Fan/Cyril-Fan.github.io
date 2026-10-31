@@ -42,7 +42,7 @@
 | 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | 后台“首页与关于” → `src/data/profile.json` 的 `profile` | [`HomePage.astro`](src/components/home/HomePage.astro) 保留双语布局 |
 | 中文 / 英文首页入口 | [`src/pages/index.astro`](src/pages/index.astro)、[`src/pages/en/index.astro`](src/pages/en/index.astro) | 实际界面由 `HomePage.astro` 生成 |
 | 主页头像 | 后台“首页与关于”的头像 | 空值使用默认 [`src/assets/avatar.png`](src/assets/avatar.png) |
-| 评论站长头像、对外提供的本站头像地址 | 跟随后台设置的主页头像 | 默认对外地址为 [`public/avatar/avatar.png`](public/avatar/avatar.png)，不自动跟随 GitHub |
+| 评论站长头像、对外提供的本站头像地址 | 跟随后台设置的主页头像 | 对外固定为 `https://cyril-fan.top/avatar/avatar.png`；[`src/pages/avatar/avatar.png.ts`](src/pages/avatar/avatar.png.ts) 在构建时从当前头像无损生成 PNG。没有另一份需手动维护的公开头像源文件，不自动跟随 GitHub 账户头像 |
 | 左上角 Cyril Fan、顶部菜单和手机菜单 | [`src/components/basic/Header.astro`](src/components/basic/Header.astro) | 字体与字重也在该组件；中英文导航在这里分别呈现 |
 | 页脚署名、站点说明入口、社交链接 | [`src/components/basic/Footer.astro`](src/components/basic/Footer.astro)、[`src/site.config.ts`](src/site.config.ts) 的 `footer` | 四条站点说明的正文不在这里 |
 | 全站宽度和页面外壳 | [`src/layouts/BaseLayout.astro`](src/layouts/BaseLayout.astro) | 所有普通页面共用 |

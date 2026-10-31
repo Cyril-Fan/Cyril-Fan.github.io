@@ -5,6 +5,7 @@ import { prod } from '@/utils/server'
 import type { SiteMeta } from '@/types'
 import config from '@/site-config'
 import SiteIcons from './SiteIcons.astro'
+import { PROFILE_AVATAR_PATH } from '../lib/profile-avatar'
 
 type Props = SiteMeta
 
@@ -14,7 +15,7 @@ const siteTitle = `${title} ${config.titleDelimiter} ${config.title}`
 const isNotFound = /^\/(?:en\/)?404(?:\.html)?\/?$/.test(Astro.url.pathname)
 const privatePage = /^\/(?:en\/)?admin(?:\/|$)/.test(Astro.url.pathname)
 const canonicalURL = new URL(isNotFound ? '/404.html' : Astro.url.pathname, Astro.site)
-const socialImageURL = new URL(ogImage ? ogImage : '/avatar/avatar.png', Astro.site).href
+const socialImageURL = new URL(ogImage || PROFILE_AVATAR_PATH, Astro.site).href
 ---
 
 <meta charset='utf-8' />

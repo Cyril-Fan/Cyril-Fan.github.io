@@ -1,11 +1,11 @@
 ---
-import { profile } from '../../lib/cms-content'
+import { PROFILE_AVATAR_URL } from '../../lib/profile-avatar'
 const en = Astro.currentLocale === 'en'
 const fields = [
   ['Name', 'Cyril Fan'],
   ['Desc', 'Cosmic style'],
   ['Link', 'https://cyril-fan.top/'],
-  ['Avatar', `https://cyril-fan.top${profile.avatar || '/avatar/avatar.png'}`],
+  ['Avatar', PROFILE_AVATAR_URL],
   ['RSS', 'https://cyril-fan.top/rss.xml']
 ]
 const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '

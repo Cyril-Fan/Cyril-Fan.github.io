@@ -129,3 +129,11 @@ Limits: browser acceptance uses responsive Edge, not physical iOS hardware. Unkn
 Edge 实际操作覆盖中文桌面、英文 430 px 手机深色、普通用户/访客访问隔离、无回复删除、匿名父占位、最后回复删除、网络失败后的上线补查、检查期间的新编辑、两个标签页恢复独立副本、旧空任务清理和失败任务保留。图片在一个标签页待删除后，另一标签页仍可显示同一图片；待删除卡片不加载图片。保存失败、检查期间的新输入、共享图片与并发副本由隔离 DOM/存储测试复现，未删除或发布真实测试内容。
 
 Limits: responsive Edge is not physical iPhone/Safari testing. PGlite does not exercise multi-connection lock contention. GitHub scheduling/caches can delay new contributions; an unchanged snapshot keeps its original data time. Local recovery remains browser/account/repository scoped; storage failure requires export or freeing space, and is never reported as a successful switch. No new credentials or permissions were introduced.
+
+## 2026-10-31：图片完整预览与固定头像地址
+
+- 修正图片库 4:3 外框中的网格固有尺寸问题：方图曾占用比外框更高的空间，虽设置 `contain` 仍被外框裁掉。现在外框负责尺寸，图片在框内按原比例完整显示；图片选择器共用这套样式。
+- 删除重复的 `public/avatar/avatar.png` 源文件，保留 `src/assets/avatar.png` 默认原图。`src/data/profile.json` 显式指向默认原图；后台只显示一份当前头像源。
+- 首页与评论通过 `profileAvatarSource()` 解析同一资料字段；友链复制信息固定使用 `https://cyril-fan.top/avatar/avatar.png`。该地址由静态端点在构建时从当前资料无损生成 PNG，因此后续改用上传图片或可直接访问的 HTTPS 图片时，也不会把临时文件名或错误拼接的外部地址交给朋友。
+- PNG 导出不裁切、不缩放，保留透明度；动画源只导出首帧，原动画文件不修改。缺失源图、下载失败或超限使构建失败，不使用静默旧图回退。浏览器、GitHub Pages 和朋友站点的图片缓存仍可能延迟更新。
+- 六项隔离导出测试覆盖像素/比例/透明度、换图、固定链接回指、远程来源、失败及超限；编辑器 28 项交互回归通过。独立输出目录构建完成，53 页元数据检查与搜索索引通过。实际 Edge 验收覆盖桌面、430px、中英文和深浅色；方形/横向/竖向测试图仅在本机内存服务器中生成，未上传。Windows 沙箱文件写入限制通过正常权限的隔离测试/构建确认，未修改 ACL、浏览器安全配置或用户现有编辑。

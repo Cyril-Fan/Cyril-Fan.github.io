@@ -4,14 +4,20 @@ import { readFile,stat,readdir } from 'node:fs/promises'
 import { resolve,extname,sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
+import sharp from 'sharp'
 import { parse } from 'node-html-parser'
 import { pathKind,validateText,validateImage,decodeBase64,fileReferences } from '../supabase/functions/_shared/git-content.ts'
 const root=process.cwd(),dist=resolve(root,process.env.CONTENT_FIXTURE_DIST||'.content-check-dist'),port=Number(process.env.CONTENT_FIXTURE_PORT||9361)
 const hash=data=>createHash('sha1').update('blob '+Buffer.byteLength(data)+'\0').update(data).digest('hex')
 const files=new Map()
 const siteLinks=JSON.parse(await readFile(resolve(root,'public/links.json'),'utf8'))
-const fixtureImages=[...new Set([...siteLinks.friends.flatMap(g=>g.link_list.filter(f=>f.avatar?.startsWith('/')).map(f=>'public'+f.avatar)),...(await readdir(resolve(root,'public/media'))).filter(name=>/\.(png|webp|gif|jpe?g)$/i.test(name)).map(name=>'public/media/'+name),'public/avatar/avatar.png','src/assets/avatar.png'])]
+const fixtureImages=[...new Set([...siteLinks.friends.flatMap(g=>g.link_list.filter(f=>f.avatar?.startsWith('/')).map(f=>'public'+f.avatar)),...(await readdir(resolve(root,'public/media'))).filter(name=>/\.(png|webp|gif|jpe?g)$/i.test(name)).map(name=>'public/media/'+name),'src/assets/avatar.png'])]
 for(const path of ['src/data/profile.json','src/data/academic.json','public/links.json',...fixtureImages]){const bytes=await readFile(resolve(root,path));files.set(path,{path,sha:hash(bytes),content:bytes.toString(pathKind(path)==='media'?'base64':'utf8'),encoding:pathKind(path)==='media'?'base64':'utf-8'})}
+// Optional synthetic images exist only in this in-memory server, never GitHub.
+if(process.env.CONTENT_FIXTURE_IMAGE_SHAPES==='1')for(const [name,width,height]of [['portrait',120,360],['wide',360,120]]){
+ const path='public/media/fixture-'+name+'.png',bytes=await sharp({create:{width,height,channels:4,background:'#57879c80'}}).png().toBuffer()
+ files.set(path,{path,sha:hash(bytes),content:bytes.toString('base64'),encoding:'base64'})
+}
 const html=parse(await readFile(resolve(dist,'admin/index.html'),'utf8'))
 const editor=html.querySelector('content-editor').outerHTML,styles='<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'+html.querySelectorAll('link[rel=stylesheet],head style').map(x=>x.outerHTML).join('')
 const fixturePost='src/content/blogs/tech/preview-fixture/index.md';
