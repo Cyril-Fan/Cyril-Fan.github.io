@@ -43,7 +43,7 @@ export class SiteComments extends HTMLElement {
   private current(lifetime:AbortController|undefined, account:number) { return this.isConnected && this.lifetime===lifetime && this.accountVersion===account }
   private name() { return this.me.is_admin ? 'Cyril Fan' : this.me.nickname }
   private displayName(name:string,isOwner=false) { return isOwner ? 'Cyril Fan' : name }
-  private rowName(row:CommentRow) { return this.displayName(row.nickname,row.is_admin_author) }
+  private rowName(row:CommentRow) { return row.deleted ? this.t('匿名','Anonymous') : this.displayName(row.nickname,row.is_admin_author) }
   private updateCounter() {
     const input=this.el<HTMLTextAreaElement>('textarea')
     const count=Array.from(input.value).length
@@ -343,7 +343,7 @@ export class SiteComments extends HTMLElement {
   }
   private renderAvatar(container:HTMLElement,name:string,isOwner:boolean,path?:string|null) {
     const ownerAvatar=this.dataset.ownerAvatar || ''
-    const source=isOwner ? (/^\/(?:links\/[a-z0-9-]+|media\/[a-f0-9-]{36})\.webp$/.test(ownerAvatar) ? ownerAvatar : '/avatar/avatar.png') : commentAvatarUrl(this.avatarOrigin,path)
+    const source=isOwner ? (/^(?:\/(?!\/)|https:\/\/)[^\s\\]+$/.test(ownerAvatar) ? ownerAvatar : null) : commentAvatarUrl(this.avatarOrigin,path)
     if(container.dataset.avatarName===name && container.dataset.avatarSource===(source??'')) return
     container.dataset.avatarName=name; container.dataset.avatarSource=source??''
     container.textContent=this.initials(name)
@@ -375,9 +375,9 @@ export class SiteComments extends HTMLElement {
         item.id=`comment-${row.id}`
         const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
         const displayName=this.rowName(row)
-        this.renderAvatar(avatar,displayName,row.is_admin_author,row.avatar_path)
+        this.renderAvatar(avatar,row.deleted?'':displayName,!row.deleted&&row.is_admin_author,row.deleted?null:row.avatar_path)
         const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',displayName))
-        if(row.is_admin_author) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
+        if(row.is_admin_author&&!row.deleted) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
         if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
         const time=this.node('time',new Intl.DateTimeFormat(this.en?'en':'zh-CN',{dateStyle:'medium',timeStyle:'short',hourCycle:'h23'}).format(new Date(row.created_at)))
         time.dateTime=row.created_at; header.append(time); item.append(header)
@@ -709,7 +709,7 @@ export class SiteComments extends HTMLElement {
     if(this.busy) return
     const lifetime=this.lifetime, account=this.accountVersion
     const branchTitle=this.t('删除此条及其回复？','Delete this comment and its replies?')
-    const approved=await this.confirm(branch?branchTitle:this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将被隐藏，正文会清空，无法恢复。','This comment and all its replies will be hidden and their content cleared. This cannot be undone.'):this.t('正文会清空。没有回复时不留占位；如已有回复，则保留删除占位和其他人的回复。此操作无法恢复。','The content will be cleared. Without replies, no placeholder remains; otherwise a deletion notice and other people’s replies stay. This cannot be undone.'))
+    const approved=await this.confirm(branch?branchTitle:this.t('删除这条留言？','Delete this comment?'),branch?this.t('这条留言及其所有回复将从数据库永久删除，无法恢复。','This comment and all its replies will be permanently deleted from the database. This cannot be undone.'):this.t('没有回复时直接永久删除；有回复时清除正文和作者关联，只保留匿名占位。最后一条回复删除后，占位也会移除。此操作无法恢复。','Without replies, the record is permanently deleted. With replies, its content and author association are erased, leaving only an anonymous placeholder until the last reply is deleted. This cannot be undone.'))
     if(approved && this.current(lifetime,account)) await this.mutate('comment_delete',{p_id:row.id,p_branch:branch})
   }
   private async ban(row:CommentRow) {

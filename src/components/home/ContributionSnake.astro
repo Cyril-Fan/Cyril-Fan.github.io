@@ -50,7 +50,11 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
       </div>
     </div>
     <div class='snake-caption text-xs text-muted-foreground'>
-      <span data-contribution-total title={`${first} – ${last} · ${en ? 'Updated' : '更新于'} ${updated} UTC+8`}>{en ? `${data.total} contributions` : `${data.total} 次贡献`}</span>
+      <details class='contribution-timing'>
+        <summary data-contribution-total title={`${first} – ${last} · ${en ? 'Data updated' : '数据更新'} ${updated} UTC+8`}>{en ? `${data.total} contributions` : `${data.total} 次贡献`}</summary>
+        <p data-contribution-time>{en ? 'Data updated' : '数据更新'}: {updated} UTC+8 · {en ? 'Last checked' : '最近检查'}: {new Intl.DateTimeFormat(en?'en-GB':'zh-CN',{dateStyle:'short',timeStyle:'short',hourCycle:'h23',timeZone:'Asia/Shanghai'}).format(new Date(snapshot.checkedAt || snapshot.fetchedAt))} UTC+8</p>
+        <p>{en ? 'Checks run while this page is visible. GitHub scheduling and caching may delay new activity.' : '页面可见时定期检查。GitHub 调度与缓存可能使新贡献延后显示。'}</p>
+      </details>
       <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Turn on animation' : '开启动画'}</button>
     </div>
     <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are temporarily delayed. The last verified contribution history is shown; hover over the total for its date.' : '更新暂有延迟，当前展示上次核实的贡献记录；悬停贡献总数可查看数据时间。'}</p>
@@ -78,6 +82,9 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
   .contribution-day.level-0 { fill:var(--contribution-light-0); } .contribution-day.level-1 { fill:var(--contribution-light-1); } .contribution-day.level-2 { fill:var(--contribution-light-2); } .contribution-day.level-3 { fill:var(--contribution-light-3); } .contribution-day.level-4 { fill:var(--contribution-light-4); }
   .dark .contribution-day.level-0 { fill:var(--contribution-dark-0); } .dark .contribution-day.level-1 { fill:var(--contribution-dark-1); } .dark .contribution-day.level-2 { fill:var(--contribution-dark-2); } .dark .contribution-day.level-3 { fill:var(--contribution-dark-3); } .dark .contribution-day.level-4 { fill:var(--contribution-dark-4); }
   .snake-caption { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.5rem; margin-top:.5rem; }
+  .contribution-timing { min-width:0; flex:1; font-size:inherit; }
+  .contribution-timing summary { cursor:pointer; width:fit-content; }
+  .contribution-timing p { margin:.4rem 0; font-size:.75rem; line-height:1.6; }
   .snake-caption button { padding:.5rem .75rem; min-height:2.75rem; border:1px solid hsl(var(--border)); border-radius:.5rem; }
   .snake-caption button:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
   .snake-caption button:focus-visible, .calendar-inspector input:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }

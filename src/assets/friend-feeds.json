@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "checkedAt": "2026-10-26T14:39:24.912Z",
+  "checkedAt": "2026-10-31T07:07:09.073Z",
   "feeds": [
     {
       "source": "https://axi404.top/",
       "feed": "https://axi404.top/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-26T14:39:24.912Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-31T06:54:54.832Z",
       "articles": [
         {
           "title": "具身十日谈：飞越奇点，后 Astra 时代的具身智能",
@@ -691,16 +691,22 @@
     {
       "source": "https://leonwater1.github.io/",
       "feed": "https://leonwater1.github.io/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-26T14:39:24.912Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-31T06:54:54.832Z",
       "articles": []
     },
     {
       "source": "https://royzhao.cn/",
       "feed": "https://royzhao.cn/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-26T14:39:24.912Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-31T06:54:54.832Z",
       "articles": [
+        {
+          "title": "光学神经网络：基本原理、技术架构与应用进展（Test）",
+          "link": "https://royzhao.cn/blog/optical-neural-networks-review",
+          "date": "2026-10-30T00:00:00.000Z",
+          "source": "https://royzhao.cn/"
+        },
         {
           "title": "1550nm波长下D²NN的结构设计探究",
           "link": "https://royzhao.cn/blog/d2nn-1550nm-stage-report",
@@ -718,9 +724,27 @@
     {
       "source": "https://vys3n.github.io/",
       "feed": "https://vys3n.github.io/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-26T14:39:24.912Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-31T06:54:54.832Z",
       "articles": [
+        {
+          "title": "木剑",
+          "link": "https://vys3n.github.io/blog/sketch-7/",
+          "date": "2026-10-29T07:45:00.000Z",
+          "source": "https://vys3n.github.io/"
+        },
+        {
+          "title": "赛制约束与观察窗口：CS 职业比赛中极端负向竞技表现的基准建立与条件化复现研究",
+          "link": "https://vys3n.github.io/blog/paper-0/",
+          "date": "2026-10-28T11:57:00.000Z",
+          "source": "https://vys3n.github.io/"
+        },
+        {
+          "title": "花儿与少年",
+          "link": "https://vys3n.github.io/blog/sketch-6/",
+          "date": "2026-10-27T09:56:00.000Z",
+          "source": "https://vys3n.github.io/"
+        },
         {
           "title": "巴别塔",
           "link": "https://vys3n.github.io/blog/sketch-5/",
@@ -756,8 +780,8 @@
     {
       "source": "https://jy.xn--wut303ivvd.space/",
       "feed": "https://jy.xn--wut303ivvd.space/rss.xml",
-      "status": "ok",
-      "lastSuccessAt": "2026-10-26T14:39:24.912Z",
+      "status": "unavailable",
+      "lastSuccessAt": "2026-10-31T06:54:54.832Z",
       "articles": [
         {
           "title": "从 CC-Switch 的 API 接入切换到 Codex 官方账号",
@@ -786,5 +810,5 @@
       ]
     }
   ],
-  "revision": "9042e68f2085abbc894d07d5048059fa6750073afb0d677ef03ce9478ec7a04f"
+  "revision": "212beb3ef4ccd663891bf0c4fc70c2660f6f4757bcc3779bfcd5ec17f84becb7"
 }

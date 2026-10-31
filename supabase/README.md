@@ -142,18 +142,17 @@ token validation failures can also be rejected before an RPC executes.
 | `comment_thread_list(p_thread,p_after_id=null,p_limit=30,p_focus_id=null)` | JSON array with the same public comment fields plus `{root_id,root_created_at,root_unavailable,has_replies}`. `has_replies` reflects surviving descendants visible to this caller across the whole conversation, not just the loaded page. Deleted leaves are omitted; deleted ancestors remain only for visible surviving replies. Original comments sort newest first; every reply in the same conversation, including replies to replies, follows its original in chronological order with an ID tie-breaker. Normal calls return at most `p_limit` individual comments (1–100), never an unbounded tree. The last normal-page comment ID continues the stream. Optional focus mode returns only the requested visible comment and its visible original/anchor (at most two rows; limit must be at least two), with `gap_before` indicating visible replies omitted between the normal cursor and target. It never changes the normal paging cursor. An unavailable original is replaced by an anchor derived only from a visible comment; its private fields and invisible parent IDs are omitted. Email is never returned, even to the owner. |
 | `comment_author_email(p_thread,p_comment_id)` | Current author email or null for an unavailable account. Requires the verified, active, unbanned administrator session before looking up the comment. Only comments in the requested article that have not been hidden are eligible. Anonymous execution is revoked; ordinary authenticated users are rejected by `require_actor(true)`. No email snapshot is stored in comment tables. The frontend calls this only from the owner's “View author email” menu, keeps the result in page memory, and clears it when refreshing, signing out, changing accounts, losing permissions or disconnecting. |
 | `comment_create(p_thread,p_body,p_nickname,p_parent_id=null,p_request_id=null)` | JSON `{id,is_pending}`. A UUID request ID is mandatory; retry the same ID with exactly the same normalized thread, body, and parent. Nickname is mutable metadata and does not affect retries. An existing profile wins over a stale form; the supplied name initializes a missing profile. Admins may omit the nickname value (`null`) and always publish as `Cyril Fan`. |
-| `comment_delete(p_id,p_branch=false)` | Void. Author clears only their own body; banned authors retain this right. Admin can clear any one body or set `p_branch=true` to erase and hide that comment and all descendants in the same thread. |
+| `comment_delete(p_id,p_branch=false)` | Void. Author deletes their own comment; banned authors retain this right. A leaf is physically removed; a parent becomes anonymous. Admin may delete any comment or set `p_branch=true` to physically delete the complete subtree. |
 | `comment_ban(p_comment_id,p_banned)` | Void, admin only. Resolves the author privately from a comment ID. Ban blocks posting using existing tokens; unban restores it. Cannot ban an admin. Existing published comments remain visible. |
 | `comment_moderation(p_enabled)` | Void, admin only. Controls whether future non-admin submissions require approval. |
-| `comment_review(p_id,p_approve)` | Void, admin only. Approve a pending record after its parent is published, or reject by erasing/hiding the selected branch. Rejection cannot be undone. |
+| `comment_review(p_id,p_approve)` | Void, admin only. Approve a pending record after its parent is published, or reject by physically deleting the selected branch. Rejection cannot be undone. |
 | `comment_avatar_is_owner(p_name,p_allow_banned=false)` | Boolean Storage-policy helper, authenticated role only. Checks the current verified session against the caller's private profile and exact fixed object name. `true` for the second argument permits a banned author to read/remove their own avatar; INSERT/UPDATE policies always use `false`. It never grants access by nickname, email, Auth metadata or Storage `owner_id`. The frontend need not call it. |
 
 The frontend must display `nickname` as **plain text** and pass `body` only through
 the site's audited Markdown sanitization/rendering pipeline. Never insert raw
 comment content through `innerHTML`. A deleted row's body is the empty string.
 The conversation reader omits erased leaves; retained ancestors render a localized
-deletion placeholder so other people's replies stay connected. The database keeps
-the erased rows for safe retries. There is no edit/restore RPC.
+deletion placeholder so other people's replies stay connected. Only anonymous ancestors with surviving replies remain; the last reply deletion prunes them. No erased identity is kept for retries. There is no edit/restore RPC.
 
 ## Display names
 
@@ -169,7 +168,7 @@ regardless of any earlier saved profile. Nicknames are not unique. Another
 visitor using the same text never acquires `is_admin_author` or any permission;
 only the server-provided badge establishes administrator identity.
 
-Comment rows retain their original nickname snapshot. It is used only when the
+Undeleted comment rows retain their original nickname snapshot. It is used only when the
 profile/account no longer exists and for validating retries of pre-`003`
 requests. A renamed profile is not a comment content edit, does not restore
 erased bodies, and cannot reset posting limits. After account deletion, the
@@ -306,18 +305,16 @@ malicious content:
   in the private allowlist are exempt from these two frequency limits. Nicknames
   and Auth metadata cannot grant the exemption; removal from the allowlist
   immediately restores the limits, counting that account's existing posts.
-  Deleting/hiding does not reset these counters.
+  These checks count remaining identified comment rows. Deletion removes their identity and fingerprints; no separate anti-abuse ledger is added.
 - Identical normalized bodies by the same account in the same thread within ten
   minutes are rejected, including for administrators. Administrator posting
   still requires a verified email, live session and unbanned account, and keeps
   all body, link, reply and idempotency validation.
 - A UUID request ID is unique per account. Retries with the same normalized
-  thread/body/parent return the same comment, including after deletion and name
-  changes; a changed thread/body/parent fails. New hashes use version `2`, which
+  thread/body/parent return the same undeleted comment, including after name
+  changes; a changed thread/body/parent fails. Deleted rows/placeholders retain no request identity. A later repost is a new comment subject to the normal current checks. New hashes use version `2`, which
   excludes nickname. Existing version `1` hashes are validated with the row's
-  original nickname snapshot, so pre-upgrade erased bodies still support safe
-  retries. Retrying never changes a profile. Raw bodies are never recovered
-  from the retained SHA-256 hashes.
+  original nickname snapshot while the comment exists. Retrying never changes a profile. Deletion clears request/body hashes rather than retaining them.
 
 Transaction-scoped advisory locks serialize each account's create/rename/ban operations
 before idempotency and rate checks. A session is rechecked after a lock wait.
@@ -408,3 +405,10 @@ production deployment and the remaining real-account acceptance checks are
 tracked separately in [COMMENTS-SETUP.md](../COMMENTS-SETUP.md). Public signup
 being enabled does not establish that every integration has been verified;
 use a staging Supabase project for destructive or multi-account integration tests.
+
+
+## Physical comment deletion (012)
+
+Apply `migrations/202610310012_comment_physical_deletion.sql` after 011, then run `verify_012.sql` (all booleans must be true). This replaces deletion and both list readers, permits anonymous placeholders without request IDs, and denies email lookups for erased comments. A leaf is physically deleted; a parent is stripped of content and author association; the last descendant deletion prunes erased ancestors. Branch deletion physically removes all descendants, including pending replies. The existing thread lock serializes creates/deletes. No new retention ledger or rate-limit table is introduced.
+
+Installation changes definitions only; it does not bulk-delete or rewrite existing comments. Readers anonymize historical erased comments as well. Historical retention cleanup is a separate explicit data operation, never part of the test suite. Accounts, Storage avatars and traffic are unchanged. Deploy `content-github` with the new actual-deployed-commit check and deploy the frontend/build marker; preserve all existing secrets and permissions.

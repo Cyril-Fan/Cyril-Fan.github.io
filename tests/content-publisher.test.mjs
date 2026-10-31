@@ -18,7 +18,7 @@ const avatar=await (await import('sharp')).default({create:{width:2,height:2,cha
 function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=false,buildFailed=false}={}){
  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original})
  env={SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'private-server-key',CMS_GITHUB_TOKEN:'private-pat'}
- let head='1'.repeat(40),seq=2,updates=0,commits=0,history=[],lost=false
+ let deployedMarker=null;let head='1'.repeat(40),seq=2,updates=0,commits=0,history=[],lost=false
  const blobs=new Map(),trees=new Map(),commitData=new Map(),initial=new Map()
  for(const [path,value]of [['src/data/profile.json',profile],['src/data/academic.json',academic],['public/links.json','{"friends":[]}'],['public/media/shared.webp',avatar],['src/content/blogs/demo/index.md','---\ntitle: Demo\ndescription: Test\npublishDate: 2026-10-24\n---\n![Shared](/media/shared.webp)'],['.github/workflows/deploy.yml','private workflow config']]){const bytes=Buffer.from(value),sha=hash(bytes);blobs.set(sha,bytes);initial.set(path,sha)}
  const profileImageSha=hash(avatar);blobs.set(profileImageSha,avatar);initial.set('public/media/profile.webp',profileImageSha)
@@ -32,7 +32,7 @@ function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=f
      if(u.pathname==='/auth/v1/user')return response({id:'owner-1'})
      throw Error('Unexpected Supabase call '+u.pathname)
    }
-   if(u.origin==='https://cyril-fan.top')return live&&current().has('public/data/cms-release.json')?new Response(blobs.get(current().get('public/data/cms-release.json'))):response({})
+   if(u.origin==='https://cyril-fan.top')return deployedMarker?response(deployedMarker):live&&current().has('public/data/cms-release.json')?new Response(blobs.get(current().get('public/data/cms-release.json'))):response({})
    assert.equal(u.origin,'https://api.github.com')
    if(p==='/git/ref/heads/main')return response({object:{sha:head}})
    if(p.startsWith('/git/commits/')&&init.method==='GET'){const c=commitData.get(p.split('/').at(-1));return response({tree:{sha:c.tree}})}
@@ -40,7 +40,10 @@ function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=f
    if(p.startsWith('/git/blobs/'))return response({content:blobs.get(p.split('/').at(-1)).toString('base64')})
    if(p==='/commits')return response(history)
    if(p.startsWith('/commits/'))return response({commit:{message:commitData.get(p.split('/').at(-1)).message}})
-   if(p.startsWith('/compare/'))return response({status:p.endsWith(head+'...'+head)?'identical':'ahead'})
+   if(p.startsWith('/compare/')){
+     const [base,target]=p.slice('/compare/'.length).split('...');const ancestor=(from,to)=>{for(let c=to;c;c=commitData.get(c)?.parent)if(c===from)return true;return false}
+     return response({status:base===target?'identical':ancestor(base,target)?'ahead':ancestor(target,base)?'behind':'diverged'})
+   }
    if(p.includes('/actions/'))return response({workflow_runs:[{status:'completed',conclusion:buildFailed?'failure':'success',html_url:'https://github.com/Cyril-Fan/Cyril-Fan.github.io/actions'}]})
    if(p==='/git/blobs'){
      if(failImage&&body.encoding==='base64')return response({},503)
@@ -50,7 +53,7 @@ function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=f
      const tree=new Map(trees.get(body.base_tree));for(const c of body.tree){if(c.sha===null)tree.delete(c.path);else if(c.content!==undefined){const bytes=Buffer.from(c.content),sha=hash(bytes);blobs.set(sha,bytes);tree.set(c.path,sha)}else tree.set(c.path,c.sha)}
      const sha=String(seq++).padStart(40,'0');trees.set(sha,tree);return response({sha})
    }
-   if(p==='/git/commits'){assert.deepEqual(body.parents,[head]);commits++;const sha=String(seq++).padStart(40,'0');commitData.set(sha,{tree:body.tree,message:body.message});return response({sha})}
+   if(p==='/git/commits'){assert.deepEqual(body.parents,[head]);commits++;const sha=String(seq++).padStart(40,'0');commitData.set(sha,{tree:body.tree,message:body.message,parent:body.parents[0]});return response({sha})}
    if(p==='/git/refs/heads/main'){
      assert.equal(body.force,false);if(race)return response({},422)
      head=body.sha;updates++;history.unshift({sha:head,commit:{message:commitData.get(head).message}})
@@ -61,7 +64,7 @@ function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=f
  }
  const call=async(input,extra={})=>{const r=await handler(new Request('https://fixture.supabase.co/functions/v1/content-github',{method:'POST',headers:{Origin:extra.origin||'https://cyril-fan.top',Authorization:'Bearer owner-session','Content-Type':'application/json'},body:JSON.stringify(input)}));return {status:r.status,...await r.json()}}
  const changed=()=>({path:'src/data/profile.json',baseSha:current().get('src/data/profile.json'),content:JSON.stringify({...JSON.parse(profile),email:'owner@example.com'}),encoding:'utf-8'})
- return {call,changed,get head(){return head},get updates(){return updates},get commits(){return commits},get files(){return new Map([...current()].map(([p,s])=>[p,blobs.get(s)]))},publish(changes=[changed()],requestId=randomUUID(),baseHead=head){return call({action:'publish',requestId,baseHead,changes})}}
+ return {call,changed,setLiveMarker:marker=>deployedMarker=marker,get head(){return head},get updates(){return updates},get commits(){return commits},get files(){return new Map([...current()].map(([p,s])=>[p,blobs.get(s)]))},publish(changes=[changed()],requestId=randomUUID(),baseHead=head){return call({action:'publish',requestId,baseHead,changes})}}
 }
 test('anonymous/member/cross-origin calls cannot read or write private editor state',async t=>{
  const f=fixture(t,{owner:false});assert.equal((await f.call({action:'list'})).status,403);assert.equal((await f.publish()).status,403);assert.equal((await f.call({action:'list'},{origin:'https://evil.test'})).status,403);assert.equal(f.updates,0)
@@ -102,5 +105,12 @@ test('build failure is distinguishable from commit failure and live requires act
 })
 test('live marker verifies the submitted release',async t=>{
  const f=fixture(t,{live:true}),id=randomUUID(),r=await f.publish(undefined,id);assert.equal((await f.call({action:'status',requestId:id,commitSha:r.commitSha})).state,'live')
+})
+test('actual deployed commit confirms older tasks even when the release marker names an earlier parent',async t=>{
+ const f=fixture(t),parent=f.head,id=randomUUID(),r=await f.publish(undefined,id)
+ f.setLiveMarker({head:parent,release:'another-release'})
+ assert.equal((await f.call({action:'status',requestId:id,commitSha:r.commitSha})).state,'committed')
+ f.setLiveMarker({head:parent,deployedCommit:r.commitSha,release:'another-release'})
+ assert.equal((await f.call({action:'status',requestId:id,commitSha:r.commitSha})).state,'live')
 })
 

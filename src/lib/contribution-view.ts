@@ -73,7 +73,7 @@ export class ContributionSnake extends HTMLElement {
         if (count) {
           count.textContent = en ? `${bundle.calendar.total} contributions` : `${bundle.calendar.total} 次贡献`
           const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', { dateStyle:'short', timeStyle:'short', hourCycle:'h23', timeZone:'Asia/Shanghai' }).format(new Date(bundle.fetchedAt))
-          count.title = `${bundle.calendar.contributions[0].date} – ${bundle.dataThrough} · ${en ? 'Updated' : '更新于'} ${updated} UTC+8`
+          count.title = `${bundle.calendar.contributions[0].date} – ${bundle.dataThrough} · ${en ? 'Data updated' : '数据更新'} ${updated} UTC+8`
         }
       }
       if (bundle.dataHash === this.dataset.dataHash) { updateCaption(); return }
@@ -122,6 +122,17 @@ export class ContributionSnake extends HTMLElement {
       }
     }
     let lastCheck = 0, checking = false
+    const checked = () => {
+      this.dataset.checkedAt = new Date().toISOString()
+      const count = this.querySelector<HTMLElement>('[data-contribution-total]')
+      if(!count)return
+      const format = (value:string) => new Intl.DateTimeFormat(en?'en-GB':'zh-CN',{dateStyle:'short',timeStyle:'short',hourCycle:'h23',timeZone:'Asia/Shanghai'}).format(new Date(value))
+      const text = `${en?'Data updated':'数据更新'}: ${format(this.dataset.updated!)} UTC+8 · ${en?'Last checked':'最近检查'}: ${format(this.dataset.checkedAt)} UTC+8`
+      count.title = text
+      count.setAttribute('aria-label', count.textContent + ' · ' + text)
+      const time = this.querySelector<HTMLElement>('[data-contribution-time]')
+      if(time)time.textContent=text
+    }
     const showFreshness = () => {
       const notice = this.querySelector<HTMLElement>('[data-contribution-stale]')
       if (notice) notice.hidden = !this.dataset.updated || Date.now() - Date.parse(this.dataset.updated) <= 36 * 60 * 60 * 1000
@@ -136,7 +147,7 @@ export class ContributionSnake extends HTMLElement {
           if (signal.aborted) return
           bundle = await fetchPublishedContributionBundle({ signal })
         }
-        if (bundle && !signal.aborted) await apply(bundle)
+        if(!signal.aborted){if(bundle)await apply(bundle);checked()}
       } catch { /* Offline, rate-limited or half-published: retain the complete local snapshot. */ }
       finally { checking = false; showFreshness() }
     }
@@ -146,6 +157,7 @@ export class ContributionSnake extends HTMLElement {
     const timer = window.setInterval(() => { void refresh() }, REFRESH_INTERVAL_MS)
     signal.addEventListener('abort', () => window.clearInterval(timer), { once:true })
     document.addEventListener('visibilitychange', () => { void refresh() }, { signal })
+    window.addEventListener('online', () => { lastCheck=0;void refresh() }, { signal })
   }
   disconnectedCallback() {
     this.controller?.abort(); this.controller = undefined

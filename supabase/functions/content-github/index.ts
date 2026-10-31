@@ -38,6 +38,28 @@ export async function handle(request:Request):Promise<Response>{
       return res.json()
     }
     const current=await gh('/git/ref/heads/'+BRANCH),head=current.object.sha
+    if(input.action==='status'||input.action==='retry-build'){
+      if(!SHA.test(input.commitSha)||!REQUEST_ID.test(input.requestId))throw new HttpError(400,'Invalid submission')
+      const submitted=await gh('/commits/'+input.commitSha)
+      if(!submitted.commit.message.includes('Content-Request: '+input.requestId+'\n'))throw new HttpError(400,'Submission does not match')
+      const compare=await gh('/compare/'+input.commitSha+'...'+head)
+      if(!['ahead','identical'].includes(compare.status))throw new HttpError(409,'Submission is not on main')
+      if(input.action==='retry-build'){
+        if(head!==input.commitSha)throw new HttpError(409,'A newer commit exists. Check its deployment instead.')
+        // No duplicate content commit: GitHub Actions rerun needs Actions:write, so
+        // provide its official link rather than expanding the publishing token.
+        return respond({state:'retry-build',url:'https://github.com/'+REPOSITORY+'/actions',message:'Use Re-run jobs on the failed workflow. No content is submitted again.'})
+      }
+      let live:any=null
+      try{const r=await bounded('https://cyril-fan.top/data/cms-release.json?check='+Date.now());if(r.ok)live=await r.json()}catch{}
+      if(live?.release===input.requestId)return respond({state:'live',commitSha:input.commitSha})
+      // A later live release also contains this commit when it descends from it.
+      const deployedCommit=live?.deployedCommit||live?.head
+      if(SHA.test(deployedCommit||'')){const ancestor=await gh('/compare/'+input.commitSha+'...'+deployedCommit);if(['ahead','identical'].includes(ancestor.status))return respond({state:'live',commitSha:input.commitSha})}
+      let deploy=null
+      try{const r=await bounded('https://api.github.com/repos/'+REPOSITORY+'/actions/workflows/deploy.yml/runs?head_sha='+input.commitSha+'&per_page=3',{headers:{Accept:'application/vnd.github+json'}});if(r.ok){const run=(await r.json()).workflow_runs?.[0];if(run)deploy={status:run.status,conclusion:run.conclusion,url:run.html_url}}}catch{}
+      return respond({state:deploy?.status==='completed'&&deploy.conclusion!=='success'?'build-failed':'committed',commitSha:input.commitSha,deploy})
+    }
     const commit=await gh('/git/commits/'+head),tree=await gh('/git/trees/'+commit.tree.sha+'?recursive=1')
     if(tree.truncated)throw new HttpError(413,'Repository tree is too large to validate safely')
     const items:TreeItem[]=tree.tree.filter((x:TreeItem)=>x.type==='blob')
@@ -88,27 +110,6 @@ export async function handle(request:Request):Promise<Response>{
     if(input.action==='references'){
       if(pathKind(input.path)!=='media')throw new HttpError(400,'Invalid image path')
       return respond({path:input.path,head,references:await refs(input.path)})
-    }
-    if(input.action==='status'||input.action==='retry-build'){
-      if(!SHA.test(input.commitSha)||!REQUEST_ID.test(input.requestId))throw new HttpError(400,'Invalid submission')
-      const submitted=await gh('/commits/'+input.commitSha)
-      if(!submitted.commit.message.includes('Content-Request: '+input.requestId+'\n'))throw new HttpError(400,'Submission does not match')
-      const compare=await gh('/compare/'+input.commitSha+'...'+head)
-      if(!['ahead','identical'].includes(compare.status))throw new HttpError(409,'Submission is not on main')
-      if(input.action==='retry-build'){
-        if(head!==input.commitSha)throw new HttpError(409,'A newer commit exists. Check its deployment instead.')
-        // No duplicate content commit: GitHub Actions rerun needs Actions:write, so
-        // provide its official link rather than expanding the publishing token.
-        return respond({state:'retry-build',url:'https://github.com/'+REPOSITORY+'/actions',message:'Use Re-run jobs on the failed workflow. No content is submitted again.'})
-      }
-      let live:any=null
-      try{const r=await bounded('https://cyril-fan.top/data/cms-release.json?check='+Date.now());if(r.ok)live=await r.json()}catch{}
-      if(live?.release===input.requestId)return respond({state:'live',commitSha:input.commitSha})
-      // A later live release also contains this commit when it descends from it.
-      if(SHA.test(live?.head||'')){const ancestor=await gh('/compare/'+input.commitSha+'...'+live.head);if(['ahead','identical'].includes(ancestor.status))return respond({state:'live',commitSha:input.commitSha})}
-      let deploy=null
-      try{const r=await bounded('https://api.github.com/repos/'+REPOSITORY+'/actions/workflows/deploy.yml/runs?head_sha='+input.commitSha+'&per_page=3',{headers:{Accept:'application/vnd.github+json'}});if(r.ok){const run=(await r.json()).workflow_runs?.[0];if(run)deploy={status:run.status,conclusion:run.conclusion,url:run.html_url}}}catch{}
-      return respond({state:deploy?.status==='completed'&&deploy.conclusion!=='success'?'build-failed':'committed',commitSha:input.commitSha,deploy})
     }
     if(!REQUEST_ID.test(input.requestId)||!SHA.test(input.baseHead)||!Array.isArray(input.changes)||!input.changes.length||input.changes.length>80)throw new HttpError(400,'Invalid publication')
     const changes:Change[]=input.changes,paths=new Set<string>(),hashes=new Map<string,string>()

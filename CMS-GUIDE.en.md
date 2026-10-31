@@ -71,3 +71,10 @@ Entering the editor or opening recovery checks old empty committed jobs. Only a 
 ## Deleting comments
 
 Authors may delete their own comments; the owner can moderate all comments. A comment without visible replies offers only Delete and leaves no placeholder after deletion. A comment with surviving replies keeps a deletion notice and those replies. For comments with replies, the owner also sees Delete this comment and its replies beside Delete, with a separate confirmation. There is no restore action. The database retains erased rows needed for safe retries, not their deleted bodies.
+
+
+## 2026-10-31: saving and deployment status
+
+Restore/import saves the current edits and then the new copy before switching. Any failed write stops the switch; typing during the operation is preserved. Wait for an in-flight submission before switching copies. Committed is distinct from deployed: status is checked against the actual commit served by the live site, and checks resume on tab return or reconnection. Only confirmed-live empty jobs without an active tab lock are collected. Images staged for deletion are not fetched for preview; deletion can be undone before publishing.
+
+Home and owner-comment avatars share the homepage profile source. Publish the change, wait for deployment, and reload existing pages. Uploaded replacements use new filenames; caching of a fixed external image URL remains the external provider’s responsibility.

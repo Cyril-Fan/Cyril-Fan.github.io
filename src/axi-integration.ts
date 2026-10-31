@@ -14,6 +14,7 @@ import { UserConfigSchema, type UserInputConfig } from './types/user-config'
 import { parseWithFriendlyErrors } from './utils/error-map'
 import { generateBranding } from '../scripts/generate-branding.mjs'
 import { verifySiteOutput } from '../scripts/verify-site-output.mjs'
+import { writeDeploymentMarker } from '../scripts/write-deployment-marker.mjs'
 
 export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegration {
   let integrations: AstroIntegration[] = []
@@ -89,6 +90,7 @@ export default function AstroAxiIntegration(opts: UserInputConfig): AstroIntegra
       },
 
       'astro:build:done': async ({ dir }) => {
+        await writeDeploymentMarker(fileURLToPath(dir))
         await verifySiteOutput(fileURLToPath(dir))
         if (!opts.integ.pagefind) return
         const targetDir = fileURLToPath(dir)

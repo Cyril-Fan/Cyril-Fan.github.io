@@ -30,6 +30,7 @@ export class ContentEditor extends HTMLElement{
   private blobUrls=new Map<string,string>()
   private previewTimer?:number
   private statusTimer?:number
+  private statusChecking?:Workspace['submission']
   private previewGeneration=0
   private dialogCancel?:()=>void
   private releaseWorkspace?:()=>void
@@ -62,7 +63,8 @@ export class ContentEditor extends HTMLElement{
     window.addEventListener(COMMENT_AUTH_EVENT,()=>void this.authorize(),{signal})
     window.addEventListener('beforeunload',event=>{if(this.space?.files.length||this.space?.submission?.state==='sending'){event.preventDefault();event.returnValue=''}},{signal})
     window.addEventListener('offline',()=>this.notice(this.t('已离线，修改仍在本机暂存。联网后可以发布。','Offline. Changes remain local; publish after reconnecting.')),{signal})
-    window.addEventListener('online',()=>this.notice(this.t('网络已恢复。请检查本地修改后发布。','Back online. Review local changes before publishing.')),{signal})
+    window.addEventListener('online',()=>{this.notice(this.t('网络已恢复。请检查本地修改后发布。','Back online. Review local changes before publishing.'));void this.checkStatus()},{signal})
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)void this.checkStatus()},{signal})
     window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&this.owner){e.preventDefault();void this.persist()}},{signal})
     void this.authorize()
   }
@@ -260,8 +262,9 @@ export class ContentEditor extends HTMLElement{
     let refs:string[]=[]
     if(pathKind(path)==='media'){this.notice(this.t('正在检查图片引用…','Checking image references…'));refs=(await this.call('references',{path})).references}
     const yes=await this.confirm(this.t('删除确认','Confirm deletion'),[this.label(path),path,...refs.map(r=>this.t('引用：','Reference: ')+r),this.t('先加入本地删除清单。发布后删除 GitHub 当前文件；恢复依靠 Git 历史，原评论不删除。','Staged locally first. Publishing deletes the current GitHub file. Restore through Git history; comments remain.')])
-    if(!yes)return
+    if(!yes){this.notice('');return}
     this.edit(path,null,pathKind(path)==='media'?'base64':'utf-8');await this.open(path)
+    this.notice(this.t('已加入本地删除清单；发布前可撤销。','Staged for deletion locally; undo before publishing.'))
   }
   private form(fields:Field[],value:any,changed:()=>void,prefix=''):HTMLElement{
     const box=el('div','','cms-form')
@@ -302,7 +305,7 @@ export class ContentEditor extends HTMLElement{
       let showImage=async()=>{}
       if(f.type==='image'){
         const image=el('img');image.alt=title;image.className='cms-field-image';image.hidden=!value[f.key]
-        showImage=async()=>{image.hidden=!value[f.key];if(value[f.key])try{image.src=await this.imageUrl(value[f.key])}catch{image.alt=this.t('暂时无法预览','Preview unavailable')}}
+        showImage=async()=>{image.hidden=!value[f.key];if(value[f.key])try{image.src=await this.imageUrl(value[f.key])}catch{image.removeAttribute('src');image.alt=this.t('暂时无法预览','Preview unavailable')}}
         const controls=el('div','','cms-field-actions')
         controls.append(this.btn(this.t('选择 / 上传图片','Select / upload image'),()=>this.imagePicker(path=>{value[f.key]=path;input.value=path;changed();void showImage()},f.key==='avatar')),
           this.btn(this.t('清除','Clear'),()=>{value[f.key]='';input.value='';changed();void showImage()}))
@@ -479,7 +482,8 @@ export class ContentEditor extends HTMLElement{
     body.append(this.btn(this.t('提交所选修改','Submit selected changes'),async()=>{
       const changes=this.space!.files.filter(f=>selected.has(f.path));if(!changes.length)return
       this.space!.submission={requestId:crypto.randomUUID(),baseHead:this.head,changes:changes.map(({path,baseSha,content,encoding})=>({path,baseSha,content,encoding})),revisions:Object.fromEntries(changes.map(f=>[f.path,f.revision])),state:'sending'}
-      await this.persist();this.q<HTMLDialogElement>('dialog').close();await this.submit()
+      if(!await this.persist())return
+      this.q<HTMLDialogElement>('dialog').close();await this.submit()
     },'cms-primary'))
   }
   private diff(before:string,after:string){
@@ -497,7 +501,7 @@ export class ContentEditor extends HTMLElement{
       this.releaseUnusedImageUrls()
       if(this.view==='media')void this.mediaLibrary()
       sub.changes=[];sub.revisions={}
-      await this.persist();this.notice(this.t('已提交 GitHub，正在构建。你可以继续编辑，新修改会单独保留。','Committed to GitHub; building. You may keep editing; newer changes remain local.'));this.renderList();this.renderSubmission();void this.checkStatus()
+      await this.persist();this.notice(this.t('已提交 GitHub，等待确认上线。你可以继续编辑，新修改会单独保留。','Committed to GitHub; awaiting deployment confirmation. You may keep editing; newer changes remain local.'));this.renderList();this.renderSubmission();void this.checkStatus()
     }catch(e:any){
       sub.state='failed';await this.persist();this.notice(e.message||this.t('提交结果未确定，请安全重试。','Submission result unknown. Retry safely.'),true);this.renderSubmission()
       if(e.status===409&&Array.isArray(e.detail)&&e.detail[0]?.path)this.showConflicts(e.detail)
@@ -518,7 +522,7 @@ export class ContentEditor extends HTMLElement{
   }
   private renderSubmission(){
     const box=this.q('[data-submission]');box.replaceChildren();const sub=this.space?.submission;if(!sub)return
-    const labels:Record<string,string>={sending:this.t('正在提交…','Submitting…'),failed:this.t('失败 / 结果未确定，本地副本已保留','Failed / uncertain — local copy preserved'),committed:this.t('已提交 GitHub、构建中','Committed to GitHub · building'),live:this.t('已发布上线','Published live'), 'build-failed':this.t('构建失败，GitHub 提交仍保留','Build failed — GitHub commit preserved')}
+    const labels:Record<string,string>={sending:this.t('正在提交…','Submitting…'),failed:this.t('失败 / 结果未确定，本地副本已保留','Failed / uncertain — local copy preserved'),committed:this.t('已提交 GitHub · 待确认上线','Committed to GitHub · awaiting deployment confirmation'),live:this.t('已发布上线','Published live'), 'build-failed':this.t('构建失败，GitHub 提交仍保留','Build failed — GitHub commit preserved')}
     box.append(el('strong',labels[sub.state]||sub.state))
     if(sub.commitSha){const a=el('a',this.t('查看 GitHub 提交','View commit'));a.href='https://github.com/'+REPOSITORY+'/commit/'+sub.commitSha;a.target='_blank';a.rel='noopener';box.append(a,this.btn(this.t('刷新上线状态','Refresh deployment'),()=>this.checkStatus()))}
     if(sub.state==='failed')box.append(this.btn(this.t('安全重试同一提交','Retry same submission'),()=>this.submit()),this.btn(this.t('返回修改清单','Back to local changes'),async()=>{
@@ -528,11 +532,33 @@ export class ContentEditor extends HTMLElement{
     if(sub.state==='build-failed'){const a=el('a',this.t('打开构建并重试','Open build / rerun'));a.href='https://github.com/'+REPOSITORY+'/actions';a.target='_blank';a.rel='noopener';box.append(a)}
   }
   private async checkStatus(){
-    const sub=this.space?.submission;if(!sub?.commitSha)return
+    const sub=this.space?.submission;if(!sub?.commitSha||sub.state==='live'||this.statusChecking===sub)return
+    this.statusChecking=sub
+    clearTimeout(this.statusTimer)
     try{const r=await this.call('status',{requestId:sub.requestId,commitSha:sub.commitSha});if(this.space?.submission!==sub)return;sub.state=r.state;await this.persist();this.renderSubmission()
       if(r.state==='live'){this.notice(this.t('已确认正式网站上线。之后的新修改仍保留在本地。','Confirmed live on the website. Newer edits remain local.'));await this.cleanCompletedCopies()}
-      clearTimeout(this.statusTimer);if(r.state==='committed')this.statusTimer=window.setTimeout(()=>{if(document.visibilityState==='visible')void this.checkStatus()},30000)
-    }catch(e){this.notice((e as Error).message,true)}
+    }catch(e){if(this.space?.submission===sub)this.notice(this.t('暂时无法确认上线，保留当前任务；联网或返回此页后继续检查。','Deployment could not be confirmed. Task kept; checks resume online or on return.'),true)}
+    finally{if(this.statusChecking===sub)this.statusChecking=undefined;if(this.space?.submission===sub&&sub.state==='committed')this.statusTimer=window.setTimeout(()=>{if(!document.hidden)void this.checkStatus()},30000)}
+  }
+  // Save both copies before switching. A failed write or a newer edit leaves the
+  // active workspace (and its lock) untouched; the other tab's record is never moved.
+  private async switchLocalCopy(source:Workspace){
+    if(this.busy){this.notice(this.t('正在提交，请等待本次提交返回后再切换副本。','Submitting. Wait for this request to finish before switching copies.'),true);return false}
+    const current=this.space,store=this.store,epoch=this.epoch
+    if(!current||!store){await this.persist();return false}
+    const before=JSON.stringify(current)
+    const unchanged=()=>this.epoch===epoch&&this.space===current&&JSON.stringify(current)===before
+    if(!await this.persist())return false
+    if(!unchanged()){this.notice(this.t('保存期间有新修改，已保留当前编辑，请重新操作。','New edits arrived while saving. Current edits kept; try again.'),true);return false}
+    const next={...clone(source),id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString()}
+    try{await store.save(next)}catch{this.notice(this.t('副本保存失败，未切换；当前编辑仍保留。请导出备份或释放浏览器空间后重试。','Copy could not be saved. Current edits kept without switching. Export a backup or free browser storage and retry.'),true);return false}
+    if(!unchanged()){this.notice(this.t('保存期间有新修改，未切换；导入或恢复的副本也已保留。','New edits arrived while saving. No switch; the imported/restored copy is also preserved.'),true);return false}
+    this.space=next;this.holdWorkspace();this.releaseUnusedImageUrls()
+    this.q<HTMLDialogElement>('dialog').close();this.renderList();this.renderSubmission()
+    this.q('[data-save]').textContent=this.t('本地已暂存 · 尚未提交','Saved locally · not submitted');this.updateStatus()
+    if(next.files[0])await this.open(next.files[0].path);else await this.selectView(this.view,this.category)
+    if(next.submission?.commitSha)void this.checkStatus()
+    return true
   }
   private async recover(){
     if(!this.store)return
@@ -545,7 +571,7 @@ export class ContentEditor extends HTMLElement{
       if(s.submission)row.append(el('p',({committed:this.t('已提交 GitHub，尚未确认上线','Committed; deployment not yet confirmed'),live:this.t('已发布上线','Published live'),failed:this.t('提交失败或结果未知，保留待检查','Failed or uncertain submission; preserved'),'build-failed':this.t('构建失败，保留待处理','Build failed; preserved'),sending:this.t('提交结果待确认','Submission outcome pending')} as Record<string,string>)[s.submission.state]||this.t('状态未知，已保留','Unknown state; preserved'),'cms-muted'))
       row.append(this.btn(this.t('恢复此副本','Restore this copy'),async()=>{
         if(this.space?.files.length&&!await this.confirm(this.t('保留当前副本并切换？','Keep current copy and switch?'),[this.t('当前内容仍保存在另一个本地副本中。','Current content stays in its separate local copy.')]))return
-        await this.persist();this.space={...clone(s),id:crypto.randomUUID(),updated:new Date().toISOString()};this.holdWorkspace();await this.persist();this.q<HTMLDialogElement>('dialog').close();this.renderList();this.renderSubmission();if(this.space.files[0])await this.open(this.space.files[0].path);if(this.space.submission?.commitSha)void this.checkStatus()
+        await this.switchLocalCopy(s)
       }),this.btn(this.t('移除此本地副本','Remove this local copy'),async()=>{if(await this.confirm(this.t('移除本地副本？','Remove local copy?'),[s.files.map(f=>f.path).join('\n'),this.t('只影响此浏览器的这个副本。','Only this browser copy is affected.')])){await this.store!.remove(s.id);await this.recover()}}));body.append(row)
     }
     if(!recoverable.length)body.append(el('p',this.t('没有其它可恢复的副本。','No other local copies.')))
@@ -564,8 +590,7 @@ export class ContentEditor extends HTMLElement{
       if(data.version!==2||data.repository!==REPOSITORY||!Array.isArray(data.workspace?.files))throw new Error(this.t('不是此编辑器的本地副本。旧 CMS 备份请通过迁移工具转换。','Not a local editor export. Convert legacy CMS backups with the migration tool.'))
       if(!await this.confirm(this.t('导入本地副本？','Import local copy?'),data.workspace.files.map((f:LocalFile)=>f.path)))return
       for(const f of data.workspace.files)if(!pathKind(f.path)||!Number.isInteger(f.revision))throw new Error('Invalid imported file')
-      await this.persist();this.space={...data.workspace,id:crypto.randomUUID(),owner:this.owner,repository:REPOSITORY,updated:new Date().toISOString()};this.holdWorkspace()
-      await this.persist();this.renderList();this.renderSubmission();this.notice(this.t('已导入本地副本，尚未提交。','Imported locally; not submitted.'))
+      if(await this.switchLocalCopy(data.workspace))this.notice(this.t('已导入本地副本，尚未提交。','Imported locally; not submitted.'))
     }catch(e){this.notice((e as Error).message,true)}
     this.q<HTMLInputElement>('[data-import]').value=''
   }
@@ -594,15 +619,21 @@ export class ContentEditor extends HTMLElement{
     if(/^https:/.test(url))return url
     const path=imageRepositoryPath(url,this.current)
     let f=this.file(path)
+    if(f?.content===null)throw new Error(this.t('图片已标记删除，发布前可撤销。','Image marked for deletion; undo before publishing.'))
+    // At most one read. Never recurse through a staged deletion or a missing blob.
+    if(!f&&this.entries.some(e=>e.path===path)){
+      const r=await this.call('read',{paths:[path]});if(r.files[0])this.remote.set(path,r.files[0]);f=this.file(path)
+      if(!f?.content)throw new Error(this.t('图片不可用或已标记删除。','Image unavailable or marked for deletion.'))
+    }
     if(f?.content&&f.encoding==='base64'){
       const key=path+':'+('revision'in f?f.revision:f.sha)
       if(!this.blobUrls.has(key)){const ext=path.split('.').pop()!,type='image/'+(ext==='jpg'?'jpeg':ext);this.blobUrls.set(key,URL.createObjectURL(new Blob([decodeBase64(f.content)],{type})))}
       return this.blobUrls.get(key)!
     }
-    if(!this.entries.some(e=>e.path===path))return url
-    const r=await this.call('read',{paths:[path]});this.remote.set(path,r.files[0]);return this.imageUrl(url)
+    if(!f)return url
+    throw new Error(this.t('图片数据不可用。','Image data unavailable.'))
   }
-  private async previewImages(root:HTMLElement){await Promise.all([...root.querySelectorAll<HTMLImageElement>('img')].map(async img=>{try{img.src=await this.imageUrl(img.getAttribute('src')||'')}catch{}}))}
+  private async previewImages(root:HTMLElement){await Promise.all([...root.querySelectorAll<HTMLImageElement>('img')].map(async img=>{try{img.src=await this.imageUrl(img.getAttribute('src')||'')}catch{img.removeAttribute('src');img.alt=this.t('图片不可用或待删除','Image unavailable or marked for deletion')}}))}
   private releaseUnusedImageUrls(){
     for(const [key,url]of this.blobUrls){if(!key.startsWith('export-')){URL.revokeObjectURL(url);this.blobUrls.delete(key)}}
   }
@@ -628,6 +659,7 @@ export class ContentEditor extends HTMLElement{
     const query=select?'':this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
     const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>(p+' '+this.imageLabel(p)).toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
     for(const path of paths){
+      if(!grid.isConnected)return
       if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
       const card=el('section','','cms-media-card'),img=el('img'),thumb=el('div','','cms-media-thumb'),actions=el('div','','cms-media-actions');img.alt=this.imageLabel(path);img.loading='lazy';thumb.append(img);card.append(thumb,el('strong',this.imageLabel(path)),el('p',path,'cms-path'),actions);grid.append(card)
       try{img.src=await this.imageUrl(publicImage(path))}catch{img.alt=this.t('暂时无法预览','Preview unavailable')}

@@ -70,6 +70,12 @@ select deletion_test.assert(not exists(select 1 from jsonb_array_elements(public
 select public.comment_delete(deletion_test.id(20),false);
 select deletion_test.assert((select (r->>'deleted')::boolean and (r->>'has_replies')::boolean and r->>'body'='' from jsonb_array_elements(public.comment_thread_list('/blog/deletion-test',null,100))r where r->>'id'=deletion_test.id(20)::text),'deleting parent preserves reply and erased placeholder');
 select deletion_test.assert(exists(select 1 from jsonb_array_elements(public.comment_thread_list('/blog/deletion-test',null,100))r where r->>'id'=deletion_test.id(21)::text),'parent deletion preserves child');
+reset role;
+select deletion_test.assert((select author_id is null and nickname='Deleted comment' and body='' and body_hash='' and request_id is null and request_hash='' from comment_private.comments where id=deletion_test.id(20)),'placeholder erases all author and body associations');
+set local role authenticated;
+select deletion_test.claims(1);
+select deletion_test.expect_error($q$select public.comment_author_email('/blog/deletion-test',deletion_test.id(20))$q$,'comment_not_found','even owner cannot retrieve erased author email');
+select deletion_test.claims(2);
 select public.comment_delete(deletion_test.id(21),false);
 select deletion_test.assert(not exists(select 1 from jsonb_array_elements(public.comment_thread_list('/blog/deletion-test',null,100))r where r->>'id' in(deletion_test.id(20)::text,deletion_test.id(21)::text)),'deleting last reply removes now-unneeded parent placeholder');
 select public.comment_delete(deletion_test.id(10),false);
@@ -83,10 +89,22 @@ select public.comment_delete(deletion_test.id(31),true);
 select deletion_test.assert(not exists(select 1 from jsonb_array_elements(public.comment_thread_list('/blog/deletion-test',null,100))r where r->>'id' in(deletion_test.id(30)::text,deletion_test.id(31)::text,deletion_test.id(32)::text)),'branch erasure also removes obsolete ancestor placeholder');
 select deletion_test.assert(exists(select 1 from jsonb_array_elements(public.comment_thread_list('/blog/deletion-test',null,100))r where r->>'id'=deletion_test.id(60)::text),'branch deletion preserves unrelated comments');
 reset role;
-select deletion_test.assert((select body='' and deleted_at is not null from comment_private.comments where id=deletion_test.id(10)),'leaf body is erased while private retry record remains');
-select deletion_test.assert((select count(*)=12 from comment_private.comments where thread='/blog/deletion-test'),'reader upgrade never physically deletes comment records');
+select deletion_test.assert(not exists(select 1 from comment_private.comments where id=deletion_test.id(10)),'leaf record is physically deleted');
+select deletion_test.assert(not exists(select 1 from comment_private.comments where id in(deletion_test.id(20),deletion_test.id(21),deletion_test.id(30),deletion_test.id(31),deletion_test.id(32))),'subtree and obsolete ancestors physically deleted');
 select deletion_test.assert((select prosrc like '%pg_advisory_xact_lock%' from pg_proc where oid='public.comment_delete(uuid,boolean)'::regprocedure)
   and (select prosrc like '%pg_advisory_xact_lock%' from pg_proc where oid='public.comment_create(text,text,text,uuid,uuid)'::regprocedure),'create and delete retain their shared transaction locking');
+select deletion_test.assert(exists(select 1 from comment_private.comments where id=deletion_test.id(41) and status='pending'),'private pending reply is preserved');
+set local role authenticated;
+select deletion_test.claims(2);
+select public.comment_delete(deletion_test.id(70),false);
+reset role;
+select deletion_test.assert((select author_id is null and body='' from comment_private.comments where id=deletion_test.id(70)),'pending reply retains only anonymous parent');
+select deletion_test.assert(exists(select 1 from comment_private.comments where id=deletion_test.id(71) and status='pending'),'deleting parent does not delete private pending reply');
+set local role authenticated;
+select deletion_test.claims(3);
+select public.comment_delete(deletion_test.id(71),false);
+reset role;
+select deletion_test.assert(not exists(select 1 from comment_private.comments where id in(deletion_test.id(70),deletion_test.id(71))),'last private reply also prunes anonymous ancestor');
 select count(*)::integer as deletion_assertions_passed from deletion_test.results;
 rollback;
 

@@ -124,7 +124,7 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 
 | 数据 | 当前更新方式 | 注意 |
 | --- | --- | --- |
-| 贡献日历、蛇图、贡献总数 | 首页可见时每 5 分钟检查资料仓库；GitHub 不可用时读取本站完整快照；网站每小时尝试构建快照 | 资料仓库也需要先完成生成，GitHub 任务可能排队；超过 36 小时会显示延迟提示，日历和两套蛇图不会混用不同版本 |
+| 贡献日历、蛇图、贡献总数 | 首页可见时通常每 2 分钟检查资料仓库，重新联网立即重查；GitHub 不可用时读取本站完整快照；网站每小时尝试构建快照 | 资料仓库也需要先完成生成，GitHub 任务可能排队；超过 36 小时会显示延迟提示，日历和两套蛇图不会混用不同版本 |
 | 朋友圈文章 | 每次构建抓取 RSS / Atom，每小时尝试自动构建 | 源站和 GitHub 计划任务都可能延迟；抓取失败按每个源的最近成功内容保留，不把失败时间写成成功时间 |
 | 长时间打开的朋友圈 | 可见页面每 10 分钟检查本站 JSON | 只有文章内容变化才提示，点击后在新标签页查看；不打断原页草稿、分页和弹窗 |
 | 评论、昵称、头像 | 页面进入或手动刷新从 Supabase 读取；评论区可见时每分钟检查前 30 条是否变化 | 变化后提示刷新；分页中更深的旧留言需手动刷新后重读，不自动覆盖输入 |
@@ -133,7 +133,7 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 | 文章数量、字数、最近文章日期、搜索、本站 RSS、站点地图 | 发布内容后重新构建生成 | 推送 `main` 会触发发布；必须等待 Actions 成功 |
 | 站长头像、友链头像、个人简介和友链清单 | 后台修改并发布，等待构建完成 | 不会自动跟随 GitHub 头像或朋友站点的修改 |
 
-“每小时 / 每 5 分钟”是检查计划，不是即时同步承诺；上游数据、任务队列和 CDN 缓存都可能增加延迟。同步失败保留真实旧记录及原日期，不伪装成最新数据。
+“每小时 / 每 2 分钟”是检查计划，不是即时同步承诺；上游数据、任务队列和 CDN 缓存都可能增加延迟。同步失败保留真实旧记录及原日期，不伪装成最新数据。
 
 ## 评论、账户和邮件
 
@@ -177,3 +177,6 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 - `src/components/cms/FullPreviewPage.astro`，`/admin/preview/` 与 `/en/admin/preview/`：无私有内容的预览外壳，仅接收同浏览器编辑器传入的暂存内容 / empty preview shells populated locally.
 - `src/lib/content-local.ts`：加密本地副本、未引用新图清理、已上线旧任务核对清理 / local recovery and safe cleanup.
 - `tests/page-presentation.test.mjs`、`tests/content-local.test.mjs`、`tests/content-ui.test.mjs`：展示和并发安全隔离测试 / isolated presentation and concurrent recovery tests.
+
+
+2026-10-31：实际部署提交由 `scripts/write-deployment-marker.mjs` 写入构建产物的 `/data/cms-release.json`；源码中的 `head` 是内容提交前的父版本，不能据此推断当前部署。站长头像在 `src/lib/content-image.ts` 的 `profileAvatar()` 统一解析，主页与评论均从 `src/data/profile.json` 的 `avatar` 读取。评论物理删除规则见迁移 `202610310012_comment_physical_deletion.sql` 与只读核验 `supabase/verify_012.sql`。

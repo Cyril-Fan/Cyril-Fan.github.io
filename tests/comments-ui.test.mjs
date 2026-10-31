@@ -82,8 +82,8 @@ async function until(condition, description) {
   assert.fail(`Timed out: ${description}`)
 }
 
-async function setup(context, language, { identity = guest(), rows = [], configured = true, initialSessionBeforeComments = false } = {}) {
-  const scope = { en: language === 'en', lang: language, id: 'comment-auth', context: 'comments', ownerAvatar: '/avatar/avatar.png', thread: '/blog/dom-regression', Astro: { props: {} } }
+async function setup(context, language, { identity = guest(), rows = [], configured = true, initialSessionBeforeComments = false, ownerAvatar = '/avatar/avatar.png' } = {}) {
+  const scope = { en: language === 'en', lang: language, id: 'comment-auth', context: 'comments', ownerAvatar, thread: '/blog/dom-regression', Astro: { props: {} } }
   const dom = new JSDOM(`<!doctype html><html lang="${language}"><body>${renderTemplate(commentAst, scope)}</body></html>`, {
     url: `https://cyril-fan.top/${language === 'en' ? 'en/' : ''}blog/dom-regression`, runScripts: 'outside-only'
   })
@@ -225,6 +225,13 @@ async function setup(context, language, { identity = guest(), rows = [], configu
 }
 
 for (const language of ['zh', 'en']) {
+  test(`${language}: owner avatar follows configured hashed, built or HTTPS home image`,async context=>{
+    for(const ownerAvatar of ['/media/image-0123456789abcdefabcd.webp','/_astro/avatar.hash.png','https://images.example.invalid/owner.png?v=2']){
+      const ui=await setup(context,language,{ownerAvatar,identity:member({is_admin:true}),rows:[row(1,{is_admin_author:true})]})
+      assert.equal(ui.select('[data-identity-avatar] img').getAttribute('src'),ownerAvatar)
+      assert.equal(ui.select(`#comment-${row(1).id} .comment-avatar img`).getAttribute('src'),ownerAvatar)
+    }
+  })
   test(`${language}: background freshness checks show a hint without moving the editor or replacing a draft`,async context=>{
     const ui=await setup(context,language,{identity:member(),rows:[row(1)]})
     ui.draft('An unfinished comment');ui.textarea.focus()
@@ -614,7 +621,7 @@ for (const language of ['zh', 'en']) {
     const single=language==='en'?'Delete':'删除'
     ui.handlers.comment_delete=()=>{ui.rows=[];return ok(null)}
     ;[...ui.list.querySelectorAll('button')].find(button=>button.textContent===single).click()
-    assert.match(ui.select('dialog').textContent,language==='en'?/Without replies, no placeholder/ : /没有回复时不留占位/)
+    assert.match(ui.select('dialog').textContent,language==='en'?/Without replies, the record is permanently deleted/ : /没有回复时直接永久删除/)
     ui.select('dialog').close('confirm')
     await until(()=>ui.calls.some(call=>call.name==='comment_delete')&&!ui.textarea.disabled,'leaf deletion refresh')
     assert.equal(ui.list.querySelectorAll('.comment-item').length,0)

@@ -11,3 +11,7 @@ export function contentImage(value:string|undefined,sourcePath=''){
 export function resolveArticleImages(html:string,sourcePath=''){
   return html.replace(/(<img\b[^>]*\bsrc=")([^"]*)(")/g,(_all,before,url,after)=>before+contentImage(url,sourcePath)+after)
 }
+// The homepage and every comment panel use the same build-resolved source.
+export function profileAvatar(value:string|undefined){
+  return contentImage(value)||images['/src/assets/avatar.png']
+}

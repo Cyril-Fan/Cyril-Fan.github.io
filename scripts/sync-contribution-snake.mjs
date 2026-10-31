@@ -77,10 +77,11 @@ export async function refreshContributionSnapshot({ root = defaultRoot, fetcher 
       calendar, light:await readFile(new URL(`public${metadata.light}`, root),'utf8'), dark:await readFile(new URL(`public${metadata.dark}`, root),'utf8') }
   } catch { /* A remote verified bundle can repair a missing local snapshot. */ }
   const select = bundle => {
-    if (bundle && (!best || Date.parse(bundle.fetchedAt) >= Date.parse(best.fetchedAt))) best = bundle
+    if (bundle && (!best || Date.parse(bundle.fetchedAt) > Date.parse(best.fetchedAt) ||
+      (bundle.fetchedAt === best.fetchedAt && Date.parse(bundle.checkedAt) >= Date.parse(best.checkedAt)))) best = bundle
   }
-  try { select(await fetchPublishedContributionBundle({ fetcher, now, origin:publishedOrigin })) }
-  catch { console.warn('[contributions] Published fallback unavailable; retaining the verified local snapshot if needed.') }
+  // Read the fallback concurrently: a slow deployed site must not delay GitHub.
+  const fallback = fetchPublishedContributionBundle({ fetcher, now, origin:publishedOrigin }).catch(() => null)
   let refreshed = false
   for (let attempt=0; attempt<(retry ? 2 : 1); attempt++) {
     try { select(await fetchContributionBundle({ fetcher, now, token })); refreshed = true; break }
@@ -88,6 +89,7 @@ export async function refreshContributionSnapshot({ root = defaultRoot, fetcher 
       if (retry && attempt === 0) await new Promise(resolve => setTimeout(resolve, 750))
     }
   }
+  select(await fallback)
   if (!best) throw new Error('No complete verified contribution snapshot is available')
   if (!refreshed) console.warn(`[contributions] GitHub refresh unavailable. Keeping the complete snapshot from ${best.fetchedAt}; its original date is preserved.`)
   return saveBundle(best, root)

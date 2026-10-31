@@ -15,14 +15,14 @@ const profile=await readFile('src/data/profile.json','utf8'),academic=await read
 const markup='<content-editor><p data-message></p><p data-gate></p><div data-shell hidden><nav>'+[['profile','首页与关于'],['blog','博客'],['academic','学术与项目'],['friend','友链'],['media','图片']].map(([k,n])=>'<button data-kind="'+k+'">'+n+'</button>').join('')+'</nav><div data-category-tools hidden><button data-back-blog>博客目录</button><span data-category-name></span><button data-create>新建文章</button><button data-create-collection>新建合集</button></div><button data-refresh>刷新</button><button data-review>发布</button><button data-recover>恢复本地副本</button><button data-export>导出</button><button data-import-trigger>从文件恢复</button><input data-import type=file><div data-search-box><button data-search-toggle>查找内容</button><input data-search><button data-search-clear>清空查找</button></div><div class="cms-workspace"><aside class="cms-sidebar"><div data-list></div></aside><div data-editor></div></div><div data-submission></div><p data-save></p></div><dialog><form method=dialog><button>关闭</button></form><div data-dialog></div></dialog></content-editor>'
 
 const tick=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Promise(setImmediate)}
-async function setup(t,{role='owner',saved=new Map(),locks,initialStatus='live'}={}){
+async function setup(t,{role='owner',saved=new Map(),locks,initialStatus='live',saveHook=async()=>{}}={}){
  const dom=new JSDOM(markup,{url:'https://fixture.invalid/admin',runScripts:'outside-only'}),w=dom.window;t.after(()=>w.close())
  w.structuredClone=structuredClone;w.URL.createObjectURL=()=> 'blob:fixture';w.URL.revokeObjectURL=()=>{}
  if(locks)Object.defineProperty(w.navigator,'locks',{value:locks})
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))}
  const files=new Map([[git.PROFILE,profile],[git.ACADEMIC,academic],[git.LINKS,friends]].map(([path,content])=>[path,{path,content,sha:'a'.repeat(40),encoding:'utf-8'}]))
  const calls=[];let override
- class MemoryStore{static async open(){return new MemoryStore()}async save(s){saved.set(s.id,structuredClone(s))}async list(){return [...saved.values()].filter(s=>s.owner==='owner').map(s=>structuredClone(s))}async remove(id){saved.delete(id)}async removeIfUnchanged(s){if(JSON.stringify(saved.get(s.id))!==JSON.stringify(s))return false;saved.delete(s.id);return true}close(){}}
+ class MemoryStore{static async open(){return new MemoryStore()}async save(s){await saveHook(s);saved.set(s.id,structuredClone(s))}async list(){return [...saved.values()].filter(s=>s.owner==='owner').map(s=>structuredClone(s))}async remove(id){saved.delete(id)}async removeIfUnchanged(s){if(JSON.stringify(saved.get(s.id))!==JSON.stringify(s))return false;saved.delete(s.id);return true}close(){}}
  const markCommitted=(files,sub,result)=>files.filter(f=>!sub.changes.some(c=>c.path===f.path&&sub.revisions[f.path]===f.revision&&c.content===f.content)).map(f=>{const sent=sub.changes.find(c=>c.path===f.path);return sent?{...f,baseSha:result.find(r=>r.path===f.path).sha,baseText:sent.content}:f})
  const client={auth:{getSession:async()=>({data:{session:role==='guest'?null:{user:{id:role},access_token:'fixture'}}})}}
  w.fetch=async(url,options)=>{
@@ -291,4 +291,50 @@ test('failed local deletion never reports successful automatic cleanup',async t=
  await ui.click('放弃本地修改');await ui.click('确认');await tick()
  assert.equal(ui.saved.size,1);assert.match(ui.root.querySelector('[data-message]').textContent,/存储已满或不可用/)
  assert.equal(ui.root.querySelector('[data-message]').textContent.includes('自动清理'),false)
+})
+
+const recoverFixture=()=>({...oldJob('private-source'),submission:undefined,files:[{path:git.PROFILE,baseSha:'a'.repeat(40),baseText:profile,content:JSON.stringify({...JSON.parse(profile),email:'private@example.invalid'}),encoding:'utf-8',revision:1}]})
+test('restore and import stop on either failed save and preserve the active editor and source copy',async t=>{
+ for(const method of ['restore','import'])for(const phase of ['current','candidate']){
+  const source=recoverFixture(),saved=new Map([[source.id,structuredClone(source)]]),ui=await setup(t,{saved})
+  ui.fill('zh.intro','Keep current typing');await tick();const active=ui.root.space,save=ui.root.store.save.bind(ui.root.store)
+  ui.root.store.save=async s=>{if(phase==='current'||s.id!==active.id)throw Error('Quota exceeded');await save(s)}
+  ui.root.confirm=async()=>true
+  if(method==='restore'){await ui.click('恢复本地副本');await ui.click('恢复此副本')}
+  else await ui.root.importLocal({size:200,text:async()=>JSON.stringify({version:2,repository:git.REPOSITORY,workspace:source})})
+  assert.equal(ui.root.space,active);assert.equal(ui.root.querySelector('[name="zh.intro"]').value,'Keep current typing')
+  assert.deepEqual(saved.get(source.id),source);assert.match(ui.root.querySelector('[data-message]').textContent,/失败|存储/)
+  assert.ok(!ui.root.querySelector('[data-message]').textContent.includes('已导入'));assert.ok(!ui.calls.some(c=>c.action==='publish'))
+ }
+})
+test('typing while the recovered candidate is saved cancels the switch without losing either copy',async t=>{
+ const ui=await setup(t);ui.fill('zh.intro','Before');await tick();const active=ui.root.space,save=ui.root.store.save.bind(ui.root.store);let finish
+ ui.root.store.save=async s=>{if(s.id!==active.id)await new Promise(r=>finish=r);await save(s)}
+ const switching=ui.root.switchLocalCopy(recoverFixture());await tick();ui.fill('zh.intro','Typed during save');finish();assert.equal(await switching,false);await tick()
+ assert.equal(ui.root.space,active);assert.equal(ui.root.querySelector('[name="zh.intro"]').value,'Typed during save')
+ assert.equal(ui.saved.size,2);assert.ok(ui.saved.get(active.id).files[0].content.includes('Typed during save'))
+})
+
+test('a restored edited copy shows its saved-local status instead of Matches GitHub',async t=>{
+ const ui=await setup(t)
+ assert.equal(await ui.root.switchLocalCopy(recoverFixture()),true)
+ assert.match(ui.root.querySelector('[data-save]').textContent,/本地已暂存/)
+ assert.equal(ui.root.querySelector('[data-review]').disabled,false)
+})
+test('staged deletion and missing image blobs stop preview requests instead of recursing',async t=>{
+ const ui=await setup(t),path='public/media/deleted.webp';ui.files.set(path,{path,content:'aW1hZ2U=',sha:'e'.repeat(40),encoding:'base64'});await ui.root.refresh()
+ ui.root.edit(path,null);await tick();const before=ui.calls.length
+ await assert.rejects(ui.root.imageUrl('/media/deleted.webp'));await assert.rejects(ui.root.imageUrl('/media/deleted.webp'))
+ assert.equal(ui.calls.length,before)
+ ui.root.space.files=[];ui.files.delete(path);ui.root.remote.delete(path)
+ await assert.rejects(ui.root.imageUrl('/media/deleted.webp'));await assert.rejects(ui.root.imageUrl('/media/deleted.webp'))
+ assert.equal(ui.calls.slice(before).filter(c=>c.action==='read').length,1)
+})
+test('deployment checks resume when returning online and do not erase newer edits',async t=>{
+ const ui=await setup(t,{initialStatus:'committed'});ui.fill('zh.intro','First');await tick();ui.root.space.submission=oldJob('submitted').submission
+ await ui.root.checkStatus();ui.fill('zh.intro','After commit');await tick()
+ ui.override(input=>input.action==='status'?{ok:true,json:async()=>({state:'live'})}:null)
+ ui.w.dispatchEvent(new ui.w.Event('online'));await tick()
+ assert.match(ui.root.querySelector('[data-submission]').textContent,/已发布上线/)
+ assert.ok(ui.root.space.files[0].content.includes('After commit'));assert.ok(ui.saved.get(ui.root.space.id).files.length)
 })

@@ -24,9 +24,9 @@ function feed(override = {}) {
   const calls = []
   const fetcher = async (url, options) => {
     calls.push({url,options})
-    if (url === PROFILE_REF) return response({object:{sha:fixtureCommit}})
+    if (url.split('?')[0] === PROFILE_REF) return response({object:{sha:fixtureCommit}})
     assert.ok(url.includes(`/${fixtureCommit}/assets/`), 'Every resource must be commit pinned')
-    const name = url.split('/').at(-1)
+    const name = url.split('?')[0].split('/').at(-1)
     const value = override[name] ?? ({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark})[name]
     if (value instanceof Error) throw value
     return response(value)
@@ -54,7 +54,7 @@ test('updates fetch all resources at one commit, omit credentials and keep token
     assert.equal(call.options.referrerPolicy,'no-referrer')
     assert.equal(call.options.redirect,'error')
     assert.equal(call.options.cache,'no-store')
-    assert.equal(call.options.headers?.Authorization,call.url === PROFILE_REF ? 'Bearer test-token' : undefined)
+    assert.equal(call.options.headers?.Authorization,call.url.split('?')[0] === PROFILE_REF ? 'Bearer test-token' : undefined)
   }
   const unchanged = feed()
   assert.equal(await fetchContributionBundle({fetcher:unchanged.fetcher,now,currentCommit:fixtureCommit}),null)
@@ -99,7 +99,7 @@ const code=ts.transpileModule(read('../src/lib/contribution-view.ts'),{compilerO
 const flush=async()=>{for(let i=0;i<12;i++) await Promise.resolve();await new Promise(setImmediate)}
 function view(context,{en=false,remote=async()=>null,published=async()=>{throw Error('offline')},reduced=false,decode=async()=>{}}={}) {
   const cells=Array.from({length:10},(_,i)=>`<rect class="contribution-day level-0" role="button" data-date="2026-10-${String(i+1).padStart(2,'0')}" data-count="${i}" tabindex="${i===9?0:-1}" aria-label="day ${i}: ${i} contributions"></rect>`).join('')
-  const dom=new JSDOM(`<contribution-snake data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><svg class="contribution-surface" viewBox="-16 -32 880 192"><g class="snake-animated"><image class="snake-light" href="/old-light.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/><image class="snake-dark" href="/old-dark.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/></g><g class="contribution-calendar">${cells}</g></svg></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
+  const dom=new JSDOM(`<contribution-snake data-updated="2026-10-25T00:00:00.000Z" data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><svg class="contribution-surface" viewBox="-16 -32 880 192"><g class="snake-animated"><image class="snake-light" href="/old-light.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/><image class="snake-dark" href="/old-dark.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/></g><g class="contribution-calendar">${cells}</g></svg></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
   context.after(()=>dom.window.close())
   const {window}=dom
   const media=new window.EventTarget();media.matches=reduced
@@ -120,7 +120,7 @@ test('published bundles stay anonymous, accept honestly dated history and reject
   const bundle=await fetchContributionBundle({fetcher:feed().fetcher,now})
   const oldNow=new Date(now.getTime()+10*86400000)
   const result=await fetchPublishedContributionBundle({now:oldNow,fetcher:async(url,options)=>{
-    assert.equal(url,'/data/contributions.json'); assert.equal(options.credentials,'omit'); assert.equal(options.cache,'no-store')
+    assert.equal(url.split('?')[0],'/data/contributions.json'); assert.equal(options.credentials,'omit'); assert.equal(options.cache,'no-store')
     assert.equal(options.headers,undefined)
     return response({version:1,...bundle})
   }})
@@ -143,7 +143,7 @@ test('an upstream outage keeps the latest fully verified deployed snapshot witho
   const deployed={version:1,...bundle,fetchedAt:new Date(Date.parse(bundle.fetchedAt)+60000).toISOString(),sourceCommit:'a'.repeat(40)}
   const later=new Date(now.getTime()+10*86400000)
   await refreshContributionSnapshot({root,now:later,retry:false,token:'',fetcher:async url=>{
-    if(url==='https://cyril-fan.top/data/contributions.json') return response(deployed)
+    if(url.split('?')[0]==='https://cyril-fan.top/data/contributions.json') return response(deployed)
     throw Error('GitHub rate limited')
   }})
   const result=await verifyContributionBundle({root,now:later,requireFresh:false})
@@ -230,19 +230,27 @@ test('animated cell IDs are base 36, including letters, without relaxing color o
   assert.equal(validateProfileSnake(renamed,calendar,'light').width,metadata.width)
   assert.throws(()=>validateProfileSnake(renamed.replace('class="c czz9"','class="c c-unsafe"'),calendar,'light'))
 })
+test('a successful unchanged check updates the check time without advancing the data timestamp',async context=>{
+ const ui=view(context,{remote:async()=>null});const original=ui.host.dataset.updated;await flush()
+ assert.equal(ui.host.dataset.updated,original)
+ assert.ok(ui.host.dataset.checkedAt)
+ assert.match(ui.host.querySelector('[data-contribution-total]').title,/数据更新.*最近检查/)
+ const offline=view(context,{remote:async()=>{throw Error('offline')},published:async()=>{throw Error('offline')}});await flush()
+ assert.equal(offline.host.dataset.checkedAt,undefined)
+})
 
 test('GitHub API quota falls back to raw files only when the complete calendar and both animations agree', async () => {
   const calls=[]
   const fetcher=async(url,options)=>{
     calls.push({url,options})
-    if(url===PROFILE_REF) return new Response('rate limited',{status:403})
+    if(url.split('?')[0]===PROFILE_REF) return new Response('rate limited',{status:403})
     assert.ok(url.startsWith('https://raw.githubusercontent.com/Cyril-Fan/Cyril-Fan/main/assets/'))
-    return response({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark}[url.split('/').at(-1)])
+    return response({'profile-data.json':profile,'github-contribution-grid-snake.svg':light,'github-contribution-grid-snake-dark.svg':dark}[url.split('?')[0].split('/').at(-1)])
   }
   const bundle=await fetchContributionBundle({fetcher,now,currentCommit:fixtureCommit})
   assert.equal(bundle.sourceCommit,null,'Do not invent a Git revision for a branch read')
   assert.equal(bundle.calendar.total,calendar.total)
   assert.equal((await validatePublishedContributionBundle({version:1,...bundle},now)).dataHash,bundle.dataHash)
   assert.ok(calls.every(call=>call.options.credentials==='omit'))
-  await assert.rejects(fetchContributionBundle({now,fetcher:async(url,options)=>url.endsWith('-dark.svg')?response(light):fetcher(url,options)}))
+  await assert.rejects(fetchContributionBundle({now,fetcher:async(url,options)=>url.split('?')[0].endsWith('-dark.svg')?response(light):fetcher(url,options)}))
 })

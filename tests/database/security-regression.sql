@@ -139,7 +139,7 @@ select comment_test.claims(2);
 select public.comment_delete(comment_test.id('root'));
 select comment_test.assert((select deleted and body='' and not can_delete from public.comment_list('/about') where id=comment_test.id('root')), 'owner deletion is tombstone');
 select comment_test.assert((select body='Bob reply' and parent_deleted from public.comment_list('/about') where id=comment_test.id('reply')), 'owner deletion preserves another author reply');
-select comment_test.assert((select (public.comment_create('/about',E'Hello\n\tWorld','Alice',null,i.request_id)->>'id')::uuid = i.id from comment_test.ids i where label='root'), 'retry after deletion does not duplicate');
+select comment_test.assert((select (public.comment_create('/about',E'Hello\n\tWorld','Alice',null,i.request_id)->>'id')::uuid <> i.id from comment_test.ids i where label='root'), 'deleted identity is not retained for request deduplication');
 select comment_test.assert((select body='' and deleted from public.comment_list('/about') where id=comment_test.id('root')), 'retry cannot restore deleted body');
 
 reset role;
@@ -158,7 +158,7 @@ select comment_test.assert(not exists(select 1 from public.comment_list('/about'
 select comment_test.assert(exists(select 1 from public.comment_list('/blog/中文.v2') where id=comment_test.id('other-thread')), 'branch deletion preserves unrelated thread');
 select comment_test.assert(exists(select 1 from public.comment_list('/about') where id=comment_test.id('admin-root')), 'branch deletion preserves sibling root');
 reset role;
-select comment_test.assert((select bool_and(body='' and deleted_at is not null and hidden_at is not null) from comment_private.comments where id in (comment_test.id('root'),comment_test.id('reply'))), 'branch erase clears stored bodies');
+select comment_test.assert(not exists(select 1 from comment_private.comments where id in (comment_test.id('root'),comment_test.id('reply'))), 'branch erase clears stored bodies');
 
 -- Ban uses a comment id: no public user ids or emails are necessary.
 update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
@@ -173,9 +173,9 @@ select comment_test.assert((public.comment_me()->>'banned')::boolean and not (pu
 select comment_test.assert((select can_delete from public.comment_list('/about') where id=comment_test.id('ban-target')), 'banned owner retains delete permission');
 select comment_test.expect_error($q$select public.comment_create('/about','banned post','Alice',null,gen_random_uuid())$q$, 'user_banned', 'banned user cannot create');
 select public.comment_delete(comment_test.id('ban-target'));
-select comment_test.assert((select deleted and body='' from public.comment_list('/about') where id=comment_test.id('ban-target')), 'banned owner can erase own body');
+select comment_test.assert(not exists(select 1 from public.comment_list('/about') where id=comment_test.id('ban-target')), 'banned owner can erase own body');
 select comment_test.claims(1);
-select public.comment_ban(comment_test.id('ban-target'),false);
+select public.comment_ban((select id from public.comment_list('/about') where body like 'Hello%' limit 1),false);
 select comment_test.claims(2);
 select comment_test.assert((public.comment_me()->>'can_post')::boolean and not (public.comment_me()->>'banned')::boolean, 'unban restores posting permission');
 reset role;
@@ -229,10 +229,10 @@ select comment_test.claims(3);
 select comment_test.create_comment('rejected','/blog/moderation','Reject this','Bob');
 select comment_test.claims(1);
 select public.comment_review(comment_test.id('rejected'),false);
-select comment_test.expect_error($q$select public.comment_review(comment_test.id('rejected'),true)$q$, 'comment_hidden', 'rejection cannot restore erased content');
+select comment_test.expect_error($q$select public.comment_review(comment_test.id('rejected'),true)$q$, 'comment_not_found', 'rejection cannot restore erased content');
 select comment_test.assert(not exists(select 1 from public.comment_list('/blog/moderation') where id=comment_test.id('rejected')), 'rejected record hidden even from list admin');
 reset role;
-select comment_test.assert((select body='' from comment_private.comments where id=comment_test.id('rejected')), 'rejection clears stored content');
+select comment_test.assert(not exists(select 1 from comment_private.comments where id=comment_test.id('rejected')), 'rejection clears stored content');
 
 -- Regression: ON DELETE SET NULL must not bypass the pending-parent ownership gate.
 update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
@@ -290,7 +290,7 @@ set local role authenticated;
 select comment_test.claims(2);
 select comment_test.expect_error($q$select public.comment_create('/blog/rate','window six','Alice',null,gen_random_uuid())$q$, 'rate_limited', 'five per ten minutes enforced');
 select public.comment_delete(comment_test.id('window1'));
-select comment_test.expect_error($q$select public.comment_create('/blog/rate','window one','Alice',null,gen_random_uuid())$q$, 'duplicate_comment', 'deletion does not bypass duplicate detection');
+select comment_test.assert(public.comment_create('/blog/rate','window one','Alice',null,gen_random_uuid())->>'id' is not null, 'deletion retains no duplicate-tracking record');
 
 -- Identical timestamps still page without omissions because id is a tie-breaker.
 reset role;
@@ -331,10 +331,10 @@ set local role authenticated;
 select comment_test.claims(1);
 select comment_test.assert(not (public.comment_me()->>'is_admin')::boolean, 'native banned admin loses admin privilege');
 select comment_test.assert(not exists(select 1 from public.comment_list('/about') where id=comment_test.id('ban-target') and can_delete), 'banned admin cannot delete others');
-select comment_test.expect_error($q$select public.comment_delete(comment_test.id('ban-target'))$q$, 'forbidden', 'banned admin deletion is limited to own content');
+select comment_test.expect_error($q$select public.comment_delete(comment_test.id('other-thread'))$q$, 'forbidden', 'banned admin deletion is limited to own content');
 select comment_test.assert((select can_delete from public.comment_list('/about') where id=comment_test.id('admin-root')), 'native banned admin may delete own content');
 select public.comment_delete(comment_test.id('admin-root'));
-select comment_test.assert((select deleted and body='' from public.comment_list('/about') where id=comment_test.id('admin-root')), 'native banned author body erasure succeeds');
+select comment_test.assert(not exists(select 1 from public.comment_list('/about') where id=comment_test.id('admin-root')), 'native banned author body erasure succeeds');
 reset role;
 -- FK nulling preserves published discussion when an auth account is removed.
 delete from auth.users where id='10000000-0000-0000-0000-000000000003';
@@ -405,11 +405,11 @@ set local role authenticated;
 select comment_test.claims(9);
 select public.comment_delete(comment_test.id('profile-root'));
 select public.comment_profile_update('Alice Final');
-select comment_test.assert((select nickname='Alice Final' and deleted and body='' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'deleted tombstone follows current profile without restoring body');
-select comment_test.assert((select parent_nickname='Alice Final' and parent_deleted from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'deleted parent reply label follows current profile');
-select comment_test.assert((select (public.comment_create('/blog/profile','Profile root','Old forgotten nickname',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-root'), 'deleted new-version comment retries independently of nickname');
+select comment_test.assert((select nickname='Deleted comment' and deleted and body='' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'deleted placeholder no longer follows former author profile');
+select comment_test.assert((select parent_nickname is null and parent_deleted from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'deleted parent reply label is anonymous');
+select comment_test.expect_error($q$select public.comment_create('/blog/profile','Profile root','Old forgotten nickname',null,(select request_id from comment_test.ids where label='profile-root'))$q$, 'rate_limited', 'erased request is no longer deduplicated and normal posting limits apply');
 reset role;
-select comment_test.assert((select nickname='Alice Nine' and request_hash_version=2 from comment_private.comments where id=comment_test.id('profile-root')), 'profile rename preserves original snapshot and new hash version');
+select comment_test.assert((select nickname='Deleted comment' and author_id is null and request_id is null and request_hash='' from comment_private.comments where id=comment_test.id('profile-root')), 'anonymous placeholder has no author or request association');
 update comment_private.comments set created_at=clock_timestamp()-interval '11 minutes';
 set local role authenticated;
 select comment_test.claims(9);
@@ -424,12 +424,12 @@ set local role authenticated;
 select comment_test.claims(9);
 select public.comment_profile_update('Alice After Upgrade');
 select public.comment_delete(comment_test.id('profile-legacy'));
-select comment_test.assert((select (public.comment_create('/blog/profile-legacy','Legacy body','Alice After Upgrade',null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='profile-legacy'), 'legacy deleted comment retries after profile rename');
+select comment_test.assert((select (public.comment_create('/blog/profile-legacy','Legacy body','Alice After Upgrade',null,i.request_id)->>'id')::uuid<>i.id from comment_test.ids i where label='profile-legacy'), 'legacy deleted comment can be posted as a new record');
 select comment_test.assert(public.comment_me()->>'nickname'='Alice After Upgrade', 'legacy retry does not restore old profile');
 select comment_test.expect_error($q$select public.comment_create('/blog/profile-legacy','Changed legacy body','Alice After Upgrade',null,(select request_id from comment_test.ids where label='profile-legacy'))$q$, 'idempotency_conflict', 'legacy request still protects immutable payload');
 select comment_test.claims(1);
 select comment_test.assert(public.comment_me()->>'nickname'='Cyril Fan', 'admin nickname exists before profile initialization');
-select comment_test.assert((select nickname='Cyril Fan' and is_admin_author from public.comment_list('/about') where id=comment_test.id('admin-root')), 'old admin comments use fixed display name');
+select comment_test.assert(not exists(select 1 from public.comment_list('/about') where id=comment_test.id('admin-root')), 'deleted owner comment never regains a profile');
 select comment_test.assert(public.comment_profile_update('Attempted other admin name')->>'nickname'='Cyril Fan', 'admin profile update cannot change fixed name');
 select comment_test.create_comment('profile-admin','/blog/profile-admin','Owner post without nickname',null);
 select comment_test.assert((select nickname='Cyril Fan' and is_admin_author from public.comment_list('/blog/profile-admin') where id=comment_test.id('profile-admin')), 'admin creates without entering nickname');
@@ -442,14 +442,14 @@ select comment_test.assert(not (public.comment_me()->>'is_admin')::boolean, 'cop
 select comment_test.assert((select nickname='Cyril Fan' and not is_admin_author from public.comment_list('/blog/profile-other') where id=comment_test.id('profile-other')), 'copying admin text never grants owner badge');
 select public.comment_profile_update('Alice Public');
 select comment_test.claims(1);
-select public.comment_ban(comment_test.id('profile-root'),true);
+select public.comment_ban(comment_test.id('profile-other'),true);
 select comment_test.claims(9);
 select comment_test.expect_error($q$select public.comment_profile_update('Banned rename')$q$, 'user_banned', 'comment banned cannot update profile');
 select comment_test.assert(public.comment_me()->>'nickname'='Alice Public', 'denied rename leaves profile unchanged');
 select comment_test.claims(10);
 select public.comment_profile_update('Bob Final');
 select comment_test.assert((select nickname='Bob Final' from public.comment_list('/blog/profile') where id=comment_test.id('profile-child')), 'reply author rename updates their historical replies');
-select comment_test.assert((select nickname='Alice Public' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'another profile update preserves first user identity');
+select comment_test.assert((select nickname='Deleted comment' from public.comment_list('/blog/profile') where id=comment_test.id('profile-root')), 'another profile update cannot relink anonymous placeholder');
 reset role;
 delete from auth.users where id='10000000-0000-0000-0000-000000000010';
 set local role authenticated;
@@ -479,9 +479,9 @@ select comment_test.assert((select count(*) from public.comment_list('/blog/owne
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Changed owner body',null,null,(select request_id from comment_test.ids where label='owner-burst-1'))$q$, 'idempotency_conflict', 'owner frequency exemption does not bypass request payload integrity');
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','  Owner first  ',null,null,gen_random_uuid())$q$, 'duplicate_comment', 'owner frequency exemption keeps normalized duplicate detection');
 select public.comment_delete(comment_test.id('owner-burst-1'));
-select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst','Owner first',null,null,gen_random_uuid())$q$, 'duplicate_comment', 'owner deletion still cannot bypass duplicate detection');
-select comment_test.assert((select (public.comment_create('/blog/owner-burst','Owner first',null,null,i.request_id)->>'id')::uuid=i.id from comment_test.ids i where label='owner-burst-1'), 'owner deleted burst comment remains safely idempotent');
-select comment_test.assert((select deleted and body='' from public.comment_list('/blog/owner-burst') where id=comment_test.id('owner-burst-1')), 'owner retry never restores erased burst content');
+select comment_test.assert((select nickname='Deleted comment' and deleted and not is_admin_author from public.comment_list('/blog/owner-burst') where id=comment_test.id('owner-burst-1')), 'owner placeholder loses name and badge');
+select comment_test.assert((select (public.comment_create('/blog/owner-burst','Owner first',null,null,i.request_id)->>'id')::uuid<>i.id from comment_test.ids i where label='owner-burst-1'), 'reposting after permanent deletion creates a new record');
+select comment_test.assert((select body='' and deleted from public.comment_list('/blog/owner-burst') where id=comment_test.id('owner-burst-1')), 'owner retry never restores erased burst content');
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst',repeat('x',2001),null,null,gen_random_uuid())$q$, 'invalid_body', 'owner frequency exemption keeps body validation');
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst',repeat('https://example.invalid ',6),null,null,gen_random_uuid())$q$, 'too_many_links', 'owner frequency exemption keeps link limit');
 
@@ -495,9 +495,9 @@ select comment_test.assert((select nickname='Cyril Fan' and not is_admin_author 
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst-impostor','Ordinary second','Cyril Fan',null,gen_random_uuid())$q$, 'rate_limited', 'matching owner name and admin metadata retain thirty second limit');
 reset role;
 update comment_private.comments set created_at=clock_timestamp()-interval '1 minute' where id=comment_test.id('impostor-burst');
--- Existing valid visitor posts count across threads, including deleted content.
+-- Existing valid visitor posts count across threads, excluding permanently deleted records.
 update comment_private.comments set created_at=clock_timestamp()-interval '1 minute' where id in (
-  comment_test.id('window1'),comment_test.id('window2'),comment_test.id('window3'),comment_test.id('window4')
+  (select id from comment_private.comments where thread='/blog/rate' and body='window one'),comment_test.id('window2'),comment_test.id('window3'),comment_test.id('window4')
 );
 set local role authenticated;
 select comment_test.expect_error($q$select public.comment_create('/blog/owner-burst-impostor','Ordinary sixth','Cyril Fan',null,gen_random_uuid())$q$, 'rate_limited', 'matching owner name and admin metadata retain five per ten minutes across threads');

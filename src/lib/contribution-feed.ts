@@ -3,7 +3,7 @@ import type { ContributionCalendar } from './github-contributions.ts'
 
 export const PROFILE_REF = 'https://api.github.com/repos/Cyril-Fan/Cyril-Fan/git/ref/heads/main'
 export const MAX_SOURCE_AGE_MS = 36 * 60 * 60 * 1000
-export const REFRESH_INTERVAL_MS = 5 * 60 * 1000
+export const REFRESH_INTERVAL_MS = 2 * 60 * 1000
 export const RENDERER = 'Platane/snk-profile'
 export const PUBLISHED_CONTRIBUTIONS = '/data/contributions.json'
 
@@ -86,7 +86,7 @@ export async function validatePublishedContributionBundle(input: unknown, now = 
 export async function fetchPublishedContributionBundle({ fetcher = fetch, now = new Date(), signal, origin = '' }: {
   fetcher?: typeof fetch; now?: Date; signal?: AbortSignal; origin?: string
 } = {}): Promise<ContributionBundle> {
-  const response = await fetcher(`${origin}${PUBLISHED_CONTRIBUTIONS}`, {
+  const response = await fetcher(`${origin}${PUBLISHED_CONTRIBUTIONS}?check=${Math.floor(now.getTime()/60_000)}`, {
     cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer', redirect:'error',
     signal:signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000)
   })
@@ -113,7 +113,8 @@ export async function fetchContributionBundle({ fetcher = fetch, now = new Date(
   const timed = AbortSignal.timeout(20_000)
   const requestSignal = signal ? AbortSignal.any([signal, timed]) : timed
   const get = async (url: string) => {
-    const response = await fetcher(url, { signal: requestSignal, credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error', cache: 'no-store',
+    const requestUrl = url === PROFILE_REF || url.includes('/main/assets/') ? url + '?check=' + Math.floor(now.getTime()/60_000) : url
+    const response = await fetcher(requestUrl, { signal: requestSignal, credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error', cache: 'no-store',
       ...(token && url === PROFILE_REF ? { headers: { Authorization: `Bearer ${token}` } } : {}) })
     if (!response.ok) throw new Error(`GitHub contribution request failed (${response.status})`)
     const text = await response.text()

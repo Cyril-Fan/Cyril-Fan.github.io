@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { verifyLegacyCleanup } from './legacy-cleanup-regression.mjs';
 
 // Use the pinned devDependency by default; an external tool path is optional.
 const moduleSpecifier = process.env.PGLITE_MODULE
@@ -73,6 +74,8 @@ try {
     throw new Error('011 installation/grant checks failed.');
   }
   stage = 'security regression';
+  const physical = await db.exec(await readFile(path.join(root, 'supabase/verify_012.sql'), 'utf8'));
+  if (physical.flatMap(result => result.rows ?? []).some(row => Object.values(row).some(value => value !== true))) throw new Error('012 verification failed');
   const results = await db.exec(await readFile(path.join(here, 'security-regression.sql'), 'utf8'));
   const summary = results.flatMap((result) => result.rows ?? [])
     .find((row) => Object.hasOwn(row, 'assertions_passed'));
@@ -94,6 +97,7 @@ try {
   const deletionAssertions = Number(deletionResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'deletion_assertions_passed'))?.deletion_assertions_passed ?? 0);
   if (deletionAssertions < 20) throw new Error('Comment deletion assertions did not complete.');
   stage = 'anonymous page-view privacy and retry regression';
+  await verifyLegacyCleanup(db, await readFile(path.join(root, 'supabase/cleanup_legacy_deleted_20261031.sql'), 'utf8'));
   const trafficResults = await db.exec(await readFile(path.join(here, 'traffic-regression.sql'), 'utf8'));
   const trafficAssertions = Number(trafficResults.flatMap(result => result.rows ?? []).find(row => Object.hasOwn(row, 'traffic_assertions_passed'))?.traffic_assertions_passed ?? 0);
   if (trafficAssertions < 20) throw new Error('Traffic assertions did not complete.');
