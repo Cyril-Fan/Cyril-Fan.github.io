@@ -622,6 +622,18 @@ export class ContentEditor extends HTMLElement{
     const path=imageRepositoryPath(url,this.current)
     let f=this.file(path)
     if(f?.content===null)throw new Error(this.t('图片已标记删除，发布前可撤销。','Image marked for deletion; undo before publishing.'))
+    // Published content-addressed images are already the exact GitHub blob.
+    // Use their native image URL instead of proxying megabytes of base64 through
+    // the authenticated editor API. Unpublished or changed files still use GitHub.
+    const entry=this.entries.find(e=>e.path===path),fingerprint=path.match(/^public\/media\/image-([a-f0-9]{20})\.(?:png|jpe?g|webp|gif|avif)$/)?.[1]
+    if(!f&&fingerprint&&entry?.sha.startsWith(fingerprint)){
+      try{
+        const response=await fetch(publicImage(path),{method:'HEAD',credentials:'omit',redirect:'error',cache:'force-cache',signal:AbortSignal.timeout(5000)})
+        f=this.file(path)
+        if(!f&&response.ok&&response.headers.get('content-type')?.startsWith('image/'))return publicImage(path)
+      }catch{f=this.file(path)}
+      if(f?.content===null)throw new Error(this.t('图片已标记删除，发布前可撤销。','Image marked for deletion; undo before publishing.'))
+    }
     // At most one read. Never recurse through a staged deletion or a missing blob.
     if(!f&&this.entries.some(e=>e.path===path)){
       const r=await this.call('read',{paths:[path]});if(r.files[0])this.remote.set(path,r.files[0]);f=this.file(path)
@@ -660,11 +672,15 @@ export class ContentEditor extends HTMLElement{
   private async mediaCards(grid:HTMLElement,select?:(path:string)=>unknown,selected=''){
     const query=select?'':this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
     const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>(p+' '+this.imageLabel(p)).toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
+    const previews:Array<()=>Promise<void>>=[]
     for(const path of paths){
       if(!grid.isConnected)return
       if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
-      const card=el('section','','cms-media-card'),img=el('img'),thumb=el('div','','cms-media-thumb'),actions=el('div','','cms-media-actions');img.alt=this.imageLabel(path);img.loading='lazy';thumb.append(img);card.append(thumb,el('strong',this.imageLabel(path)),el('p',path,'cms-path'),actions);grid.append(card)
-      try{img.src=await this.imageUrl(publicImage(path))}catch{img.alt=this.t('暂时无法预览','Preview unavailable')}
+      const card=el('section','','cms-media-card'),img=el('img'),thumb=el('div','','cms-media-thumb'),actions=el('div','','cms-media-actions'),loading=el('span',this.t('正在加载…','Loading…'),'cms-muted');img.alt=this.imageLabel(path);img.loading='lazy';thumb.append(img,loading);card.append(thumb,el('strong',this.imageLabel(path)),el('p',path,'cms-path'),actions);grid.append(card)
+      img.onload=()=>loading.remove()
+      const unavailable=()=>{loading.textContent=this.t('暂时无法预览','Preview unavailable');img.hidden=true}
+      img.onerror=unavailable
+      previews.push(async()=>{try{img.src=await this.imageUrl(publicImage(path))}catch{unavailable()}})
       if(select)actions.append(this.btn(this.t('使用图片','Use image'),()=>select(publicImage(path))))
       else{
         actions.append(this.btn(this.t('查看引用','References'),async()=>{const r=await this.call('references',{path});const body=this.dialog(path);body.append(el('p',r.references.join('\n')||this.t('未发现源码引用。','No source references found.')))}),
@@ -674,6 +690,11 @@ export class ContentEditor extends HTMLElement{
       }
       if(selected===path)card.dataset.selected='true'
     }
+    // Render controls immediately. A large photo must not hide later cards;
+    // keep GitHub blob downloads bounded and stop queuing when the view closes.
+    await Promise.all(Array.from({length:Math.min(3,previews.length)},async()=>{
+      while(grid.isConnected&&previews.length)await previews.shift()!()
+    }))
   }
   private imageLabel(path:string){
     try{

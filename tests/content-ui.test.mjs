@@ -26,10 +26,11 @@ async function setup(t,{role='owner',saved=new Map(),locks,initialStatus='live',
  const markCommitted=(files,sub,result)=>files.filter(f=>!sub.changes.some(c=>c.path===f.path&&sub.revisions[f.path]===f.revision&&c.content===f.content)).map(f=>{const sent=sub.changes.find(c=>c.path===f.path);return sent?{...f,baseSha:result.find(r=>r.path===f.path).sha,baseText:sent.content}:f})
  const client={auth:{getSession:async()=>({data:{session:role==='guest'?null:{user:{id:role},access_token:'fixture'}}})}}
  w.fetch=async(url,options)=>{
-   const input=JSON.parse(options.body);calls.push(structuredClone(input))
+   const input=options.method==='HEAD'?{action:'image-head',url}:JSON.parse(options.body);calls.push(structuredClone(input))
    if(role!=='owner')return {ok:false,status:403,json:async()=>({error:'Owner access required'})}
    if(override){const value=await override(input);if(value)return value}
    let result
+   if(input.action==='image-head')return {ok:true,headers:{get:()=> 'image/webp'}}
    if(input.action==='list')result={owner:'owner',localKey:'fixture',repository:git.REPOSITORY,head:'b'.repeat(40),entries:[...files.values()].map(f=>({path:f.path,sha:f.sha,size:f.content.length,kind:git.pathKind(f.path),writable:true}))}
    else if(input.action==='read')result={head:'b'.repeat(40),files:input.paths.map(p=>files.get(p)||{path:p,sha:null,content:null})}
    else if(input.action==='publish'){result={state:'committed',commitSha:'c'.repeat(40),files:input.changes.map(c=>({path:c.path,sha:c.content===null?null:'d'.repeat(40)}))};for(const c of input.changes){if(c.content===null)files.delete(c.path);else files.set(c.path,{...c,sha:'d'.repeat(40)})}}
@@ -321,6 +322,45 @@ test('a restored edited copy shows its saved-local status instead of Matches Git
  assert.match(ui.root.querySelector('[data-save]').textContent,/本地已暂存/)
  assert.equal(ui.root.querySelector('[data-review]').disabled,false)
 })
+test('published fingerprinted media uses the exact public blob; unpublished media falls back to GitHub',async t=>{
+ const ui=await setup(t),path='public/media/image-'+ 'e'.repeat(20)+'.webp',url=git.publicImage(path)
+ ui.files.set(path,{path,content:'aW1hZ2U=',sha:'e'.repeat(40),encoding:'base64'});await ui.root.refresh()
+ let start=ui.calls.length
+ assert.equal(await ui.root.imageUrl(url),url)
+ assert.deepEqual(ui.calls.slice(start).map(c=>c.action),['image-head'])
+ ui.override(input=>input.action==='image-head'?{ok:false,status:404,headers:{get:()=> 'text/html'}}:null)
+ start=ui.calls.length;assert.equal(await ui.root.imageUrl(url),'blob:fixture')
+ assert.deepEqual(ui.calls.slice(start).map(c=>c.action),['image-head','read'])
+ ui.root.edit(path,null);start=ui.calls.length
+ await assert.rejects(ui.root.imageUrl(url));assert.equal(ui.calls.length,start)
+})
+
+test('deletion staged during a public preview check cannot resurrect or fetch the image',async t=>{
+ const ui=await setup(t),path='public/media/image-'+ 'e'.repeat(20)+'.webp'
+ ui.files.set(path,{path,content:'aW1hZ2U=',sha:'e'.repeat(40),encoding:'base64'});await ui.root.refresh()
+ let finish;ui.override(input=>input.action==='image-head'?new Promise(resolve=>finish=resolve):null)
+ const pending=ui.root.imageUrl(git.publicImage(path));await tick();ui.root.edit(path,null)
+ finish({ok:true,headers:{get:()=> 'image/webp'}})
+ await assert.rejects(pending);assert.ok(!ui.calls.some(c=>c.action==='read'&&c.paths.includes(path)))
+})
+
+test('a slow image cannot delay other media cards or their controls',async t=>{
+ const ui=await setup(t),paths=['slow','small','another','last'].map(name=>'public/media/'+name+'.webp')
+ for(const path of paths)ui.files.set(path,{path,content:'aW1hZ2U=',sha:'e'.repeat(40),encoding:'base64'})
+ await ui.root.refresh();let finish
+ ui.override(input=>input.action==='read'&&input.paths[0]===paths[0]?new Promise(resolve=>finish=resolve):null)
+ await ui.open('图片')
+ const cards=[...ui.root.querySelectorAll('.cms-media-card')]
+ assert.equal(cards.length,4);assert.equal(cards[0].querySelectorAll('button').length,3)
+ assert.equal(cards[0].querySelector('img').getAttribute('src'),null)
+ for(const card of cards.slice(1))assert.equal(card.querySelector('img').getAttribute('src'),'blob:fixture')
+ finish({ok:false,status:503,json:async()=>({error:'isolated image unavailable'})});await tick()
+ assert.equal(cards[0].querySelector('img').hidden,true)
+ assert.match(cards[0].textContent,/暂时无法预览/)
+ assert.ok(cards[0].querySelectorAll('button')[1].disabled===false)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
 test('staged deletion and missing image blobs stop preview requests instead of recursing',async t=>{
  const ui=await setup(t),path='public/media/deleted.webp';ui.files.set(path,{path,content:'aW1hZ2U=',sha:'e'.repeat(40),encoding:'base64'});await ui.root.refresh()
  ui.root.edit(path,null);await tick();const before=ui.calls.length
