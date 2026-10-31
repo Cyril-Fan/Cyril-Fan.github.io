@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -91,8 +91,37 @@ test('failed refresh never overwrites the complete local fallback', async contex
   await verifyContributionBundle({root,now})
   const file=new URL('src/assets/contributions.json',root)
   const before=await readFile(file,'utf8')
+  const images=new URL('public/contributions/',root)
+  const beforeFiles=(await readdir(images)).sort()
   await assert.rejects(syncContributionSnake({root,now,token:'',fetcher:feed({'github-contribution-grid-snake-dark.svg':new Error('Offline')}).fetcher}))
   assert.equal(await readFile(file,'utf8'),before)
+  assert.deepEqual((await readdir(images)).sort(),beforeFiles)
+})
+
+test('successful updates retain only the current snake pair and leave unrelated files alone', async context => {
+  const directory=await mkdtemp(join(tmpdir(),'contribution-tests-')), root=pathToFileURL(directory+sep)
+  context.after(async()=>{
+    const target=resolve(directory)
+    assert.equal(dirname(target),resolve(tmpdir()))
+    assert.ok(basename(target).startsWith('contribution-tests-'))
+    await rm(target,{recursive:true,force:true})
+  })
+  await syncContributionSnake({root,now,fetcher:feed().fetcher,token:''})
+  const images=new URL('public/contributions/',root)
+  await writeFile(new URL('snake-light-000000000000-static.svg',images),light)
+  await writeFile(new URL('snake-dark-000000000000-static.svg',images),dark)
+  await writeFile(new URL('unrelated.svg',images),'<svg/>')
+  await mkdir(new URL('snake-light-111111111111.svg/',images))
+  const updated=feed({
+    'github-contribution-grid-snake.svg':light.replace('</svg>','\n</svg>'),
+    'github-contribution-grid-snake-dark.svg':dark.replace('</svg>','\n</svg>')
+  })
+  const current=await syncContributionSnake({root,now,fetcher:updated.fetcher,token:''})
+  await verifyContributionBundle({root,now})
+  assert.deepEqual((await readdir(images)).sort(),[
+    basename(current.light),basename(current.dark),'unrelated.svg','snake-light-111111111111.svg'
+  ].sort())
+  assert.equal(await readFile(new URL('unrelated.svg',images),'utf8'),'<svg/>')
 })
 
 const code=ts.transpileModule(read('../src/lib/contribution-view.ts'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText

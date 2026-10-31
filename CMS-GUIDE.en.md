@@ -70,7 +70,11 @@ Entering the editor or opening recovery checks old empty committed jobs. Only a 
 
 ## Deleting comments
 
-Authors may delete their own comments; the owner can moderate all comments. A comment without visible replies offers only Delete and leaves no placeholder after deletion. A comment with surviving replies keeps a deletion notice and those replies. For comments with replies, the owner also sees Delete this comment and its replies beside Delete, with a separate confirmation. There is no restore action. The database retains erased rows needed for safe retries, not their deleted bodies.
+Authors may delete their own comments; the owner can moderate all comments. A comment without replies is deleted from the database without a placeholder. If replies remain, its body, nickname, author association and request fingerprints are cleared, leaving only an anonymous placeholder that preserves the reply structure. Unneeded placeholders are removed automatically when the last reply is deleted. After confirmation, the owner's Delete this comment and its replies action deletes the entire branch from the database. There is no restore action, and no additional deleted records are retained for safe retries.
+
+## Contribution image files
+
+After successfully saving a complete contribution snapshot, the generator keeps only the current light and dark snake images and removes older generated files. Historical compatibility versions are not retained.
 
 
 ## 2026-10-31: saving and deployment status

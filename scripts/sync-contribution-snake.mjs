@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { isCurrentContributionCalendar, normalizeContributions } from '../src/lib/github-contributions.ts'
 import { calendarHash, fetchContributionBundle, fetchPublishedContributionBundle, MAX_SOURCE_AGE_MS, RENDERER, validateProfileSnake } from '../src/lib/contribution-feed.ts'
@@ -35,6 +35,12 @@ async function saveBundle(bundle, root) {
   await writeJson(new URL('src/assets/contributions.json', root), metadata)
   await mkdir(new URL('public/data/', root), { recursive:true })
   await writeJson(new URL('public/data/contributions.json', root), { version:1, ...bundle })
+  // Keep only the current pair, after every part of the new snapshot is saved.
+  const current = new Set([metadata.light, metadata.dark])
+  for (const entry of await readdir(directory, { withFileTypes:true })) {
+    if (entry.isFile() && /^snake-(?:light|dark)-[a-f0-9]{12}(?:-static)?\.svg$/.test(entry.name)
+      && !current.has(`/contributions/${entry.name}`)) await unlink(new URL(entry.name, directory))
+  }
   console.log(`[contributions] GitHub profile ${bundle.sourceCommit?.slice(0, 7) || 'main (calendar hash verified)'}: ${bundle.calendar.total} contributions; original Platane/snk animation, ${bundle.duration}ms.`)
   return metadata
 }
