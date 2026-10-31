@@ -6,6 +6,7 @@ import ts from 'typescript'
 import * as git from '../supabase/functions/_shared/git-content.ts'
 import * as markdown from '../src/lib/article-markdown.ts'
 import * as fields from '../src/lib/content-fields.ts'
+import * as education from '../src/lib/profile-education.ts'
 import * as blog from '../src/lib/blog-presentation.ts'
 const source=(await readFile('src/lib/content-editor.ts','utf8')).replaceAll('import.meta.env.PUBLIC_SUPABASE_URL',"'https://fixture.invalid'").replaceAll('import.meta.env.PUBLIC_SUPABASE_ANON_KEY',"'fixture-public'")
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
@@ -45,6 +46,7 @@ async function setup(t,{role='owner',saved=new Map(),locks,initialStatus='live',
    if(name==='./content-render')return {enhanceArticle:async()=>{}}
    if(name==='./content-local')return {...localModule.exports,LocalContentStore:MemoryStore,markCommitted}
    if(name==='./content-fields')return fields
+   if(name==='./profile-education')return education
    if(name==='./blog-presentation')return blog
    if(name==='./cms-image')return {encodeCMSImage:()=>{throw Error('Browser codec acceptance required')}}
    if(name.includes('_shared/git-content'))return git
@@ -377,4 +379,101 @@ test('deployment checks resume when returning online and do not erase newer edit
  ui.w.dispatchEvent(new ui.w.Event('online'));await tick()
  assert.match(ui.root.querySelector('[data-submission]').textContent,/已发布上线/)
  assert.ok(ui.root.space.files[0].content.includes('After commit'));assert.ok(ui.saved.get(ui.root.space.id).files.length)
+})
+
+// Shared/exclusive Web Locks, including pending opens during publication.
+function mediaLocks(){
+ const held=[],pending=[]
+ const drain=()=>{for(const request of [...pending]){
+  const conflicts=held.some(h=>h.name===request.name&&(h.mode!=='shared'||request.mode!=='shared'))
+  if(conflicts){if(request.ifAvailable){pending.splice(pending.indexOf(request),1);Promise.resolve(request.fn(null)).then(request.resolve,request.reject)}continue}
+  pending.splice(pending.indexOf(request),1);held.push(request)
+  Promise.resolve(request.fn({name:request.name,mode:request.mode})).then(request.resolve,request.reject).finally(()=>{held.splice(held.indexOf(request),1);drain()})
+ }}
+ return {query:async()=>({held:held.map(({name,mode})=>({name,mode})),pending:pending.map(({name,mode})=>({name,mode}))}),request(name,options,fn){if(typeof options==='function'){fn=options;options={}}return new Promise((resolve,reject)=>{pending.push({name,mode:options.mode||'exclusive',ifAvailable:options.ifAvailable,fn,resolve,reject});drain()})}}
+}
+async function avatarFixture(t,options={}){
+ const ui=await setup(t,{locks:mediaLocks(),...options}),old=git.imageRepositoryPath(JSON.parse(profile).avatar)
+ const data={path:old,sha:'e'.repeat(40),content:'b3JpZ2luYWw=',encoding:'base64'}
+ ui.files.set(old,data);ui.root.entries.push({...data,kind:'media',size:8,writable:true})
+ const next='public/media/image-fixture-new.webp'
+ ui.root.edit(next,'bmV3','base64');ui.fill('avatar',git.publicImage(next));await tick()
+ t.after(()=>ui.root.clear())
+ return {...ui,old,next}
+}
+
+test('avatar replacement stages new bytes, profile and safe old deletion in one selected commit',async t=>{
+ const ui=await avatarFixture(t)
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+ await ui.click('检查并发布')
+ assert.deepEqual(new Set(ui.root.space.files.map(f=>f.path)),new Set([git.PROFILE,ui.old,ui.next]))
+ await ui.click('提交所选修改');await tick()
+ const publishes=ui.calls.filter(c=>c.action==='publish');assert.equal(publishes.length,1,ui.root.querySelector('[data-message]').textContent)
+ assert.deepEqual(new Set(publishes[0].changes.map(f=>f.path)),new Set([git.PROFILE,ui.old,ui.next]))
+ assert.equal(ui.files.has(ui.old),false);assert.equal(JSON.parse(ui.files.get(git.PROFILE).content).avatar,git.publicImage(ui.next))
+})
+
+test('other content and closed local copies protect old avatar files',async t=>{
+ for(const protection of ['content','copy','active','unknown']){
+  const locks=mediaLocks(),saved=new Map(),ui=await avatarFixture(t,{locks,saved})
+  if(protection==='content'){const doc={path:'src/content/blogs/tech/reference/index.md',sha:'f'.repeat(40),content:'![Old]('+git.publicImage(ui.old)+')',encoding:'utf-8'};ui.root.remote.set(doc.path,doc);ui.files.set(doc.path,doc)}
+  if(protection==='copy')saved.set('other',{id:'other',owner:'owner',repository:git.REPOSITORY,updated:'2026-01-01',files:[{path:'src/content/blogs/tech/private/index.md',content:'![Old]('+git.publicImage(ui.old)+')',encoding:'utf-8',revision:1}]})
+  if(protection==='active'){const other=await setup(t,{saved,locks});t.after(()=>other.root.clear())}
+  if(protection==='unknown')ui.root.store.list=async()=>{throw Error('Cannot decrypt')}
+  if(protection==='unknown')await assert.rejects(ui.root.prepareAvatarChanges(),/decrypt/)
+  else await ui.root.prepareAvatarChanges()
+  assert.ok(!ui.root.space.files.some(f=>f.path===ui.old&&f.content===null),protection)
+  assert.ok(ui.root.space.files.some(f=>f.path===git.PROFILE));assert.ok(ui.root.space.files.some(f=>f.path===ui.next))
+ }
+})
+
+test('successive local avatar selections collect only their unused uploads; discard restores old GitHub avatar',async t=>{
+ const ui=await avatarFixture(t),next='public/media/image-fixture-final.webp',unrelated='public/media/unrelated.webp'
+ ui.root.edit(next,'ZmluYWw=','base64');ui.root.edit(unrelated,'b3RoZXI=','base64');ui.fill('avatar',git.publicImage(next));await tick()
+ await ui.root.prepareAvatarChanges()
+ assert.ok(!ui.root.space.files.some(f=>f.path===ui.next));assert.ok(ui.root.space.files.some(f=>f.path===unrelated))
+ await ui.click('放弃本地修改');await ui.click('确认');await tick()
+ assert.deepEqual(Array.from(ui.root.space.files,f=>f.path),[unrelated]);assert.ok(ui.files.has(ui.old));assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('avatar publishing failure preserves files, retries one request, and retains typing during commit',async t=>{
+ const ui=await avatarFixture(t);let tries=0
+ ui.override(async input=>{if(input.action!=='publish')return null;tries++
+  if(tries===1)return {ok:false,status:503,json:async()=>({error:'Offline fixture'})}
+  ui.fill('photo',git.publicImage(ui.old));await tick();return null
+ })
+ await ui.click('检查并发布');await ui.click('提交所选修改');await tick()
+ assert.equal(ui.root.space.submission.state,'failed');assert.equal(ui.files.has(ui.old),true)
+ await ui.click('安全重试同一提交');await tick()
+ const calls=ui.calls.filter(c=>c.action==='publish');assert.equal(calls.length,2);assert.equal(calls[0].requestId,calls[1].requestId)
+ assert.equal(ui.root.space.files.find(f=>f.path===ui.old).content,'b3JpZ2luYWw=')
+ assert.equal(JSON.parse(ui.root.space.files.find(f=>f.path===git.PROFILE).content).photo,git.publicImage(ui.old))
+})
+
+test('edits and another copy appearing during cleanup checks stop unsafe removal',async t=>{
+ const ui=await avatarFixture(t)
+ ui.override(async input=>{if(input.action==='references'){ui.fill('photo',git.publicImage(ui.old));await tick()}return null})
+ await assert.rejects(ui.root.prepareAvatarChanges(),/检查期间/)
+ assert.ok(!ui.root.space.files.some(f=>f.path===ui.old&&f.content===null))
+ assert.equal(JSON.parse(ui.root.space.files.find(f=>f.path===git.PROFILE).content).photo,git.publicImage(ui.old))
+})
+
+test('legacy education draft migrates on edit and preserves text; new fields remain local',async t=>{
+ const ui=await setup(t),legacy=JSON.parse(profile)
+ delete legacy.zh.education;legacy.zh.school='私有学校';legacy.zh.major='私有专业';legacy.zh.period='私有时间'
+ legacy.avatar='/src/assets/avatar.png';ui.root.edit(git.PROFILE,JSON.stringify(legacy));await ui.root.open(git.PROFILE)
+ assert.equal(ui.root.querySelector('[name="zh.education.first"]').value,'私有学校\n私有专业\n私有时间')
+ ui.fill('zh.education.second','第二学校\n第二专业\n第二时间');await tick()
+ const current=JSON.parse(ui.root.space.files.find(f=>f.path===git.PROFILE).content)
+ assert.equal(current.zh.education.second,'第二学校\n第二专业\n第二时间');assert.equal(current.zh.school,undefined)
+ assert.equal(current.avatar,JSON.parse(profile).avatar);assert.equal(JSON.parse(ui.files.get(git.PROFILE).content).zh.education.second,'')
+})
+
+test('image reference dialog separates every path and distinguishes unpublished removals',async t=>{
+ const ui=await avatarFixture(t)
+ ui.override(input=>input.action==='references'?{ok:true,json:async()=>({references:[git.PROFILE,'src/example.ts']})}:null)
+ await ui.root.showImageReferences(ui.old)
+ const rows=ui.root.querySelectorAll('.cms-reference-list li');assert.equal(rows.length,2)
+ assert.equal(rows[0].querySelector('code').textContent,git.PROFILE)
+ assert.match(rows[0].textContent,/已在本地移除引用/);assert.equal(rows[1].querySelector('code').textContent,'src/example.ts')
 })

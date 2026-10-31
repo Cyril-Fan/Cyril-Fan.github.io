@@ -12,7 +12,7 @@ let handler,env
 globalThis.Deno={env:{get:k=>env[k]},serve:fn=>{handler=fn}}
 await import(pathToFileURL(process.cwd()+'/'+bundle));await unlink(bundle)
 // Keep simulated Git trees independent from the owner's current image filenames.
-const profile=JSON.stringify({...JSON.parse(await readFile('src/data/profile.json','utf8')),photo:'/media/profile.webp',avatar:''})
+const profile=JSON.stringify({...JSON.parse(await readFile('src/data/profile.json','utf8')),photo:'/media/profile.webp',avatar:'/media/profile.webp'})
 const academic=await readFile('src/data/academic.json','utf8')
 const avatar=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer()
 function fixture(t,{owner=true,race=false,uncertain=false,failImage=false,live=false,buildFailed=false}={}){
@@ -114,3 +114,22 @@ test('actual deployed commit confirms older tasks even when the release marker n
  assert.equal((await f.call({action:'status',requestId:id,commitSha:r.commitSha})).state,'live')
 })
 
+
+
+test('avatar source, lossless bytes and unused old source removal form one atomic commit',async t=>{
+ const f=fixture(t),p=JSON.parse(profile);p.avatar='/media/new-avatar.webp';p.photo=''
+ const result=await f.publish([{...f.changed(),content:JSON.stringify(p)},
+  {path:'public/media/new-avatar.webp',baseSha:null,content:avatar.toString('base64'),encoding:'base64'},
+  {path:'public/media/profile.webp',baseSha:hash(avatar),content:null,encoding:'base64'}])
+ assert.equal(result.state,'committed');assert.equal(f.commits,1)
+ assert.ok(!f.files.has('public/media/profile.webp'));assert.deepEqual(f.files.get('public/media/new-avatar.webp'),avatar)
+ assert.equal(JSON.parse(f.files.get('src/data/profile.json')).avatar,p.avatar)
+})
+
+test('shared profile photo prevents old avatar deletion, leaving the repository unchanged',async t=>{
+ const f=fixture(t),p=JSON.parse(profile);p.avatar='/media/new-avatar.webp'
+ const result=await f.publish([{...f.changed(),content:JSON.stringify(p)},
+  {path:'public/media/new-avatar.webp',baseSha:null,content:avatar.toString('base64'),encoding:'base64'},
+  {path:'public/media/profile.webp',baseSha:hash(avatar),content:null,encoding:'base64'}])
+ assert.equal(result.status,409);assert.equal(f.commits,0);assert.ok(f.files.has('public/media/profile.webp'))
+})

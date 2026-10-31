@@ -27,7 +27,7 @@
 | [`src/pages/`](src/pages/) | 页面入口和独立 Markdown 页面 | 中文入口在此；英文入口在 `src/pages/en/` |
 | [`src/components/`](src/components/) | 页面实际布局、复用界面与文字 | 很多 `index.astro` 只有一行引用，实际内容在组件里 |
 | [`src/content/blogs/`](src/content/blogs/) | 博客正文、文章信息和配图 | 一篇文章一个目录，见[写作指南](CONTENT-GUIDE.md) |
-| [`src/assets/`](src/assets/) | 需要构建处理的头像、照片、图标源文件和数据快照 | 图片可由 Astro 生成合适尺寸；快照由脚本更新 |
+| [`src/assets/`](src/assets/) | 需要构建处理的照片、图标源文件和数据快照 | 图片可由 Astro 生成合适尺寸；快照由脚本更新 |
 | [`public/`](public/) | 按原路径发布的资源 | 如 `public/media/example.webp` 的网址就是 `/media/example.webp` |
 | [`src/lib/`](src/lib/) | 交互、认证、评论、数据校验与刷新逻辑 | 改行为时查看这里，通常不是日常写作入口 |
 | [`supabase/`](supabase/) | 评论和访问计数的数据库结构、迁移与部署说明 | SQL 文件是结构版本；真实账户、留言、访问总数在 Supabase |
@@ -41,7 +41,7 @@
 | 网站标题、作者、邮箱、GitHub 用户名、域名、建站日期 | [`src/site.config.ts`](src/site.config.ts) | 英文元信息同时检查 `description_en` / `author_en` |
 | 首页简介、学生 / 帅哥彩蛋、教育经历、学校链接 | 后台“首页与关于” → `src/data/profile.json` 的 `profile` | [`HomePage.astro`](src/components/home/HomePage.astro) 保留双语布局 |
 | 中文 / 英文首页入口 | [`src/pages/index.astro`](src/pages/index.astro)、[`src/pages/en/index.astro`](src/pages/en/index.astro) | 实际界面由 `HomePage.astro` 生成 |
-| 主页头像 | 后台“首页与关于”的头像 | 空值使用默认 [`src/assets/avatar.png`](src/assets/avatar.png) |
+| 主页头像 | 后台“首页与关于”的头像 | [`src/data/profile.json`](src/data/profile.json) 的 `avatar` 指向 `public/media/` 中唯一源图，旧硬编码头像已移除 |
 | 评论站长头像、对外提供的本站头像地址 | 跟随后台设置的主页头像 | 对外固定为 `https://cyril-fan.top/avatar/avatar.png`；[`src/pages/avatar/avatar.png.ts`](src/pages/avatar/avatar.png.ts) 在构建时从当前头像无损生成 PNG。没有另一份需手动维护的公开头像源文件，不自动跟随 GitHub 账户头像 |
 | 左上角 Cyril Fan、顶部菜单和手机菜单 | [`src/components/basic/Header.astro`](src/components/basic/Header.astro) | 字体与字重也在该组件；中英文导航在这里分别呈现 |
 | 页脚署名、站点说明入口、社交链接 | [`src/components/basic/Footer.astro`](src/components/basic/Footer.astro)、[`src/site.config.ts`](src/site.config.ts) 的 `footer` | 四条站点说明的正文不在这里 |
@@ -77,7 +77,7 @@
 | --- | --- |
 | 友链名称、简介、网址、头像路径、RSS | [`public/links.json`](public/links.json) |
 | 稳定字典序规则 | [`src/lib/friends.ts`](src/lib/friends.ts) |
-| 头像文件 | [`public/links/`](public/links/)，统一为小写文件名 `.webp` |
+| 新上传的头像/图片文件 | [`public/media/`](public/media/) 的内容指纹文件名；原始迁移头像保留 PNG，新静态上传使用无损 WebP |
 | 友链卡片外观 | [`src/components/links/FriendList.astro`](src/components/links/FriendList.astro) |
 | 四个板块及目录、评论区挂载 | [`src/components/links/LinksPage.astro`](src/components/links/LinksPage.astro) |
 | 本站 Name / Desc / Link / Avatar / RSS、复制按钮、申请说明 | [`src/components/links/LinkExchange.astro`](src/components/links/LinkExchange.astro)；Desc 为 `Cosmic style` |
@@ -180,3 +180,6 @@ npm run avatar:friend -- "C:/path/to/original-photo.jpg" friend-name
 
 
 2026-10-31：实际部署提交由 `scripts/write-deployment-marker.mjs` 写入构建产物的 `/data/cms-release.json`；源码中的 `head` 是内容提交前的父版本，不能据此推断当前部署。站长头像在 `src/lib/content-image.ts` 的 `profileAvatar()` 统一解析，主页与评论均从 `src/data/profile.json` 的 `avatar` 读取。评论物理删除规则见迁移 `202610310012_comment_physical_deletion.sql` 与只读核验 `supabase/verify_012.sql`。
+
+
+2026-10-31 头像与学历迁移：个人资料的 zh/en.education.first、education.second 保存三行学历文本；src/lib/profile-education.ts 负责旧副本兼容及第二学历优先展示。主页头像唯一源图位于 public/media/ 的内容指纹 PNG 文件，由 profile.avatar 指定；固定 /avatar/avatar.png 为构建产物，不进入图片库。

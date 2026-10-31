@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { resolve, join, sep } from 'node:path'
 import sharp from 'sharp'
 import { renderProfileAvatar } from '../scripts/profile-avatar.mjs'
-import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATAR_URL, profileAvatarSource } from '../src/lib/profile-avatar.ts'
+import { PROFILE_AVATAR_URL, profileAvatarSource } from '../src/lib/profile-avatar.ts'
 
 async function fixture(t) {
   const base = resolve('work'); await mkdir(base, { recursive: true })
@@ -13,17 +13,17 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }))
   for (const dir of ['src/data', 'src/assets', 'public/media']) await mkdir(join(root, dir), { recursive: true })
   const original = await sharp({ create: { width: 7, height: 11, channels: 4, background: '#35609a80' } }).png().toBuffer()
-  await writeFile(join(root, 'src/assets/avatar.png'), original)
+  await writeFile(join(root, 'public/media/original.png'), original)
   const setAvatar = value => writeFile(join(root, 'src/data/profile.json'), JSON.stringify({ avatar: value }))
   const fetcher = () => { throw new Error('Local avatar must never fetch the deployed permalink') }
-  await setAvatar('')
+  await setAvatar('/media/original.png')
   return { root, original, setAvatar, fetcher }
 }
 const pixels = bytes => sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
 
-test('the public permalink and legacy empty value resolve to one editable default', () => {
+test('missing or generated sources cannot silently restore a hardcoded avatar', () => {
   for (const value of ['', undefined, '/avatar/avatar.png', PROFILE_AVATAR_URL, PROFILE_AVATAR_URL + '?v=old', 'https://www.cyril-fan.top/avatar/avatar.png']) {
-    assert.equal(profileAvatarSource(value), DEFAULT_PROFILE_AVATAR)
+    assert.throws(()=>profileAvatarSource(value))
   }
   assert.equal(profileAvatarSource('/media/new.webp'), '/media/new.webp')
 })
@@ -43,7 +43,7 @@ test('changing the profile source changes the stable PNG without editing a secon
   const after = await renderProfileAvatar(f)
   assert.notDeepEqual(after, before)
   assert.deepEqual(await pixels(after), await pixels(replacement))
-  assert.deepEqual(await readFile(join(f.root, 'src/assets/avatar.png')), f.original)
+  assert.deepEqual(await readFile(join(f.root, 'public/media/original.png')), f.original)
   await f.setAvatar('https://cyril-fan.top/media/new.webp?v=1')
   assert.deepEqual(await renderProfileAvatar(f), after)
 })
@@ -51,7 +51,7 @@ test('changing the profile source changes the stable PNG without editing a secon
 test('referencing the public permalink cannot recurse into an old deployment', async t => {
   const f = await fixture(t)
   await f.setAvatar(PROFILE_AVATAR_URL)
-  assert.deepEqual(await pixels(await renderProfileAvatar(f)), await pixels(f.original))
+  await assert.rejects(renderProfileAvatar(f), /source image/)
 })
 
 test('a configured remote image is bounded and exported, never prefixed with the site origin', async t => {
@@ -73,4 +73,27 @@ test('missing or invalid sources fail the build instead of silently publishing t
   await f.setAvatar('https://images.example.org/photo')
   await assert.rejects(renderProfileAvatar({ ...f, fetcher: async () => new Response('unavailable', { status: 503 }) }), /503/)
   await assert.rejects(renderProfileAvatar({ ...f, fetcher: async () => new Response(f.original, { headers: { 'content-length': String(9 * 1024 * 1024) } }) }), /8 MB/)
+})
+
+
+test('education preserves three lines, shows second above first, and clears without reviving legacy fields', async () => {
+  const {educationFields,educationCards}=await import('../src/lib/profile-education.ts')
+  const legacy={school:'School A',major:'Major A',period:'2024 - Present'}
+  assert.deepEqual(educationFields(legacy),{first:'School A\nMajor A\n2024 - Present',second:''})
+  assert.equal(educationCards(legacy,'https://example.org')[0].href,'https://example.org')
+  const value={...legacy,education:{first:'School A\nMajor A\n2024 - Present',second:'School B\nMajor B\n2028 - Present'}}
+  assert.deepEqual(educationCards(value).map(c=>c.school),['School B','School A'])
+  value.education.second='';assert.equal(educationCards(value).length,1)
+  value.education.first='';assert.deepEqual(educationCards(value),[])
+  value.education.first='School\n\nDates';assert.equal(educationCards(value)[0].period,'Dates')
+})
+
+test('education and avatar schemas validate before any GitHub writes', async () => {
+  const {validateText}=await import('../supabase/functions/_shared/git-content.ts')
+  const profile=JSON.parse(await readFile('src/data/profile.json','utf8'))
+  profile.zh.education.second='隔离学校\n隔离专业\n2028 - Present';validateText('src/data/profile.json',JSON.stringify(profile))
+  profile.zh.education.second='';validateText('src/data/profile.json',JSON.stringify(profile))
+  profile.zh.education.second='1\n2\n3\n4';assert.throws(()=>validateText('src/data/profile.json',JSON.stringify(profile)),/three lines/)
+  profile.zh.education.second=''
+  for(const source of ['',PROFILE_AVATAR_URL,'/src/assets/avatar.png']){profile.avatar=source;assert.throws(()=>validateText('src/data/profile.json',JSON.stringify(profile)))}
 })

@@ -9,10 +9,11 @@
     "about": "你好，我是范星宇，吉林大学软件工程本科生。欢迎来到我的个人网站。\n\n我喜欢通过研究和动手实践探索人工智能，也在这里记录学习与思考。",
     "photoAlt": "范星宇站在湖畔的木质栈台上",
     "interests": "深度学习\n多模态大语言模型\nAI 智能体",
-    "school": "吉林大学 · JLU",
-    "major": "软件工程",
-    "period": "2024 年 8 月 - 至今",
-    "contactIntro": "欢迎通过邮件或 GitHub 与我交流。"
+    "contactIntro": "欢迎通过邮件或 GitHub 与我交流。",
+    "education": {
+      "first": "吉林大学 · JLU\n软件工程\n2024 年 8 月 - 至今",
+      "second": ""
+    }
   },
   "en": {
     "name": "Cyril Fan",
@@ -24,12 +25,13 @@
     "about": "Hello, I’m Cyril Fan, an undergraduate student in Software Engineering at Jilin University. Welcome to my personal website.\n\nI enjoy exploring artificial intelligence through research and hands-on projects. This is where I share what I learn and think about.",
     "photoAlt": "Cyril Fan standing on a wooden deck beside a lake",
     "interests": "Deep Learning\nMultimodal Large Language Models\nAI Agents",
-    "school": "Jilin University · JLU",
-    "major": "Software Engineering",
-    "period": "Aug 2024 - Present",
-    "contactIntro": "Feel free to reach out by email or connect with me on GitHub."
+    "contactIntro": "Feel free to reach out by email or connect with me on GitHub.",
+    "education": {
+      "first": "Jilin University · JLU\nSoftware Engineering\nAug 2024 - Present",
+      "second": ""
+    }
   },
-  "avatar": "/src/assets/avatar.png",
+  "avatar": "/media/image-c517f026af0573b651b9.png",
   "photo": "/media/image-aa2e3bba6e73f9ed9dad.webp",
   "email": "cyrilfan.fxy@gmail.com",
   "github": "Cyril-Fan",

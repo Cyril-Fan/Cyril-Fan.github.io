@@ -7,9 +7,11 @@ import BlogStats from './BlogStats.astro'
 import config from '@/site-config'
 import { profile } from '../../lib/cms-content'
 import { profileAvatar } from '../../lib/content-image'
+import { educationCards } from '../../lib/profile-education'
 
 const en = Astro.currentLocale === 'en'
 const p = profile[en ? 'en' : 'zh']
+const education = educationCards(p, profile.schoolUrl)
 ---
 
 <PageLayout meta={{ title: en ? 'Home' : '首页' }} highlightColor='#659EB966'>
@@ -53,15 +55,10 @@ const p = profile[en ? 'en' : 'zh']
         </p>
         <Button title={en ? 'More about me' : '更多关于我'} class='w-fit self-end' href={en ? '/en/about' : '/about'} style='ahead' />
       </Section>
-      <Section title={en ? 'Education' : '教育背景'} class='home-section'>
-        <Card
-          as='a'
-          href={profile.schoolUrl}
-          heading={p.school}
-          subheading={p.major}
-          date={p.period}
-        />
-      </Section>
+      {education.length > 0 && <Section title={en ? 'Education' : '教育背景'} class='home-section'>
+        {education.map(item => <Card as={item.href ? 'a' : 'div'} href={item.href || undefined}
+          heading={item.school} subheading={item.major} date={item.period} />)}
+      </Section>}
       <Section title={en ? 'Statistics' : '站点统计'} class='home-section'>
         <BlogStats blogStartDate={new Date(config.personal?.blogStartDate || '2026-10-18')} />
       </Section>

@@ -68,7 +68,7 @@ test('safe Steps keeps numbered circles on the outer list, start values and ordi
 test('image checks preserve real WebP bytes and reject mismatched/script formats',async()=>{
   const bytes=await (await import('sharp')).default({create:{width:2,height:2,channels:4,background:'#abc'}}).webp({lossless:true}).toBuffer();validateImage('public/media/test.webp',bytes)
   assert.throws(()=>validateImage('public/media/test.png',bytes));assert.throws(()=>validateImage('public/media/test.svg',bytes))
-  assert.ok(safeUrl('/src/assets/avatar.png',true));assert.ok(!safeUrl('javascript:bad()',true))
+  assert.ok(safeUrl('/media/image-test.png',true));assert.ok(!safeUrl('javascript:bad()',true))
   assert.ok(fileReferences('import x from "@/assets/avatar.png"','src/assets/avatar.png','src/example.ts'))
   assert.ok(fileReferences('![x](./photo.gif)','src/content/blogs/demo/photo.gif','src/content/blogs/demo/index.md'))
   assert.equal((await gitBlobHash(bytes)).length,40)
@@ -104,4 +104,12 @@ test('full-resolution image payloads decode byte-for-byte with both native and f
  const original=Uint8Array.fromBase64
  try{Uint8Array.fromBase64=undefined;assert.deepEqual(decodeBase64(text),bytes)}finally{Uint8Array.fromBase64=original}
  for(const invalid of ['abc','ab?=','ab=c'])assert.throws(()=>decodeBase64(invalid))
+})
+
+
+test('same-site absolute image URLs share the repository path for replacement and reference protection',()=>{
+ assert.equal(imageRepositoryPath('https://cyril-fan.top/media/old.png?v=1'),'public/media/old.png')
+ assert.equal(imageRepositoryPath('https://www.cyril-fan.top/media/old.png'),'public/media/old.png')
+ assert.equal(imageRepositoryPath('https://other.example/media/old.png'),'https://other.example/media/old.png')
+ assert.equal(replaceImageReferences('https://cyril-fan.top/media/old.png?v=1','public/media/old.png','src/data/profile.json','/media/new.png'),'/media/new.png')
 })

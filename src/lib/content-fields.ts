@@ -2,12 +2,16 @@ export type Field={key:string;label:string;en?:string;type?:'text'|'textarea'|'m
 const t=(key:string,label:string,en?:string):Field=>({key,label,en})
 const m=(key:string,label:string,en?:string):Field=>({key,label,en,type:'markdown'})
 const list=(key:string,label:string,fields:Field[],en?:string):Field=>({key,label,en,type:'list',fields})
-const g=(key:string,label:string,fields:Field[]):Field=>({key,label,type:'group',fields})
+const g=(key:string,label:string,fields:Field[],en?:string):Field=>({key,label,en,type:'group',fields})
 export const friendFields:Field[]=[t('name','名称','Name'),t('intro','简介','Description'),t('link','网站地址','Website'),{...t('avatar','头像','Avatar'),type:'image'},t('feed','RSS / Atom')]
 const profileFields:Field[]=[
  t('name','显示姓名','Display name'),t('homeName','首页姓名','Home name'),t('location','所在地','Location'),t('role','身份','Role'),t('spoiler','悬停介绍','Spoiler'),
  {...t('intro','首页介绍','Home introduction'),type:'textarea'},m('about','关于正文','About body'),t('photoAlt','照片说明','Photo description'),
- {...t('interests','研究兴趣（每行一项）','Interests (one per line)'),type:'textarea'},t('school','学校','School'),t('major','专业','Major'),t('period','就读时间','Period'),t('contactIntro','联系介绍','Contact introduction')
+ {...t('interests','研究兴趣（每行一项）','Interests (one per line)'),type:'textarea'},
+ g('education','学历',[
+  {...t('first','第一学历','First education'),type:'textarea'},
+  {...t('second','第二学历','Second education'),type:'textarea'}
+ ],'Education'),t('contactIntro','联系介绍','Contact introduction')
 ]
 const links=[t('type','链接类型','Type'),t('href','链接地址','URL'),t('label','显示文字（可选）','Label (optional)')]
 const academicFields:Field[]=[

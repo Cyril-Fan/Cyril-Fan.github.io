@@ -22,6 +22,7 @@ try {
     assert.ok(dir.startsWith(join(root,'src/content') + sep))
     try{await mkdir(dir);createdDirectories.push(dir)}catch(error){if(error.code!=='EEXIST')throw error}
   }
+  const testAvatar = JSON.parse(await readFile(join(root,'src/data/profile.json'),'utf8')).avatar
   const body = `
 ## Test heading
 
@@ -43,7 +44,7 @@ $$
 const answer = 42
 \`\`\`
 
-![Test avatar](../../../assets/avatar.png)
+![Test avatar](${testAvatar})
 
 A footnote[^1].
 

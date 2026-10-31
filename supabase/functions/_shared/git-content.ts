@@ -24,12 +24,15 @@ export function pathKind(path: string): string | null {
   if (/^src\/content\/blogs\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]{0,99}\/index(?:-en)?\.mdx?$/.test(path)) return 'post'
   if (/^src\/content\/collection\/(?:[a-z0-9][a-z0-9-]{0,99}|(?:research|tech|daily)\/[a-z0-9][a-z0-9-]{0,99}\/index)\.mdx?$/.test(path)) return 'collection'
   if (/^(?:public\/(?:media|links|avatar|images)|src\/assets\/(?:photos|projects))\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(path) && imageExt.test(path)) return 'media'
-  if (path === 'src/assets/avatar.png') return 'media'
   if (/^src\/content\/(?:blogs|collection)\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]{0,99}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(path) && imageExt.test(path)) return 'media'
   return null
 }
 export const publicImage = (path: string) => path.startsWith('public/') ? '/' + path.slice(7) : path.startsWith('src/') ? '/' + path : path
 export function imageRepositoryPath(value:string,sourcePath='') {
+  if(/^https:\/\//i.test(value))try{
+    const url=new URL(value)
+    if(!url.port&&['cyril-fan.top','www.cyril-fan.top'].includes(url.hostname))value=url.pathname
+  }catch{ /* Leave invalid URLs for schema validation. */ }
   if(value.startsWith('/src/'))return value.slice(1)
   if(value.startsWith('/'))return 'public'+value.split(/[?#]/)[0]
   if(value.startsWith('src/')||value.startsWith('public/'))return value
@@ -58,7 +61,6 @@ export function writeArticle(source: string, updates: Record<string, unknown>, b
 }
 export function safeUrl(value: string, image = false): boolean {
   if (typeof value !== 'string') return false
-  if (image && value === '/src/assets/avatar.png') return true
   if (image && /^\/src\/content\/(?:blogs|collection)\/(?:(?:research|tech|daily)\/)?[a-z0-9][a-z0-9-]*\/[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
   if (image && /^(?:\/(?:media|links|avatar|images)\/[\w.-]+|\/src\/assets\/(?:photos|projects)\/[\w.-]+|\/src\/assets\/avatar\.png|\.\.?\/[\w./-]+)\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
   if (image && /^\/(?:media|links|avatar|images)\/[\w.-]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(value)) return true
@@ -126,9 +128,19 @@ export function validateText(path: string, text: string) {
     for(const lang of ['zh','en'])if(typeof data[lang]!=='object'||Array.isArray(data[lang]))throw new Error('Invalid language object')
     if (kind === 'profile' && (typeof data.zh.name !== 'string' || typeof data.en.name !== 'string')) throw new Error('Profile names are required; use clear-content instead of deleting the page')
     if(kind==='profile'){
-      for(const lang of ['zh','en'])for(const key of ['name','homeName','location','role','spoiler','intro','about','photoAlt','interests','school','major','period','contactIntro'])if(typeof data[lang][key]!=='string')throw new Error('Expected profile text: '+lang+'.'+key)
+      for(const lang of ['zh','en']){
+        for(const key of ['name','homeName','location','role','spoiler','intro','about','photoAlt','interests','contactIntro'])if(typeof data[lang][key]!=='string')throw new Error('Expected profile text: '+lang+'.'+key)
+        const education=data[lang].education
+        if(education!==undefined){
+          if(!education||Array.isArray(education)||typeof education!=='object')throw new Error('Invalid education')
+          for(const key of ['first','second'])if(typeof education[key]!=='string'||education[key].trimEnd().split(/\r?\n/).length>3)throw new Error('Education needs school, major and period on three lines: '+lang+'.'+key)
+        }else for(const key of ['school','major','period'])if(typeof data[lang][key]!=='string')throw new Error('Expected profile text: '+lang+'.'+key)
+      }
       for(const key of ['email','github','schoolUrl','avatar','photo'])if(typeof data[key]!=='string')throw new Error('Expected profile text: '+key)
       for(const key of ['avatar','photo'])if(data[key]&&!safeUrl(data[key],true))throw new Error('Invalid image: '+key)
+      if(!data.avatar.trim())throw new Error('Choose a profile avatar before publishing')
+      const avatarUrl=new URL(data.avatar,'https://cyril-fan.top')
+      if(['cyril-fan.top','www.cyril-fan.top'].includes(avatarUrl.hostname)&&avatarUrl.pathname==='/avatar/avatar.png')throw new Error('Choose the source image, not the generated public avatar URL')
       if(data.github&&!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(data.github))throw new Error('Invalid GitHub username')
       if(data.email&&!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(data.email))throw new Error('Invalid email')
     }

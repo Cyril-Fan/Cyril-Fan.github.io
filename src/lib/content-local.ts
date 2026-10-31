@@ -1,7 +1,15 @@
 import { REPOSITORY, decodeBase64, encodeBase64, fileReferences, pathKind, type Change } from '../../supabase/functions/_shared/git-content'
-export type LocalFile = Change & { baseText: string | null; revision: number; title?: string; mediaOwners?:string[]; autoRemovedFor?:string }
+export type LocalFile = Change & { baseText: string | null; revision: number; title?: string; mediaOwners?:string[]; autoRemovedFor?:string; autoRemovedBy?:string }
 export type Submission = { requestId:string; baseHead:string; changes:Change[]; revisions:Record<string,number>; commitSha?:string; state:string; files?:{path:string;sha:string|null}[] }
 export type Workspace = { id:string; owner:string; repository:string; updated:string; files:LocalFile[]; submission?:Submission }
+
+export const mediaUseLock=(owner:string)=>'cyril-editor-media:'+REPOSITORY+':'+owner
+/** All stored copies, including pending/unknown submissions, protect their images. */
+export function imageUsedInCopies(path:string,current:Workspace,copies:Workspace[]|null){
+  if(copies===null)return true
+  return copies.some(s=>s.id!==current.id&&s.owner===current.owner&&s.repository===current.repository&&
+    [...s.files,...s.submission?.changes||[]].some(f=>f.content!==null&&(f.path===path||f.encoding!=='base64'&&fileReferences(f.content,path,f.path))))
+}
 
 /** Each workspace owns its full image bytes. Never mutate another tab's record.
  * Unknown/unreadable other copies disable automatic collection (fail closed). */
@@ -27,7 +35,7 @@ export function discardLocalFile(space:Workspace,path:string,remote:Change[],exi
     !dependsElsewhere(f)).map(f=>f.path))
   // Undo only replacement-generated old-image deletions if restored text needs them.
   const restored=new Set(kept.filter(f=>f.autoRemovedFor&&f.content===null&&
-    candidates.some(c=>c.path===f.autoRemovedFor)&&references([...effective.values()],f.path)&&!pending.some(c=>c.path===f.path)).map(f=>f.path))
+    (f.autoRemovedBy===path||candidates.some(c=>c.path===f.autoRemovedFor))&&references([...effective.values()],f.path)&&!pending.some(c=>c.path===f.path)).map(f=>f.path))
   return {files:kept.filter(f=>!removed.has(f.path)&&!restored.has(f.path)),removed:[...removed],restored:[...restored]}
 }
 type Sealed = { id:string; owner:string; repository:string; updated:string; iv:string; data:string }

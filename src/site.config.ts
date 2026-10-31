@@ -1,4 +1,5 @@
 import type { CardListData, Config, IntegrationUserConfig, ThemeUserConfig } from './types'
+import profile from './data/profile.json'
 
 export const theme: ThemeUserConfig = {
   // === Basic configuration ===
@@ -26,7 +27,7 @@ export const theme: ThemeUserConfig = {
   },
   /** Set a logo image to show in the homepage. */
   logo: {
-    src: 'src/assets/avatar.png',
+    src: profile.avatar,
     alt: 'Avatar'
   },
 
