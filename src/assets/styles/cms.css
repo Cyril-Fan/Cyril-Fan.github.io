@@ -11,6 +11,7 @@
 .cms-local-copy { border-top:1px solid hsl(var(--border)); padding:1rem 0; overflow-wrap:anywhere; }
 .cms-compose-panes { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:.75rem 0; align-items:start; }
 .cms-compose-panes>* { min-width:0; margin:0!important; min-height:26rem!important; max-height:70vh; overflow:auto; }
+.content-compose:not(:has(.cms-article-preview)) .cms-compose-panes>* { min-height:12rem!important; }
 .cms-preview-tabs { display:flex; gap:.5rem; margin:.75rem 0; }
 .cms-preview-tabs button[aria-pressed=true] { background:hsl(var(--muted));border-color:hsl(var(--primary)/.55);color:hsl(var(--primary));font-weight:600; }
 .content-compose[data-mode=preview]>.cms-toolbar { display:none; }
