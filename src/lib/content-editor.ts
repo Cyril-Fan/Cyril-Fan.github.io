@@ -689,7 +689,11 @@ export class ContentEditor extends HTMLElement{
     if(!recoverable.length)body.append(el('p',this.t('没有其它可恢复的副本。','No other local copies.')))
   }
   private download(name:string,text:string){
-    const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob);this.blobUrls.set('export-'+Date.now(),url)
+    const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob)
+    // Only the current export is downloadable. Replace its in-memory URL without
+    // touching image previews, stored workspaces or already downloaded files.
+    for(const [key,previous]of this.blobUrls)if(key.startsWith('export-')){URL.revokeObjectURL(previous);this.blobUrls.delete(key)}
+    this.blobUrls.set('export-current',url)
     const body=this.dialog(this.t('导出本地副本','Export local copy')),a=el('a',this.t('下载完整副本','Download complete copy'),'cms-download');a.href=url;a.download=name
     const area=el('textarea');area.readOnly=true;area.value=text;area.className='cms-source';area.setAttribute('aria-label',this.t('备份内容','Backup content'))
     body.append(el('p',this.t('包含未公开内容，请妥善保存。也可复制下面的完整文本保存为 JSON。','Contains unpublished content. Keep it private. You can also copy the complete JSON below.')),a,area,this.btn(this.t('复制完整备份','Copy full backup'),async()=>{await navigator.clipboard.writeText(text);this.notice(this.t('已复制备份。','Backup copied.'))}))

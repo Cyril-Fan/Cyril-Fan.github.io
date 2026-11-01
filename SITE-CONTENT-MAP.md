@@ -58,7 +58,7 @@
 | --- | --- | --- |
 | 关于：自我介绍、研究兴趣、联系方式 | 后台“首页与关于” | 两种语言共用 [`AboutPage.astro`](src/components/about/AboutPage.astro)，目录也在此 |
 | 关于页湖畔照片 | `src/data/profile.json` 的 `photo` 所引用的图片 | [`src/components/about/AboutPhoto.astro`](src/components/about/AboutPhoto.astro) 控制两种语言的大小、对齐与替代文字 |
-| About 常用工具 | [`src/data/tools.ts`](src/data/tools.ts) 的名称、官网、双语说明与图标 | 复用 Axi 的 [`ToolSection.astro`](src/components/about/ToolSection.astro)；这是源码配置，当前没有后台表单。VS Code / ChatGPT 图标在 `src/assets/tools/`，Edge / SakuraCat 图标在 `public/icons/tools/` |
+| About 常用工具 | [`src/data/tools.ts`](src/data/tools.ts) 的名称、官网、双语说明与图标 | 复用 Axi 的 [`ToolSection.astro`](src/components/about/ToolSection.astro)；这是源码配置，当前没有后台表单。四款图标统一在 `src/assets/tools/`，通过 `?raw` 导入并内嵌为 SVG，不单独请求图片；来源见该目录 README |
 | 学术页面 | 后台“学术与项目” | [`AcademicPage.astro`](src/components/cms/AcademicPage.astro) |
 | 项目页面 | 后台“学术与项目”的项目列表 | [`src/pages/projects/index.astro`](src/pages/projects/index.astro) 与英文入口 |
 | 文章正文 | `src/content/blogs/<research|tech|daily>/<文章目录>/index.mdx` 或 `index.md` | 可选 `index-en.mdx`；配图放同目录，使用相对路径 |

@@ -269,11 +269,13 @@ invisible original: the reader groups those visible replies under a neutral
 placeholder using only a visible comment's ID and timestamp. It never exposes
 the unavailable original's content, author, timestamp or count of hidden replies.
 
-Soft deletion clears the stored body permanently and keeps only the nickname,
-timestamp, relationships, and hashes needed for abuse prevention/idempotency.
-Admin branch removal recursively clears bodies and hides the selected branch
-from every `comment_list` caller. It does not affect sibling roots or other
-threads. Account deletion nulls the private author ID and preserves discussion.
+Deleting a comment without replies physically removes its row. A comment with
+replies keeps only an anonymous placeholder: body, nickname, author association
+and request/body fingerprints are cleared. Deleting the last reply also removes
+empty erased ancestors. Admin branch removal physically deletes the selected
+comment and its descendants, including pending replies; sibling roots and other
+threads are unchanged. Account deletion nulls the private author ID and preserves
+the remaining discussion.
 
 ## Moderation visibility
 

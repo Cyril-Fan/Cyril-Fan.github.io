@@ -58,7 +58,7 @@ const ownerAvatar = profileAvatar(profile.avatar)
         <button type='button' data-markdown-preview-toggle aria-pressed='false'>{en ? 'Preview' : '预览'}</button>
         <span>Markdown</span>
       </div>
-      <label data-comment-input class='comment-body-label'>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='4' maxlength='4000' required placeholder={en ? 'Share a thought or say hello… Markdown formatting is supported.' : '分享想法，或来打个招呼… 支持 Markdown。'} aria-describedby='comment-guide'></textarea></label>
+      <label data-comment-input class='comment-body-label'>{en ? 'Your comment' : '留言内容'}<textarea name='body' rows='4' maxlength='4000' required placeholder={en ? 'Share a thought or say hello… Supports Markdown.' : '分享想法，或来打个招呼… 支持 Markdown。'} aria-describedby='comment-guide'></textarea></label>
       <div data-markdown-preview hidden class='comment-body comment-markdown comment-preview' tabindex='0' role='region' aria-label={en ? 'Comment preview' : '留言预览'}></div>
       <div class='comment-compose-foot'><div class='comment-compose-meta'><span data-counter aria-live='off'>0 / 2000</span><span class='comment-shortcut'>{en ? 'Ctrl / ⌘ + Enter to post' : 'Ctrl / ⌘ + Enter 发布'}</span></div><button type='submit' data-submit disabled>{en ? 'Post comment' : '发布留言'}</button></div>
       <p data-moderation-note hidden class='comment-note' aria-live='polite'>{en ? 'Your comment will be public after the site owner approves it. You can view or delete it while it is pending.' : '留言将在站长审核通过后公开；等待期间你可以查看或删除自己的留言。'}</p>

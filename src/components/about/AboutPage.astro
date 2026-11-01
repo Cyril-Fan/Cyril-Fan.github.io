@@ -24,7 +24,7 @@ const headings = [
   <ul>{lines(p.interests).map(item=><li>{item}</li>)}</ul>
   <Button title={en?'Visit my academic page':'查看学术主页'} class='w-fit' href={en?'/en/academic':'/academic'} style='ahead' />
   <h2 id='tools'>{en?'Tools':'常用工具'}<a class='anchor' href='#tools'>#</a></h2>
-  <ToolSection title={en?'Everyday tools':'日常使用'} tools={tools.map(tool=>({...tool,description:tool.description[en?'en':'zh']}))} />
+  <ToolSection title={en?'Productivity':'生产力'} tools={tools.map(tool=>({...tool,description:tool.description[en?'en':'zh']}))} />
   <h2 id='contact'>{en?'Contact':'联系我'}<a class='anchor' href='#contact'>#</a></h2>
   <p>{p.contactIntro}</p>
   <div class='not-prose flex flex-wrap gap-3'>

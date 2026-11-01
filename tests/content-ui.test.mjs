@@ -82,6 +82,25 @@ test('failed request retains edits and retries the exact idempotency key',async 
 test('sign-out clears forms and a late request cannot reveal private editor content',async t=>{
  const ui=await setup(t);await ui.open('首页与关于');ui.fill('zh.intro','Private text');ui.role('guest');await tick();assert.equal(ui.root.querySelector('[data-shell]').hidden,true);assert.equal(ui.root.querySelector('[data-editor]').textContent,'');assert.ok(!ui.root.textContent.includes('Private text'))
 })
+test('repeated exports release the previous backup URL while keeping image previews and local drafts',async t=>{
+ const ui=await setup(t),revoked=[];let next=0
+ ui.w.URL.createObjectURL=()=>`blob:fixture-${++next}`;ui.w.URL.revokeObjectURL=url=>revoked.push(url)
+ await ui.open('首页与关于');ui.fill('zh.intro','Private backup content')
+ ui.root.edit('public/media/local.webp','aW1hZ2U=','base64');await tick()
+ const image=await ui.root.imageUrl('/media/local.webp'),before=JSON.stringify([...ui.saved])
+ await ui.click('导出');const first=ui.root.querySelector('.cms-download').href
+ assert.notEqual(first,image);assert.deepEqual(revoked,[])
+ ui.root.querySelector('dialog').close();await ui.click('导出')
+ const current=ui.root.querySelector('.cms-download').href
+ assert.notEqual(current,first);assert.deepEqual(revoked,[first])
+ assert.equal(await ui.root.imageUrl('/media/local.webp'),image)
+ assert.match(ui.root.querySelector('[aria-label="备份内容"]').value,/Private backup content/)
+ assert.equal(JSON.stringify([...ui.saved]),before,'Export URL cleanup cannot change stored drafts')
+ ui.role('guest');await tick()
+ assert.deepEqual(new Set(revoked),new Set([first,image,current]),'Leaving the editor releases the remaining temporary URLs')
+ assert.equal(JSON.stringify([...ui.saved]),before)
+})
+
 test('local recovery creates an independent tab copy and preserves the old one',async t=>{
  const saved=new Map(),a=await setup(t,{saved});await a.open('首页与关于');a.fill('zh.intro','Restore this');await tick();const first=[...saved.keys()][0]
  const b=await setup(t,{saved});await b.click('恢复本地副本');await b.click('恢复此副本');assert.equal(b.root.querySelector('[name="zh.intro"]').value,'Restore this');assert.ok(saved.has(first));assert.equal(saved.size,2)
