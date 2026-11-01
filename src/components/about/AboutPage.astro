@@ -11,7 +11,7 @@ const en = Astro.currentLocale === 'en', p = profile[en ? 'en' : 'zh']
 const headings = [
   {depth:2,slug:'about-me',text:en?'About Me':'关于我'},
   {depth:2,slug:'interests',text:en?'Research Interests':'研究兴趣'},
-  {depth:2,slug:'tools',text:en?'Tools':'常用工具'},
+  {depth:2,slug:'tools',text:en?'Tools':'工具'},
   {depth:2,slug:'contact',text:en?'Contact':'联系我'},
   {depth:2,slug:'comments',text:en?'Conversation':'留言与交流'}
 ]
@@ -23,7 +23,7 @@ const headings = [
   <h2 id='interests'>{headings[1].text}<a class='anchor' href='#interests'>#</a></h2>
   <ul>{lines(p.interests).map(item=><li>{item}</li>)}</ul>
   <Button title={en?'Visit my academic page':'查看学术主页'} class='w-fit' href={en?'/en/academic':'/academic'} style='ahead' />
-  <h2 id='tools'>{en?'Tools':'常用工具'}<a class='anchor' href='#tools'>#</a></h2>
+  <h2 id='tools'>{en?'Tools':'工具'}<a class='anchor' href='#tools'>#</a></h2>
   <ToolSection title={en?'Productivity':'生产力'} tools={tools.map(tool=>({...tool,description:tool.description[en?'en':'zh']}))} />
   <h2 id='contact'>{en?'Contact':'联系我'}<a class='anchor' href='#contact'>#</a></h2>
   <p>{p.contactIntro}</p>
