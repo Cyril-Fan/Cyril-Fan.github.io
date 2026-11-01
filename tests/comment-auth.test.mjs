@@ -116,7 +116,7 @@ function runtime({ env = configuredEnv, href = 'https://cyril-fan.top/blog/note'
     }
   }
 
-  function mount(component) {
+  function mount(component, dataset = {}) {
     const content = readFileSync(path.join(project, 'src/components/advanced', component), 'utf8')
     const script = content.match(/<script>([\s\S]*?)<\/script>/)?.[1]
     assert.ok(script)
@@ -127,12 +127,41 @@ function runtime({ env = configuredEnv, href = 'https://cyril-fan.top/blog/note'
     )
     const name = component === 'CommentAuth.astro' ? 'comment-auth' : 'auth-confirm'
     const element = new (elements.get(name))()
+    Object.assign(element.dataset, dataset)
     element.connectedCallback()
     return element
   }
 
   return { api: module.exports, provider, recoveryProviders, calls, window, mount, values, setSession: provider.setSession, setRecoverySession(session) { recoveryProviders.at(-1)?.setSession(session) } }
 }
+
+test('owner sign-in is available on a direct admin visit and after signing out', async () => {
+  const instance = runtime()
+  const element = instance.mount('CommentAuth.astro', { context: 'admin' })
+  await tick()
+  assert.equal(element.querySelector('[data-guest]').hidden, false)
+  assert.equal(element.querySelector('fieldset').disabled, false)
+  assert.match(element.querySelector('[data-account]').textContent, /站长账号/)
+  element.querySelector('[name=email]').value = 'owner@example.com'
+  element.querySelector('[name=password]').value = 'isolated-only'
+  await element.submit({ preventDefault() {} }); await tick()
+  assert.equal(element.querySelector('[data-guest]').hidden, true)
+  assert.match(element.querySelector('[data-message]').textContent, /内容编辑器/)
+  await element.signOut(); await tick()
+  assert.equal(element.querySelector('[data-guest]').hidden, false)
+  assert.match(element.querySelector('[data-message]').textContent, /本地副本保留/)
+  element.disconnectedCallback()
+})
+
+test('comment sign-in remains collapsed until the visitor requests it', async () => {
+  const instance = runtime()
+  const element = instance.mount('CommentAuth.astro', { context: 'comments' })
+  await tick()
+  assert.equal(element.querySelector('[data-guest]').hidden, true)
+  element.dispatchEvent(new Event('comment-auth-open'))
+  assert.equal(element.querySelector('[data-guest]').hidden, false)
+  element.disconnectedCallback()
+})
 
 test('missing or privileged public configuration stays disabled without creating a client', () => {
   for (const env of [ {}, { ...configuredEnv, PUBLIC_SUPABASE_ANON_KEY: 'sb_secret_private' }, {

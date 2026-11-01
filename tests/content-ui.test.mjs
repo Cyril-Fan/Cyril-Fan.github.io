@@ -91,6 +91,50 @@ test('Markdown toolbar uses the selection and previews math without scripts',asy
  area.value='$$\nx^2\n$$\n\n<script>bad()</script>';area.dispatchEvent(new ui.w.Event('input',{bubbles:true}));await new Promise(r=>setTimeout(r,210));assert.ok(ui.root.querySelector('.cms-md-preview .katex'));assert.equal(ui.root.querySelector('.cms-md-preview script'),null)
 })
 
+test('writing mode has an explicit initial selection and follows preview/edit controls',async t=>{
+ const ui=await setup(t);await ui.open('学术与项目')
+ const compose=ui.root.querySelector('.content-compose'),tabs=compose.querySelector('.cms-preview-tabs')
+ assert.equal(tabs.querySelector('[aria-pressed=true]').dataset.mode,'split')
+ tabs.querySelector('[data-mode=preview]').click();await tick()
+ assert.equal(compose.dataset.mode,'preview');assert.equal(tabs.querySelectorAll('[aria-pressed=true]').length,1)
+ ui.w.innerWidth=430;await ui.open('首页与关于')
+ assert.equal(ui.root.querySelector('.content-compose').dataset.mode,'edit')
+ assert.equal(ui.root.querySelector('.cms-preview-tabs [aria-pressed=true]').dataset.mode,'edit')
+})
+
+test('academic title and order update without collapsing an open item or losing its fields',async t=>{
+ const ui=await setup(t);await ui.open('学术与项目')
+ const section=ui.root.querySelector('.cms-array')
+ const rows=()=>[...section.querySelectorAll(':scope > div > details')]
+ const first=rows()[0],second=rows()[1];first.open=second.open=true
+ first.dispatchEvent(new ui.w.Event('toggle'));second.dispatchEvent(new ui.w.Event('toggle'))
+ ui.fill('zh.interests.1.title','Isolated interest')
+ assert.match(second.querySelector('summary').textContent,/Isolated interest/)
+ assert.equal(first.querySelector('[aria-label="上移"]').disabled,true)
+ second.querySelector('[aria-label="上移"]').click();await tick()
+ assert.match(rows()[0].querySelector('summary').textContent,/1\. Isolated interest/)
+ assert.equal(rows()[0].open,true);assert.equal(rows()[1].open,true)
+ assert.equal(ui.w.document.activeElement,rows()[0].querySelector('summary'))
+ assert.equal(rows().at(-1).querySelector('[aria-label="下移"]').disabled,true)
+ assert.equal(JSON.parse([...ui.saved.values()].at(-1).files[0].content).zh.interests[0].title,'Isolated interest')
+ assert.ok(!ui.calls.some(c=>c.action==='publish'))
+})
+
+test('image refresh reflects GitHub additions and deletions while retaining local images',async t=>{
+ const ui=await setup(t),old='public/media/old.webp',fresh='public/media/fresh.webp'
+ ui.files.set(old,{path:old,content:'b2xk',encoding:'base64',sha:'a'.repeat(40)})
+ await ui.click('刷新');await ui.open('图片')
+ assert.ok(ui.root.querySelector('[data-editor]').textContent.includes(old))
+ ui.root.edit('public/media/local.webp','bG9jYWw=','base64');await tick()
+ ui.files.delete(old);ui.files.set(fresh,{path:fresh,content:'bmV3',encoding:'base64',sha:'b'.repeat(40)})
+ await ui.click('刷新')
+ const text=ui.root.querySelector('[data-editor]').textContent
+ assert.ok(text.includes(fresh));assert.ok(text.includes('public/media/local.webp'));assert.ok(!text.includes(old))
+ const search=ui.root.querySelector('[data-search]');search.value='no-matching-image';search.dispatchEvent(new ui.w.Event('input'));await tick()
+ assert.match(ui.root.querySelector('.cms-media-grid').textContent,/没有匹配的图片/)
+ assert.ok([...ui.saved.values()].some(s=>s.files.some(f=>f.path==='public/media/local.webp')))
+})
+
 test('blog folders contain articles and collections and creation is local with no language selector',async t=>{
  const ui=await setup(t);await ui.click('博客')
  assert.equal(ui.root.querySelectorAll('.cms-folder').length,3)

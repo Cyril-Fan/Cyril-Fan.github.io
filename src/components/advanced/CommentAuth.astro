@@ -9,7 +9,7 @@ const { lang = 'zh', id = 'comment-auth', context = 'comments' } = Astro.props
 const en = lang === 'en'
 ---
 
-<comment-auth data-lang={lang} class='not-prose block'>
+<comment-auth data-lang={lang} data-context={context} class='not-prose block'>
   <div class='auth-session-row'>
   <p data-account class='text-sm text-muted-foreground' aria-live='polite'>
     {en ? 'Checking account service…' : '正在检查账户服务…'}
@@ -29,7 +29,7 @@ const en = lang === 'en'
       <button type='button' data-mode='signup' aria-pressed='false' class='auth-action' hidden={context === 'admin'}>{en ? 'Create account' : '注册'}</button>
       <button type='button' data-mode='recover' aria-pressed='false' class='auth-action'>{en ? 'Forgot password' : '找回密码'}</button>
       <button type='button' data-mode='resend' aria-pressed='false' class='auth-action'>{en ? 'Resend verification' : '重发验证邮件'}</button>
-      <button type='button' data-auth-close class='auth-action'>{en ? 'Close' : '收起'}</button>
+      <button type='button' data-auth-close class='auth-action' hidden={context === 'admin'}>{en ? 'Close' : '收起'}</button>
     </div>
     <form method='post' class='mt-4 grid gap-3' data-auth-form>
       <fieldset class='grid gap-3' disabled>
@@ -88,6 +88,7 @@ const en = lang === 'en'
 
     connectedCallback() {
       if (this.controller) return
+      if (this.dataset.context === 'admin') this.guestExpanded = true
       this.controller = new AbortController()
       const { signal } = this.controller
       this.hidePasswords = bindPasswordVisibility(this, this.language, signal)
@@ -196,7 +197,9 @@ const en = lang === 'en'
           ? user.email_confirmed_at
             ? this.say('已登录 · 邮箱已验证', 'Signed in · Email verified')
             : this.say('已登录，但邮箱尚未验证。请先完成邮件验证，或退出后重发验证邮件。', 'Signed in, but your email is not verified. Confirm your email, or sign out to resend verification.')
-          : this.say('登录后可以发布、回复和管理自己的评论。', 'Sign in to post, reply, and manage your comments.')
+          : this.dataset.context === 'admin'
+            ? this.say('使用站长账号登录，继续编辑网站内容。', 'Sign in with the owner account to edit website content.')
+            : this.say('登录后可以发布、回复和管理自己的评论。', 'Sign in to post, reply, and manage your comments.')
       } catch (error) {
         if (!this.isConnected || version !== this.stateVersion) return
         this.field<HTMLElement>('[data-account]').textContent = this.say('暂时无法检查登录状态，填写内容已保留。', 'Your sign-in status could not be checked. Your input is preserved.')
@@ -243,7 +246,7 @@ const en = lang === 'en'
             return
           }
           passwordField.value = ''
-          this.message(this.say('登录成功。评论草稿已保留。', 'Signed in. Your comment draft is preserved.'))
+          this.message(this.dataset.context === 'admin' ? this.say('登录成功，正在读取内容编辑器。', 'Signed in. Loading the content editor.') : this.say('登录成功。评论草稿已保留。', 'Signed in. Your comment draft is preserved.'))
           emitCommentAuthChange(data.user.id)
         } else {
           this.mailCooldownUntil = Date.now() + 60_000
@@ -282,7 +285,7 @@ const en = lang === 'en'
         const { error } = await client.auth.signOut({ scope: 'local' })
         if (!this.isConnected || connection !== this.controller) return
         if (error) throw error
-        this.message(this.say('已退出当前设备，并清除本页的留言草稿。', 'Signed out on this device. This page’s comment draft has been cleared.'))
+        this.message(this.dataset.context === 'admin' ? this.say('已退出登录。已暂存的本地副本保留，重新登录后可恢复。', 'Signed out. Saved local copies are kept and can be restored after signing in again.') : this.say('已退出当前设备，并清除本页的留言草稿。', 'Signed out on this device. This page’s comment draft has been cleared.'))
         emitCommentAuthChange(null)
       } catch (error) {
         if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)

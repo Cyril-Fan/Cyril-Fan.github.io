@@ -12,6 +12,8 @@
 .cms-compose-panes { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:.75rem 0; align-items:start; }
 .cms-compose-panes>* { min-width:0; margin:0!important; min-height:26rem!important; max-height:70vh; overflow:auto; }
 .cms-preview-tabs { display:flex; gap:.5rem; margin:.75rem 0; }
+.cms-preview-tabs button[aria-pressed=true] { background:hsl(var(--muted));border-color:hsl(var(--primary)/.55);color:hsl(var(--primary));font-weight:600; }
+.content-compose[data-mode=preview]>.cms-toolbar { display:none; }
 .content-compose[data-mode=edit] .cms-md-preview,.content-compose[data-mode=preview] .cms-md-editor { display:none; }
 .content-compose[data-mode=edit] .cms-compose-panes,.content-compose[data-mode=preview] .cms-compose-panes { grid-template-columns:1fr; }
 .cms-metadata { margin:0 0 1.25rem; }
@@ -41,7 +43,7 @@
 .cms-page button:disabled { opacity:.45; cursor:not-allowed; }
 .cms-page button[aria-busy=true]::after { content:' …'; }
 .cms-page :is(button,input,textarea,select,summary,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
-.cms-page .cms-primary { background:hsl(var(--foreground)); color:hsl(var(--background)); border-color:hsl(var(--foreground)); }
+.cms-page :is(.cms-primary,.auth-primary) { background:hsl(var(--foreground)); color:hsl(var(--background)); border-color:hsl(var(--foreground)); }
 .cms-page .cms-danger { color:#d75151; }
 .cms-nav { display:flex; flex-wrap:wrap; gap:.35rem; padding-bottom:1rem; border-bottom:1px solid hsl(var(--border)); }
 .cms-nav button { border-color:transparent; }
@@ -96,6 +98,7 @@
 .cms-friend-preview { display:flex; gap:1rem; align-items:center; padding:1rem; border:1px solid hsl(var(--border)); border-radius:.7rem; }
 .cms-friend-preview img { width:3.5rem; height:3.5rem; object-fit:cover; border-radius:50%; }
 .cms-media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr)); gap:1rem; margin-top:1rem; }
+.cms-media-grid>.cms-empty { grid-column:1/-1; }
 .cms-media-card { border:1px solid hsl(var(--border)); border-radius:.6rem; padding:.75rem; display:flex; flex-direction:column; gap:.6rem; min-width:0; overflow:hidden; }
 .cms-media-card>* { min-width:0;max-width:100%; }
 .cms-media-thumb { position:relative;width:100%;aspect-ratio:4/3;overflow:hidden;background:hsl(var(--muted));border-radius:.3rem;display:grid;place-items:center; }

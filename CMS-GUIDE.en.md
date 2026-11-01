@@ -1,13 +1,13 @@
 # GitHub content editor
 [中文](CMS-GUIDE.md) · [Open editor](https://cyril-fan.top/en/admin/) · [File map](SITE-CONTENT-MAP.md)
 
-Sign in with the existing owner account. The editor reads the original GitHub files. Supabase retains accounts, comments, user avatars and page views; it no longer stores a duplicate content library.
+Sign in with the existing owner account. The editor shows the sign-in form directly when signed out, with password recovery and verification-email options. It reads the original GitHub files. Supabase retains accounts, comments, user avatars and page views; it no longer stores a duplicate content library.
 
 ## Editing and publishing
 
 1. Choose Home & About, Blog, Academic, Friends or Images. Fixed forms open directly. Blog contains Research, Technical and Daily Life folders, each with articles and collections.
 2. Open a file or create content. Edits and new images are automatically saved in this browser, without changing GitHub.
-3. Use the Markdown toolbar. Articles open with the editor on the left and the current full article preview on the right; on phones switch between Edit and Article preview. Tools use the text selection or cursor.
+3. Use the Markdown toolbar. Articles open with the editor on the left and the current full article preview on the right; phones start in Edit mode. Switch between Edit and Article preview; the active mode is highlighted. Preview-only mode hides formatting tools. Tools use the text selection or cursor.
 4. Choose Review & publish, inspect the original/local comparison and select the files to submit. Include new images referenced by selected content.
 5. Submit the selection as one Git commit. “Committed to GitHub · building” is separate from “Published live”; the latter requires the live release marker.
 
@@ -29,7 +29,11 @@ Ctrl/Cmd+S saves locally. Browsers may warn before leaving, but forced mobile sh
 - Friends: edit the canonical JSON, upload/choose avatars, add optional feeds. Names always display in dictionary order.
 - Academic: bilingual background, CV, interests, complete publication/author/link fields and projects with images, status and ordering.
 
+Academic item headings update as you type. Reordering keeps the item expanded, unavailable directions are disabled, and adding an item opens it and focuses its first input.
+
 ## Images and deletion
+
+Reload GitHub updates the current image list while preserving local edits. A search with no results provides a clear prompt to change or clear the query.
 
 Static uploads use lossless WebP at the original resolution; transparency is retained without automatic resizing. GIF, APNG, animated WebP and AVIF keep their original bytes. Content-addressed filenames prevent stale caches and duplicate uploads. Replace an image and selected references together; the default cleanup option stages deletion of an original only when all references have been updated. Shared originals remain protected. New image, content references and safe deletion publish atomically. Use Clean unused local images to discard unattached browser uploads. Original files on your computer are untouched.
 

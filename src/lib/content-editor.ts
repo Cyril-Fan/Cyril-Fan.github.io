@@ -147,7 +147,7 @@ export class ContentEditor extends HTMLElement{
   private async refresh(){
     if(!this.owner)return
     const snapshot=await this.call('list');this.entries=snapshot.entries;this.head=snapshot.head;this.remote.clear();await this.loadTextFiles()
-    this.renderList();if(this.current)await this.open(this.current);this.notice(this.t('已重新读取 GitHub；本地修改仍保留。','GitHub refreshed. Local edits are preserved.'))
+    this.renderList();if(this.view==='media')await this.mediaLibrary();else if(this.current)await this.open(this.current);this.notice(this.t('已重新读取 GitHub；本地修改仍保留。','GitHub refreshed. Local edits are preserved.'))
   }
   private file(path=this.current):LocalFile|Remote|undefined{return this.space?.files.find(f=>f.path===path)||this.remote.get(path)}
   private edit(path:string,content:string|null,encoding:'utf-8'|'base64'='utf-8'){
@@ -297,14 +297,18 @@ export class ContentEditor extends HTMLElement{
       if(f.type==='list'){
         value[f.key]??=[];const section=el('section','','cms-array');section.append(el('h3',title))
         const rows=el('div');section.append(rows)
+        const expanded=new Set<any>()
         const render=()=>{rows.replaceChildren();value[f.key].forEach((item:any,i:number)=>{
-          const row=el('details','','cms-row');row.open=false;row.append(el('summary',(i+1)+'. '+(item.title||item.name||item.type||title)))
+          const row=el('details','','cms-row'),summary=el('summary');row.open=expanded.has(item)
+          const updateTitle=()=>{summary.textContent=(i+1)+'. '+(item.title||item.name||item.type||title)};updateTitle();row.append(summary)
+          row.addEventListener('toggle',()=>{if(row.isConnected){if(row.open)expanded.add(item);else expanded.delete(item)}})
           const controls=el('div','','cms-row-footer')
-          const move=(delta:number)=>{const j=i+delta;if(j<0||j>=value[f.key].length)return;[value[f.key][i],value[f.key][j]]=[value[f.key][j],value[f.key][i]];changed();render()}
-          controls.append(this.btn('↑',()=>move(-1)),this.btn('↓',()=>move(1)),this.btn(this.t('移除','Remove'),async()=>{if(await this.confirm(this.t('移除此条目？','Remove this item?'),[item.title||item.name||title])){value[f.key].splice(i,1);changed();render()}}))
-          row.append(this.form(f.fields!,item,changed,prefix+f.key+'.'+i+'.'),controls);rows.append(row)
+          const move=(delta:number)=>{const j=i+delta;if(j<0||j>=value[f.key].length)return;expanded.add(item);[value[f.key][i],value[f.key][j]]=[value[f.key][j],value[f.key][i]];changed();render();rows.children[j]?.querySelector<HTMLElement>('summary')?.focus()}
+          for(const [delta,label]of [[-1,this.t('上移','Move up')],[1,this.t('下移','Move down')]] as const){const button=this.btn(delta===-1?'↑':'↓',()=>move(delta));button.title=label;button.setAttribute('aria-label',label);button.disabled=i+delta<0||i+delta>=value[f.key].length;controls.append(button)}
+          controls.append(this.btn(this.t('移除','Remove'),async()=>{if(await this.confirm(this.t('移除此条目？','Remove this item?'),[item.title||item.name||title])){value[f.key].splice(i,1);expanded.delete(item);changed();render()}}))
+          row.append(this.form(f.fields!,item,()=>{changed();updateTitle()},prefix+f.key+'.'+i+'.'),controls);rows.append(row)
         })};render()
-        const footer=el('div','','cms-row-footer');footer.append(this.btn(this.t('添加条目','Add item'),()=>{const defaults=(fields:Field[]):any=>Object.fromEntries(fields.map(x=>[x.key,x.type==='group'?defaults(x.fields!):x.type==='list'?[]:x.type==='checkbox'?false:x.type==='select'?x.options?.[0]||'':x.type==='number'?undefined:'']));value[f.key].push(defaults(f.fields!));changed();render();(rows.lastElementChild as HTMLDetailsElement).open=true}));section.append(footer);box.append(section);continue
+        const footer=el('div','','cms-row-footer');footer.append(this.btn(this.t('添加条目','Add item'),()=>{const defaults=(fields:Field[]):any=>Object.fromEntries(fields.map(x=>[x.key,x.type==='group'?defaults(x.fields!):x.type==='list'?[]:x.type==='checkbox'?false:x.type==='select'?x.options?.[0]||'':x.type==='number'?undefined:'']));const item=defaults(f.fields!);value[f.key].push(item);expanded.add(item);changed();render();rows.lastElementChild?.querySelector<HTMLInputElement>('input')?.focus()}));section.append(footer);box.append(section);continue
       }
       const label=el('label',title),id='field-'+prefix+f.key
       if(f.type==='markdown'){const area=this.markdownArea(String(value[f.key]||''),text=>{value[f.key]=text;changed()});const input=area.querySelector('textarea')!;input.id=id;label.htmlFor=id;const group=el('div');group.append(label,area);box.append(group);continue}
@@ -345,7 +349,7 @@ export class ContentEditor extends HTMLElement{
       for(const group of data.friends){
         const rows=el('div','','cms-form');target.append(rows)
         const render=()=>{rows.replaceChildren();group.link_list.sort((a:any,b:any)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'}));group.link_list.forEach((f:any,i:number)=>{
-          const section=el('details');section.append(el('summary',f.name||this.t('新友链','New friend')),this.form(friendFields,f,changed,'friend.'+i+'.'))
+          const section=el('details'),summary=el('summary',f.name||this.t('新友链','New friend'));section.append(summary,this.form(friendFields,f,()=>{changed();summary.textContent=f.name||this.t('新友链','New friend')},'friend.'+i+'.'))
           const footer=el('div','','cms-row-footer');footer.append(this.btn(this.t('删除这条友链','Delete this friend'),async()=>{if(await this.confirm(this.t('删除友链？','Delete friend?'),[f.name,f.link,path])){group.link_list.splice(i,1);changed();render()}},'cms-danger'));section.append(footer);rows.append(section)
         })};render()
         const add=el('div','','cms-row-footer');target.append(add);add.append(this.btn(this.t('添加友链','Add friend'),()=>{const friend={name:'',intro:'',link:'https://',avatar:'',feed:''};group.link_list.push(friend);changed();render();(rows.children[group.link_list.indexOf(friend)] as HTMLDetailsElement).open=true}))
@@ -452,8 +456,9 @@ export class ContentEditor extends HTMLElement{
     for(const [label,before,after,sample]of commands)tools.append(this.btn(label,()=>insert(before,after,sample)))
     tools.append(this.btn(this.t('图片','Image'),()=>this.imagePicker(path=>insert('\n![',']('+path+')\n\n*'+this.t('图片说明','Caption')+'*\n',this.t('替代文字','Alt text')))))
     const examples=el('details','','cms-examples');examples.append(el('summary',this.t('语法与示例','Syntax & examples')),el('p',this.t('支持 Markdown、GFM 表格/任务/脚注、数学公式，以及 :::note / tip / caution / danger、:::details、:::steps。MDX 仅支持不含脚本的静态 Aside、Collapse、Spoiler、Steps；不执行 import、表达式或事件属性。','Markdown, GFM tables/tasks/footnotes, math, :::note / tip / caution / danger, :::details and :::steps. MDX accepts static Aside, Collapse, Spoiler and Steps only; imports, expressions and event handlers do not execute.')))
-    for(const [mode,label]of [['edit',this.t('编辑','Edit')],['preview',articlePath?this.t('文章预览','Article preview'):this.t('预览','Preview')],['split',this.t('并排','Split')]])tabs.append(this.btn(label,()=>{wrap.dataset.mode=mode;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===label)))}))
-    wrap.dataset.mode='split'
+    const setMode=(mode:string)=>{wrap.dataset.mode=mode;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)))}
+    for(const [mode,label]of [['edit',this.t('编辑','Edit')],['preview',articlePath?this.t('文章预览','Article preview'):this.t('预览','Preview')],['split',this.t('并排','Split')]]){const b=this.btn(label,()=>setMode(mode));b.dataset.mode=mode;tabs.append(b)}
+    setMode(window.innerWidth<768?'edit':'split')
     area.addEventListener('input',()=>{change(area.value);clearTimeout(this.previewTimer);this.previewTimer=window.setTimeout(render,180)})
     if(articlePath){preview.className='cms-md-preview cms-article-preview';preview.setAttribute('aria-label',this.t('文章整体预览','Full article preview'));this.inlinePreviewDispose=this.mountArticlePreview(preview,articlePath,true)}
     panes.append(area,preview);wrap.append(tools,tabs,panes,examples);render();return wrap
@@ -778,6 +783,7 @@ export class ContentEditor extends HTMLElement{
     const query=select?'':this.q<HTMLInputElement>('[data-search]').value.toLowerCase()
     const paths=[...new Set([...this.entries.filter(e=>e.kind==='media').map(e=>e.path),...this.space!.files.filter(f=>pathKind(f.path)==='media').map(f=>f.path)])].filter(p=>(p+' '+this.imageLabel(p)).toLowerCase().includes(query)&&(!select||this.file(p)?.content!==null))
     const previews:Array<()=>Promise<void>>=[]
+    if(!paths.length)grid.append(el('p',query?this.t('没有匹配的图片。试试其他名称或清除搜索。','No matching images. Try another name or clear the search.'):this.t('还没有网站图片，可上传本机图片。','No website images yet. Upload an image to begin.'),'cms-empty'))
     for(const path of paths){
       if(!grid.isConnected)return
       if(this.file(path)?.content===null){const card=el('section','','cms-media-card');card.append(el('p',path),el('p',this.t('待删除 · 发布前可撤销','To delete · undo before publishing'),'cms-muted'),this.btn(this.t('撤销删除','Undo deletion'),()=>this.discard(path)));grid.append(card);continue}
