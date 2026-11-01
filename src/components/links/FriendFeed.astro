@@ -26,9 +26,9 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       <button type='button' data-close-random class='feed-close' aria-label={en?'Close random recommendation':'收起随机推荐'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button>
     </section>
     <div class='feed-articles' role='list' aria-label={en?'Recent posts':'近期文章'}>
-      {articles.map(article => {
+      {articles.map((article, index) => {
         const friend = sourceMap.get(article.source)
-        return friend && <article class='feed-article' role='listitem' data-feed-article data-source={friend.link}>
+        return friend && <article class='feed-article' role='listitem' data-feed-article data-source={friend.link} hidden={index >= 10}>
           <button class='feed-author' type='button' data-author={friend.link} data-name={friend.name} aria-label={en ? `Recent posts by ${friend.name}` : `查看 ${friend.name} 的近期文章`}>
             <img class='no-lightbox' src={friend.avatar} width='40' height='40' alt='' loading='lazy' />
             <span>{friend.name}</span>
@@ -67,7 +67,8 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       const dialog = this.querySelector<HTMLDialogElement>('dialog')!
       const more = this.querySelector<HTMLButtonElement>('[data-load-more]')
       const status = this.querySelector<HTMLElement>('[data-feed-status]')
-      let count = 8
+      const pageSize = 10
+      let count = pageSize
       let lastRandom = -1
       let opener: HTMLElement | null = null
       let statusTimer:number|undefined
@@ -119,7 +120,11 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       }
       this.addEventListener('click', async event => {
         const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button') : null
-        if (button?.hasAttribute('data-load-more')) { count += 8; paginate() }
+        if (button?.hasAttribute('data-load-more')) {
+          const next = cards[count]?.querySelector<HTMLAnchorElement>('.feed-title')
+          count += pageSize; paginate()
+          if (event.detail === 0) next?.focus({ preventScroll:true })
+        }
         if (button?.hasAttribute('data-random-refresh')) random()
         if (button?.hasAttribute('data-close-random')) {
           this.querySelector<HTMLElement>('[data-random-panel]')!.hidden=true
@@ -161,6 +166,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   }
   if (!customElements.get('friend-feed')) customElements.define('friend-feed', FriendFeed)
 </script>
+<noscript><style>friend-feed [data-feed-article][hidden] { display:grid!important; }</style></noscript>
 <style>
   friend-feed { display:block; }
   [hidden] { display:none!important; }
@@ -181,14 +187,14 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .feed-author { display:flex; align-items:center; gap:.5rem; text-align:start; font-size:.78rem; color:hsl(var(--muted-foreground)); min-height:2.75rem; overflow-wrap:anywhere; }
   .feed-author img { border-radius:50%; width:1.8rem; height:1.8rem; object-fit:cover; flex-shrink:0; }
   .feed-title { overflow-wrap:anywhere; line-height:1.6; font-size:.9rem; }
-  .feed-article time { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:.7rem; }
+  .feed-article time { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:.75rem; }
   button { transition:color .2s, background-color .2s; }
   button:hover, a:hover { color:hsl(var(--primary)); }
   :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; border-radius:.3rem; }
   .feed-more, .random-card>button { border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.55rem .8rem; min-height:2.75rem; }
   .feed-more { display:block; margin:.85rem auto .4rem; padding:.3rem .8rem; min-height:2.15rem; }
   [data-feed-status] { text-align:center; margin-top:.75rem; }
-  .feed-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.4rem 1rem; margin:.85rem 0; font-size:.7rem; color:hsl(var(--muted-foreground)); }
+  .feed-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.4rem 1rem; margin:.85rem 0; font-size:.75rem; color:hsl(var(--muted-foreground)); }
   [data-feed-checked] { margin-left:auto; text-align:right; }
   [data-feed-update], [data-feed-stale] { flex-basis:100%; }
   .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }

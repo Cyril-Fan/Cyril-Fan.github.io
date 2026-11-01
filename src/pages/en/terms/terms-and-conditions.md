@@ -16,4 +16,4 @@ Comments support Markdown, including headings, lists, tables, quotes, code, foot
 
 When citing a page, preserve the author, source link and context. See the [copyright notice](/en/terms/copyright) for republication and other uses. Please do not impersonate the author, remove attribution or disrupt normal access.
 
-Pages and features may change as the site is maintained. For corrections, broken links or permission requests, contact [1943480241@qq.com](mailto:1943480241@qq.com). See [Privacy](/en/terms/privacy-policy) for data handling details.
+Pages and features may change as the site is maintained. For corrections, broken links or permission requests, use the [contact details on the About page](/en/about#contact). See [Privacy](/en/terms/privacy-policy) for data handling details.

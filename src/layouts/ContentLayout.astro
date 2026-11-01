@@ -9,9 +9,10 @@ interface Props {
   meta: SiteMeta
   highlightColor?: string
   back?: string
+  progressEnd?: string
 }
 
-const { meta, highlightColor, ...props } = Astro.props
+const { meta, highlightColor, progressEnd, ...props } = Astro.props
 ---
 
 <PageLayout {meta} {highlightColor} {...props}>
@@ -51,7 +52,7 @@ const { meta, highlightColor, ...props } = Astro.props
     </aside>
   </main>
 
-  <BackToTop header='content-header' content='content' />
+  <BackToTop header='content-header' content='content' end={progressEnd} />
 </PageLayout>
 
 <style>

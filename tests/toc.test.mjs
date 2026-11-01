@@ -12,6 +12,42 @@ const compiled = ts.transpileModule(script, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
 }).outputText
 
+const backScript = readFileSync(new URL('../src/components/pages/BackToTop.astro', import.meta.url), 'utf8').match(/<script is:inline[^>]*>([\s\S]*?)<\/script>/)[1]
+function readingProgress(t, boundary = true) {
+  const dom = new JSDOM('<h1 id="header">Title</h1><article id="content"><h2 id="feed">Feed</h2></article><button id="to-top-btn"><span class="text">0</span></button>', {runScripts:'outside-only'})
+  t.after(()=>dom.window.close())
+  const w=dom.window, frames=[], geometry={y:100,top:100,end:2100,bottom:6000,height:800}, calls=[]
+  Object.defineProperty(w,'scrollY',{get:()=>geometry.y});Object.defineProperty(w,'innerHeight',{get:()=>geometry.height})
+  const content=w.document.getElementById('content'),feed=w.document.getElementById('feed'),button=w.document.getElementById('to-top-btn')
+  content.getBoundingClientRect=()=>({top:geometry.top-geometry.y,bottom:geometry.bottom-geometry.y})
+  feed.getBoundingClientRect=()=>({top:geometry.end-geometry.y})
+  w.requestAnimationFrame=fn=>{frames.push(fn);return frames.length}
+  w.ResizeObserver=class{constructor(fn){this.fn=fn}observe(){}}
+  w.IntersectionObserver=class{constructor(fn){this.fn=fn}observe(){this.fn([{isIntersecting:false}])}}
+  w.matchMedia=()=>({matches:true});w.scrollTo=options=>calls.push(options)
+  w.Function('headerName','contentName','endName','needPercent',backScript)('header','content',boundary?'feed':undefined,true)
+  const update=()=>{w.document.dispatchEvent(new w.Event('scroll'));while(frames.length)frames.shift()()}
+  return {w,geometry,button,calls,update,value:()=>Number(button.querySelector('.text').textContent)}
+}
+
+test('reading progress ends before the feed and does not regress as more posts load',t=>{
+  const p=readingProgress(t)
+  assert.equal(p.value(),0)
+  p.geometry.y=700;p.update();assert.equal(p.value(),50)
+  p.geometry.y=1300;p.update();assert.equal(p.value(),100)
+  p.geometry.bottom=12000;p.update();assert.equal(p.value(),100)
+  p.geometry.y=5000;p.update();assert.equal(p.value(),100)
+  p.geometry.y=0;p.update();assert.equal(p.value(),0)
+})
+
+test('reading progress responds to viewport and image layout changes and honors reduced motion',t=>{
+  const p=readingProgress(t,false)
+  p.geometry.y=2650;p.update();assert.equal(p.value(),50)
+  p.geometry.bottom=7000;p.update();assert.equal(p.value(),42)
+  p.geometry.height=1800;p.update();assert.equal(p.value(),50)
+  p.button.click();assert.deepEqual(JSON.parse(JSON.stringify(p.calls)),[{behavior:'auto',top:0}])
+})
+
 function setup(context, { content = true, reducedMotion = false, includeComments = false } = {}) {
   const links = ['first', 'missing', 'second', 'third', ...(includeComments ? ['comments'] : [])].map((id) =>
     `<li><div><span data-toc-progress></span><a href="#${id}">${id}</a></div></li>`

@@ -10,4 +10,4 @@ This is Cyril Fan's personal website and learning notebook. The content reflects
 
 Technical and research notes may be revised as learning progresses. Before reproducing an experiment or using code, check the original sources, your environment and your intended use. Linked websites maintain their own content and availability.
 
-To report a factual error, citation issue or broken page, email [1943480241@qq.com](mailto:1943480241@qq.com) with the page address and specific details.
+To report a factual error, citation issue or broken page, use the [contact details on the About page](/en/about#contact) and include the page address and specific details.

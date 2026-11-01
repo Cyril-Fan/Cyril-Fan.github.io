@@ -142,16 +142,27 @@ test('manual feed UI refresh replaces only reading rows and restores pagination 
  const dom=new JSDOM(`<friend-feed data-lang="zh"><script data-feed-data type="application/json">${JSON.stringify(initial)}</script><template data-feed-row><article data-feed-article><button class="feed-author"><img><span></span></button><a class="feed-title"></a><time></time></article></template><button data-random-refresh>随便读读</button><button data-check-update>刷新</button><section data-random-panel hidden><a data-random-title></a><span data-random-meta></span><button data-close-random></button></section><div class="feed-articles"></div><button data-load-more></button><p data-feed-status></p><span data-feed-counts></span><span data-feed-checked><time></time></span><span data-feed-stale></span><dialog><h3 id="feed-author-title"></h3><a data-author-site></a><ul data-author-articles></ul></dialog></friend-feed><textarea>Unsubmitted comment</textarea>`,{url:'https://cyril-fan.top/links/',runScripts:'outside-only'})
  t.after(()=>dom.window.close());const w=dom.window;let timer
  w.setTimeout=(fn,ms)=>{assert.equal(ms,3500);timer=fn;return 1};w.clearTimeout=()=>{}
- const updated={...initial,checkedAt:'2026-10-24T16:02:01Z',feeds:[{source:friend.link,status:'ok',articles:parseFeed(rss,friend,now)}]}
+ const articles=Array.from({length:23},(_,i)=>({...parseFeed(rss,friend,now)[0],title:`Article ${i+1}`,link:`https://example.com/post-${i}`}))
+ const updated={...initial,checkedAt:'2026-10-24T16:02:01Z',feeds:[{source:friend.link,status:'ok',articles}]}
  const refresh={watchFriendFeed:(_host,_signal,_data,apply)=>async()=>{apply(updated);return 'updated'}}
  const source=readFileSync(new URL('../src/components/links/FriendFeed.astro',import.meta.url),'utf8').match(/<script>\s*([\s\S]*?)<\/script>/)[1]
  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
  w.Function('require','exports',js)(()=>refresh,{})
  const host=w.document.querySelector('friend-feed');host.querySelector('[data-check-update]').click();await new Promise(setImmediate)
- assert.equal(host.querySelectorAll('[data-feed-article]').length,1);assert.match(host.querySelector('[data-feed-status]').textContent,/已更新/)
+ assert.equal(host.querySelectorAll('[data-feed-article]').length,23);assert.match(host.querySelector('[data-feed-status]').textContent,/已更新/)
+ assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,10)
  assert.equal(host.querySelector('time').dateTime,'2026-10-20T00:00:00.000Z');assert.equal(host.querySelector('[data-feed-checked] time').dateTime,updated.checkedAt)
  assert.match(host.querySelector('[data-feed-counts]').textContent,/1 位朋友 · 1 个订阅可用/)
- timer();assert.match(host.querySelector('[data-feed-status]').textContent,/已显示 1 \/ 1/)
+ timer();assert.match(host.querySelector('[data-feed-status]').textContent,/已显示 10 \/ 23/)
+ const firstNewPost=host.querySelectorAll('[data-feed-article]')[10].querySelector('.feed-title')
+ host.querySelector('[data-load-more]').click()
+ assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,20)
+ assert.equal(w.document.activeElement,firstNewPost,'Keyboard loading continues at the first newly revealed post')
+ host.querySelector('[data-check-update]').click();await new Promise(setImmediate)
+ assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,20,'Refreshing does not collapse the reading list')
+ host.querySelector('[data-load-more]').click()
+ assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,23)
+ assert.equal(host.querySelector('[data-load-more]').hidden,true)
  host.querySelector('[data-random-refresh]').click();assert.equal(host.querySelector('[data-random-panel]').hidden,false)
  assert.equal(host.querySelector('[data-random-refresh]').getAttribute('aria-expanded'),'true')
  assert.equal(host.querySelector('[data-random-panel]').textContent.includes('随便读读'),false)

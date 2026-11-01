@@ -6,7 +6,7 @@ language: 'English'
 back: '/en/terms/list'
 ---
 
-This website is maintained by Cyril Fan. Unless stated otherwise, original writing, personal profile text and self-owned images belong to Cyril Fan. For republication, adaptation or other permission, contact [1943480241@qq.com](mailto:1943480241@qq.com). Please credit the author and link to the original page when citing it.
+This website is maintained by Cyril Fan. Unless stated otherwise, original writing, personal profile text and self-owned images belong to Cyril Fan. For republication, adaptation or other permission, use the [contact details on the About page](/en/about#contact). Please credit the author and link to the original page when citing it.
 
 The website is based on [Axi404/Axi-Theme](https://github.com/Axi404/Axi-Theme). Its theme source code is licensed under Apache-2.0; the source repository retains the full license and theme attribution. The theme license and the rights to articles, avatars and other content apply separately.
 

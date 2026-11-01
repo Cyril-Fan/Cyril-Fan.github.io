@@ -30,4 +30,4 @@ Friend feeds are fetched during site builds. Your browser checks this website's 
 
 Providers receive network information needed to deliver and protect their services, which may include IP and device information. The comment API does not publish those details. See the [Supabase Privacy Policy](https://supabase.com/privacy) and [Resend Privacy Policy](https://resend.com/legal/privacy-policy).
 
-If you contact the author by email, the message is used to handle that conversation. For questions about this website's privacy behavior, contact [1943480241@qq.com](mailto:1943480241@qq.com). This page will be updated when external services change.
+If you contact the author by email, the message is used to handle that conversation. For questions about this website's privacy behavior, use the [contact details on the About page](/en/about#contact). This page will be updated when external services change.
