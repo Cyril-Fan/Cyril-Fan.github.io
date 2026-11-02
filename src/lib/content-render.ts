@@ -42,6 +42,8 @@ export async function renderArticleDocument(source:string,en=false){
   return {html,headings}
 }
 export async function enhanceArticle(root:HTMLElement){
+  const en=(root.closest('[lang]')?.getAttribute('lang')||root.ownerDocument.documentElement.lang).startsWith('en')
+  const copyLabel=en?'Copy':'复制',copiedLabel=en?'Copied':'已复制'
   for(const pre of root.querySelectorAll<HTMLPreElement>('pre:not(.shiki)')){
     const code=pre.querySelector('code');if(!code)continue
     const html=await highlightCode(code.textContent||'',(code.className.match(/language-(\S+)/)||[])[1]||'text',code.dataset.meta||'')
@@ -50,7 +52,8 @@ export async function enhanceArticle(root:HTMLElement){
   }
   for(const button of root.querySelectorAll<HTMLButtonElement>('[data-copy-code]')){
     if(button.dataset.bound)continue;button.dataset.bound='true'
-    button.onclick=async()=>{try{await navigator.clipboard.writeText(button.closest('.article-code')!.querySelector('code')!.textContent||'');button.textContent='Copied';setTimeout(()=>button.textContent='Copy',1600)}catch{button.textContent='Select & copy'}}
+    button.textContent=copyLabel;button.setAttribute('aria-label',en?'Copy code':'复制代码')
+    button.onclick=async()=>{try{await navigator.clipboard.writeText(button.closest('.article-code')!.querySelector('code')!.textContent||'');button.textContent=copiedLabel;setTimeout(()=>button.textContent=copyLabel,1600)}catch{button.textContent=en?'Select & copy':'请选中后复制'}}
   }
   const images=[...root.querySelectorAll<HTMLImageElement>('img.zoomable:not([data-preview-zoom])')]
   images.forEach(img=>img.dataset.previewZoom='true')

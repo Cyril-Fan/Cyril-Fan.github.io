@@ -11,6 +11,34 @@ function rendered(source, context, scope) {
   return target
 }
 
+test('highlight markup supports nested formatting without changing code, escapes or unsafe HTML', context => {
+  const target = rendered('==高亮 **粗体** 和 *斜体*==\n\n`==literal==`\n\n```text\n==code==\n```\n\n\\=\\=escaped\\=\\=\n\n==unclosed\n\n==<img src=x onerror=alert(1)>==', context)
+  assert.equal(target.querySelectorAll('mark').length, 2)
+  assert.equal(target.querySelector('mark strong')?.textContent, '粗体')
+  assert.equal(target.querySelector('mark em')?.textContent, '斜体')
+  assert.equal(target.querySelector('p > code')?.textContent, '==literal==')
+  assert.equal(target.querySelector('pre code')?.textContent, '==code==\n')
+  assert.ok(target.textContent.includes('==escaped=='))
+  assert.ok(target.textContent.includes('==unclosed'))
+  assert.equal(target.querySelectorAll('img,[onerror]').length, 0)
+  assert.ok(target.querySelectorAll('mark')[1].textContent.includes('<img'))
+})
+
+test('standalone double-dollar math uses display layout and preserves inline and code semantics', context => {
+  const target = rendered('公式\n$$E=mc^2$$\n后文\n\n$$\\frac{a}{b}$$\n\nInline $x^2$ and $$y^2$$ stay inline.\n\n`$$not math$$`\n\n```text\n$$not math$$\n```\n\n\\$\\$escaped\\$\\$', context)
+  assert.equal(target.querySelectorAll('.katex-display').length, 2)
+  assert.equal(target.querySelectorAll('.comment-math-inline').length, 2)
+  assert.equal(target.querySelectorAll('.katex-error').length, 0)
+  assert.equal(target.querySelectorAll('br').length, 0)
+  assert.equal(target.querySelector('pre code')?.textContent, '$$not math$$\n')
+  assert.ok(target.textContent.includes('$$escaped$$'))
+  assert.ok(target.textContent.includes('后文'))
+  const adjacent = rendered('Before\r\n$$x^2$$\r\n$$y^2$$  \r\nAfter', context)
+  assert.equal(adjacent.querySelectorAll('.katex-display').length, 2)
+  assert.equal(adjacent.querySelectorAll('.comment-math-inline').length, 0)
+  assert.ok(adjacent.textContent.includes('After'))
+})
+
 test('CommonMark and GFM render rich blocks, nested lists, tasks, tables and references', context => {
   const target = rendered('# Heading\n\n**bold** *italic* ~~removed~~ and `code`\n\n> quote\n\n1. first\n   - nested\n\n- [x] checked\n- [ ] unchecked\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nconst x = "<img onerror=attack()>";\n```\n\n[reference][site]\n\n[site]: https://example.org\n\nhttps://example.com\n\n---', context)
   for (const selector of ['h1','strong','em','del','code','blockquote','ol','ul','li ul','table','thead','tbody','pre code.language-js','hr']) assert.ok(target.querySelector(selector), selector)

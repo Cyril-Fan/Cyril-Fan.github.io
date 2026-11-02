@@ -3,6 +3,7 @@ import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
+import { remarkHighlightMark } from 'remark-highlight-mark'
 import remarkRehype from 'remark-rehype'
 import rehypeSanitize, { defaultSchema, type Options as SanitizeOptions } from 'rehype-sanitize'
 import rehypeKatex from 'rehype-katex'
@@ -19,6 +20,34 @@ function literalHtml() {
         if (node.type === 'html') return { type: 'text', value: node.value }
         if ('children' in node) walk(node as { children: MarkdownContent[] })
         return node
+      })
+    }
+    walk(tree)
+  }
+}
+
+// Apply presentation to parsed nodes, never to raw code or HTML strings.
+function commentPresentation() {
+  return (tree: MarkdownRoot, file: { toString(): string }) => {
+    const source = file.toString()
+    const walk = (parent: { type: string; children: MarkdownContent[] }) => {
+      const originalText = parent.children.map(node => node.type === 'text' ? node.value : null)
+      parent.children.forEach((node, index, siblings) => {
+        if (node.type === 'highlight') node.data = { ...node.data, hName: 'mark' }
+        if (node.type === 'inlineMath' && parent.type === 'paragraph') {
+          const start = node.position?.start.offset, end = node.position?.end.offset
+          const raw = start === undefined || end === undefined ? '' : source.slice(start, end)
+          const before = siblings[index - 1], after = siblings[index + 1]
+          const startsLine = !before || before.type === 'break' || (before.type === 'text' && /(?:^|\n)[\t ]*$/.test(originalText[index - 1]!))
+          const endsLine = !after || after.type === 'break' || (after.type === 'text' && /^[\t ]*(?:\r?\n|$)/.test(originalText[index + 1]!))
+          if (startsLine && endsLine && raw.match(/^\$+/)?.[0] === '$$' && raw.match(/\$+$/)?.[0] === '$$') {
+            node.data = { ...node.data, hProperties: { ...node.data?.hProperties, className: ['language-math', 'math-display'] } }
+            // The display wrapper already separates adjacent lines.
+            if (before?.type === 'text') before.value = before.value.replace(/\r?\n[\t ]*$/, '')
+            if (after?.type === 'text') after.value = after.value.replace(/^[\t ]*\r?\n/, '')
+          }
+        }
+        if ('children' in node) walk(node as { type: string; children: MarkdownContent[] })
       })
     }
     walk(tree)
@@ -48,6 +77,7 @@ function boundedMathInput() {
 
 const schema: SanitizeOptions = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
   protocols: { ...defaultSchema.protocols, href: ['http', 'https', 'mailto'], src: ['https'] },
   attributes: {
     ...defaultSchema.attributes,
@@ -186,7 +216,9 @@ export function commentMarkdownHtml(source: string, en: boolean, scope = String(
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkHighlightMark)
     .use(literalHtml)
+    .use(commentPresentation)
     .use(boundedMathInput)
     .use(remarkBreaks)
     .use(remarkRehype, {

@@ -148,6 +148,8 @@ const ownerAvatar = profileAvatar(profile.avatar)
   site-comments .comment-markdown .footnotes { margin-top:1rem; padding-top:.5rem; border-top:1px dashed hsl(var(--border)); font-size:.8rem; }
   site-comments .comment-markdown [id] { scroll-margin-top:6rem; }
   site-comments .comment-markdown hr { border:0; border-top:1px solid hsl(var(--border)); margin:1rem 0; }
+  site-comments .comment-markdown mark { color:inherit; background:#f4d35e66; border-radius:.15em; padding:0 .12em; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+  .dark site-comments .comment-markdown mark { background:#d9a52055; }
   site-comments .comment-markdown-image { display:block; width:fit-content; max-width:100%; margin:.5rem 0; padding:.6rem; border:1px dashed hsl(var(--border)); border-radius:.5rem; }
   site-comments .comment-markdown-image > span { display:block; margin-bottom:.3rem; color:hsl(var(--muted-foreground)); font-size:.85rem; }
   site-comments .comment-markdown-image img { display:block; max-width:100%; max-height:26rem; object-fit:contain; border-radius:.3rem; }

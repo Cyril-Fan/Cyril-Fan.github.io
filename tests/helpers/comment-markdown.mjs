@@ -3,7 +3,7 @@ import ts from 'typescript'
 
 const dependencies = Object.fromEntries(await Promise.all([
   'unified', 'remark-parse', 'remark-gfm', 'remark-math', 'remark-rehype', 'remark-breaks',
-  'rehype-sanitize', 'rehype-katex', 'rehype-stringify',
+  'rehype-sanitize', 'rehype-katex', 'rehype-stringify', 'remark-highlight-mark',
 ].map(async name => [name, await import(name)])))
 const source = fs.readFileSync(new URL('../../src/lib/comment-markdown.ts', import.meta.url), 'utf8')
 const code = ts.transpileModule(source, {

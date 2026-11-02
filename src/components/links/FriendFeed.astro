@@ -185,7 +185,9 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .feed-article { min-width:0; display:grid; grid-template-columns:8rem minmax(0,1fr) 5.3rem; align-items:center; gap:1rem; padding:.85rem 0; border-bottom:1px solid hsl(var(--border)); transition:background-color .18s; }
   .feed-article:hover,.feed-article:focus-within { background:hsl(var(--muted)/.35); }
   .feed-author { display:flex; align-items:center; gap:.5rem; text-align:start; font-size:.78rem; color:hsl(var(--muted-foreground)); min-height:2.75rem; overflow-wrap:anywhere; }
-  .feed-author img { border-radius:50%; width:1.8rem; height:1.8rem; object-fit:cover; flex-shrink:0; }
+  .feed-author img { border-radius:50%; width:1.8rem; height:1.8rem; object-fit:cover; flex-shrink:0; transition:transform .2s ease; }
+  .feed-author:focus-visible img { transform:scale(1.06); }
+  @media(hover:hover) { .feed-author:hover img { transform:scale(1.06); } }
   .feed-title { overflow-wrap:anywhere; line-height:1.6; font-size:.9rem; }
   .feed-article time { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:.75rem; }
   button { transition:color .2s, background-color .2s; }
@@ -208,5 +210,5 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   [data-author-articles] { padding:0; margin-top:1rem; }
   :global([data-author-articles] li) { display:flex; flex-direction:column; gap:.3rem; padding:.8rem 0; border-top:1px solid hsl(var(--border)); }
   @media(max-width:640px) { .feed-article { grid-template-columns:minmax(0,1fr) auto; gap:.3rem .75rem; padding:.75rem .2rem 1rem; } .feed-title { grid-column:1/-1; grid-row:2; } .feed-article time { grid-column:2; grid-row:1; } .random-card { column-gap:.5rem; padding:.75rem; } .feed-panel-header { padding:.5rem .75rem; gap:.5rem; } .feed-panel-actions { gap:.1rem; } .feed-panel-actions button { min-height:2.75rem; } .feed-articles { padding:0 .75rem; } }
-  @media(prefers-reduced-motion:reduce){.feed-article { transition:none; }}
+  @media(prefers-reduced-motion:reduce){.feed-article,.feed-author img { transition:none; } .feed-author:is(:hover,:focus-visible) img { transform:none; }}
 </style>
