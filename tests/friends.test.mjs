@@ -17,6 +17,31 @@ const browserModule=(w,file,imports={})=>{
  return module.exports
 }
 
+for(const lang of ['zh','en'])test(`exchange copy feedback expires, resets on repeat and preserves failures (${lang})`,async t=>{
+ const dom=new JSDOM(`<link-exchange data-lang="${lang}"><button data-copy="https://cyril-fan.top/">Link</button><p data-copy-status></p></link-exchange>`,{url:'https://cyril-fan.top/links/',runScripts:'outside-only'})
+ t.after(()=>dom.window.close());const w=dom.window,pending=[],timers=new Map();let sequence=0
+ Object.defineProperty(w.navigator,'clipboard',{value:{writeText:text=>{assert.equal(text,'https://cyril-fan.top/');return new Promise((resolve,reject)=>pending.push({resolve,reject}))}}})
+ w.setTimeout=(fn,ms)=>{assert.equal(ms,3000);timers.set(++sequence,fn);return sequence};w.clearTimeout=id=>timers.delete(id)
+ const source=readFileSync(new URL('../src/components/links/LinkExchange.astro',import.meta.url),'utf8').match(/<script>\s*([\s\S]*?)<\/script>/)[1]
+ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+ const feedback=browserModule(w,'../src/lib/ui-feedback.ts')
+ w.Function('require','exports',js)(()=>feedback,{})
+ const host=w.document.querySelector('link-exchange'),button=host.querySelector('button'),status=host.querySelector('[data-copy-status]')
+ button.click();assert.equal(status.textContent,'');assert.equal(timers.size,0,'Do not report success before clipboard completes')
+ pending.shift().resolve();await new Promise(setImmediate)
+ assert.equal(status.textContent,lang==='en'?'Copied to clipboard.':'已复制到剪贴板。');assert.equal(timers.size,1)
+ button.click();assert.equal(timers.size,0,'Repeat clicks cancel the previous expiry')
+ pending.shift().resolve();await new Promise(setImmediate)
+ assert.equal(timers.size,1);timers.get(sequence)();assert.equal(status.textContent,'')
+ button.click();button.click();const first=pending.shift(),last=pending.shift()
+ last.reject(Error('Clipboard blocked'));await new Promise(setImmediate)
+ const failure=status.textContent;assert.match(failure,/Clipboard is unavailable|暂时无法访问剪贴板/)
+ first.resolve();await new Promise(setImmediate)
+ assert.equal(status.textContent,failure,'An older completion must not replace the latest failure');assert.equal(timers.size,0)
+ button.click();pending.shift().resolve();await new Promise(setImmediate);assert.equal(timers.size,1)
+ host.remove();assert.equal(timers.size,0,'Disconnect clears the notification timer')
+})
+
 test('dictionary order is stable, locale-independent and does not mutate configuration', () => {
   const names = ['VYS3N','Roy Zhao','Leonwater','Axi']
   const input = Object.freeze(names.map((name,i)=>Object.freeze({name,link:`https://example.com/${i}`})))
@@ -137,17 +162,18 @@ test('manual refresh really requests configured feeds, updates counts/time and p
  assert.equal(previous.feeds[0].articles.length,2,'Input snapshot remains untouched')
 })
 
-test('manual feed UI refresh replaces only reading rows and restores pagination feedback after 3.5 seconds',async t=>{
+test('manual feed UI refresh replaces only reading rows and restores pagination feedback after 3 seconds',async t=>{
  const initial={friends:[{...friend,avatar:'/avatar.png'}],feeds:[],checkedAt:'2026-10-20'}
  const dom=new JSDOM(`<friend-feed data-lang="zh"><script data-feed-data type="application/json">${JSON.stringify(initial)}</script><template data-feed-row><article data-feed-article><button class="feed-author"><img><span></span></button><a class="feed-title"></a><time></time></article></template><button data-random-refresh>随便读读</button><button data-check-update>刷新</button><section data-random-panel hidden><a data-random-title></a><span data-random-meta></span><button data-close-random></button></section><div class="feed-articles"></div><button data-load-more></button><p data-feed-status></p><span data-feed-counts></span><span data-feed-checked><time></time></span><span data-feed-stale></span><dialog><h3 id="feed-author-title"></h3><a data-author-site></a><ul data-author-articles></ul></dialog></friend-feed><textarea>Unsubmitted comment</textarea>`,{url:'https://cyril-fan.top/links/',runScripts:'outside-only'})
  t.after(()=>dom.window.close());const w=dom.window;let timer
- w.setTimeout=(fn,ms)=>{assert.equal(ms,3500);timer=fn;return 1};w.clearTimeout=()=>{}
+ w.setTimeout=(fn,ms)=>{assert.equal(ms,3000);timer=fn;return 1};w.clearTimeout=()=>{}
  const articles=Array.from({length:23},(_,i)=>({...parseFeed(rss,friend,now)[0],title:`Article ${i+1}`,link:`https://example.com/post-${i}`}))
  const updated={...initial,checkedAt:'2026-10-24T16:02:01Z',feeds:[{source:friend.link,status:'ok',articles}]}
  const refresh={watchFriendFeed:(_host,_signal,_data,apply)=>async()=>{apply(updated);return 'updated'}}
  const source=readFileSync(new URL('../src/components/links/FriendFeed.astro',import.meta.url),'utf8').match(/<script>\s*([\s\S]*?)<\/script>/)[1]
  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
- w.Function('require','exports',js)(()=>refresh,{})
+ const feedback=browserModule(w,'../src/lib/ui-feedback.ts')
+ w.Function('require','exports',js)(name=>name.endsWith('/ui-feedback')?feedback:refresh,{})
  const host=w.document.querySelector('friend-feed');host.querySelector('[data-check-update]').click();await new Promise(setImmediate)
  assert.equal(host.querySelectorAll('[data-feed-article]').length,23);assert.match(host.querySelector('[data-feed-status]').textContent,/已更新/)
  assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,10)

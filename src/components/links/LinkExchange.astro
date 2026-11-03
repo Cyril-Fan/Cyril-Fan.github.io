@@ -30,25 +30,35 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
   </ul>
 </link-exchange>
 <script>
+  import { UI_FEEDBACK_DURATION_MS } from '../../lib/ui-feedback'
   class LinkExchange extends HTMLElement {
     private controller?: AbortController
+    private statusTimer?: number
+    private copyVersion = 0
     connectedCallback() {
       this.controller?.abort()
+      clearTimeout(this.statusTimer)
       this.controller = new AbortController()
+      const { signal } = this.controller
       const en = this.dataset.lang === 'en'
       const status = this.querySelector<HTMLElement>('[data-copy-status]')!
       this.addEventListener('click', async event => {
         const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-copy]') : null
         if (!button) return
+        const version = ++this.copyVersion
+        clearTimeout(this.statusTimer)
         try {
           await navigator.clipboard.writeText(button.dataset.copy || '')
+          if (signal.aborted || version !== this.copyVersion) return
           status.textContent = en ? 'Copied to clipboard.' : '已复制到剪贴板。'
+          this.statusTimer = window.setTimeout(() => { status.textContent = '' }, UI_FEEDBACK_DURATION_MS)
         } catch {
+          if (signal.aborted || version !== this.copyVersion) return
           status.textContent = en ? 'Clipboard is unavailable. Select and copy the site details above.' : '暂时无法访问剪贴板，请选中上方信息手动复制。'
         }
-      }, { signal: this.controller.signal })
+      }, { signal })
     }
-    disconnectedCallback() { this.controller?.abort() }
+    disconnectedCallback() { this.controller?.abort(); clearTimeout(this.statusTimer) }
   }
   if (!customElements.get('link-exchange')) customElements.define('link-exchange', LinkExchange)
 </script>
@@ -56,16 +66,16 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
   .exchange-panel { display:block; border:1px solid hsl(var(--border)); border-radius:1rem; padding:1.25rem; background:hsl(var(--muted)/.25); font-size:.9rem; }
   p { margin:0 0 1rem; color:hsl(var(--muted-foreground)); }
   .exchange-fields { display:grid; gap:.6rem; margin:1rem 0; }
-  .exchange-fields>div { display:grid; grid-template-columns:3.5rem minmax(0,1fr); gap:.65rem; align-items:baseline; }
-  dt { color:hsl(var(--muted-foreground)); font-size:.8rem; }
+  .exchange-fields>div { display:grid; grid-template-columns:3.5rem minmax(0,1fr); gap:.65rem; align-items:start; }
+  dt { color:hsl(var(--muted-foreground)); font-size:.8rem; line-height:1.8; padding-block:.4rem; }
   dd { margin:0; min-width:0; }
-  dd button { width:100%; text-align:start; background:hsl(var(--muted)/.6); border-radius:.4rem; padding:.4rem .6rem; overflow-wrap:anywhere; }
+  dd button { display:block; box-sizing:border-box; width:100%; height:auto; min-height:2.75rem; text-align:start; background:hsl(var(--muted)/.6); border-radius:.4rem; padding:.4rem .6rem; font:inherit; line-height:1.6; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
   button, a { transition:color .2s, background-color .2s; }
   button:hover, a:hover { color:hsl(var(--primary)); background:hsl(var(--muted)); }
   :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
   .exchange-actions { display:flex; flex-wrap:wrap; gap:.65rem; }
   .exchange-actions>* { border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.5rem .75rem; min-height:2.75rem; display:inline-flex; align-items:center; gap:.35rem; }
-  .exchange-status { min-height:1.4em; margin:.6rem 0; font-size:.8rem; }
+  .exchange-status { min-height:1.75em; line-height:1.75; margin:.6rem 0; font-size:.8rem; }
   h3 { font-weight:600; margin:1rem 0 .5rem; }
   ul { list-style:disc; padding-inline-start:1.25rem; color:hsl(var(--muted-foreground)); }
   li+li { margin-top:.5rem; }

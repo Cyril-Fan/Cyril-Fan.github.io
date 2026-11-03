@@ -55,6 +55,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
 </friend-feed>
 <script>
   import { watchFriendFeed } from '../../lib/friend-feed-refresh'
+  import { UI_FEEDBACK_DURATION_MS } from '../../lib/ui-feedback'
   import type { FeedData } from '../../lib/friend-feed-client'
   class FriendFeed extends HTMLElement {
     private controller?: AbortController
@@ -133,12 +134,14 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         }
         if (button?.hasAttribute('data-check-update')) {
           button.disabled=true;button.setAttribute('aria-busy','true')
+          clearTimeout(statusTimer)
+          if(status)status.textContent=en?'Refreshing…':'正在刷新…'
           const result=await checkUpdates(true)
           if(signal.aborted)return
           button.disabled=false;button.removeAttribute('aria-busy')
           clearTimeout(statusTimer)
           if(status)status.textContent=result==='updated'?(en?'Updated with the latest posts.':'已更新最新文章。'):result==='current'?(en?'You are up to date.':'当前已是最新的朋友圈。'):result==='partial'?(en?'Refreshed; unavailable feeds kept their saved posts.':'已刷新，暂不可用的订阅已保留原有文章。'):(en?'Refresh unavailable. Your reading list is preserved.':'暂时无法刷新，当前列表已保留。')
-          statusTimer=window.setTimeout(paginate,3500)
+          statusTimer=window.setTimeout(paginate,UI_FEEDBACK_DURATION_MS)
         }
         if (button?.hasAttribute('data-close-author')) dialog.close()
         if (event.target === dialog) {

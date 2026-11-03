@@ -8,7 +8,22 @@ import { JSDOM } from 'jsdom'
 await mkdir('work',{recursive:true})
 const path='work/highlight-test-'+randomUUID()+'.mjs'
 await build({entryPoints:['src/lib/content-render.ts'],bundle:true,packages:'external',platform:'node',format:'esm',outfile:path})
-const {highlightCode,renderArticleDocument}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
+const {highlightCode,renderArticleDocument,enhanceArticle}=await import(pathToFileURL(process.cwd()+'/'+path));await unlink(path)
+
+test('code copy briefly confirms success and restarts its timer without changing the code',async t=>{
+ const dom=new JSDOM('<html lang="zh"><main><div class="article-code"><button data-copy-code></button><pre class="shiki"><code>print("Hello")</code></pre></div></main></html>')
+ t.after(()=>dom.window.close());const root=dom.window.document.querySelector('main'),button=root.querySelector('button'),timers=new Map();let sequence=0,fail=false
+ const savedNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator'),savedTimeout=setTimeout,savedClear=clearTimeout
+ t.after(()=>{if(savedNavigator)Object.defineProperty(globalThis,'navigator',savedNavigator);else delete globalThis.navigator;globalThis.setTimeout=savedTimeout;globalThis.clearTimeout=savedClear})
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:async text=>{assert.equal(text,'print("Hello")');if(fail)throw Error('Denied')}}}})
+ globalThis.setTimeout=(fn,ms)=>{assert.equal(ms,1600);timers.set(++sequence,fn);return sequence};globalThis.clearTimeout=id=>timers.delete(id)
+ await enhanceArticle(root)
+ await button.onclick();assert.equal(button.textContent,'已复制');const previous=sequence
+ await button.onclick();assert.equal(timers.has(previous),false);assert.equal(timers.size,1)
+ timers.get(sequence)();assert.equal(button.textContent,'复制')
+ fail=true;await button.onclick();assert.equal(button.textContent,'请选中后复制');assert.equal(timers.size,0)
+ assert.equal(root.querySelector('code').textContent,'print("Hello")')
+})
 
 test('C++ aliases and recognizable legacy fences use VS Code dual palettes without altering code',async()=>{
  const source='#include <iostream>\n// A comment\nint main() { std::cout << "Hello"; return 0; }'

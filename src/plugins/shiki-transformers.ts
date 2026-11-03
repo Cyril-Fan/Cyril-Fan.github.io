@@ -1,5 +1,6 @@
 import { h } from 'hastscript'
 import type { ShikiTransformer } from 'shiki'
+import { CODE_COPY_FEEDBACK_DURATION_MS } from '../lib/ui-feedback'
 
 export {
   transformerNotationDiff,
@@ -93,7 +94,7 @@ export const addLanguage = (): ShikiTransformer => {
 
 // Add a copy button to the code block
 export const addCopyButton = (timeout?: number): ShikiTransformer => {
-  const toggleMs = timeout || 3000
+  const toggleMs = timeout || CODE_COPY_FEEDBACK_DURATION_MS
 
   return {
     name: 'shiki-transformer-copy-button',
@@ -105,9 +106,12 @@ export const addCopyButton = (timeout?: number): ShikiTransformer => {
             'copy transition-opacity duration-300 opacity-0 absolute top-3 right-3 text-muted-foreground p-1 box-content border border-border rounded bg-primary-foreground',
           'data-code': this.source,
           onclick: `
-          navigator.clipboard.writeText(this.dataset.code);
-          this.classList.add('copied');
-          setTimeout(() => this.classList.remove('copied'), ${toggleMs})
+          clearTimeout(this.copyResetTimer);
+          navigator.clipboard.writeText(this.dataset.code).then(() => {
+            clearTimeout(this.copyResetTimer);
+            this.classList.add('copied');
+            this.copyResetTimer = setTimeout(() => this.classList.remove('copied'), ${toggleMs});
+          }).catch(() => this.classList.remove('copied'));
         `
         },
         [

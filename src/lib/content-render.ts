@@ -12,6 +12,7 @@ import toml from '@shikijs/langs/toml'
 import diff from '@shikijs/langs/diff'
 import mediumZoom from 'medium-zoom'
 import { codeThemes } from './code-themes'
+import { CODE_COPY_FEEDBACK_DURATION_MS } from './ui-feedback'
 import { transformerNotationDiff, transformerNotationHighlight } from '../plugins/shiki-official-transformers'
 const extraLanguages={rust,go,latex,csharp,kotlin,swift,powershell,dockerfile,toml,diff}
 let highlighter:ReturnType<typeof createHighlighter>|undefined
@@ -53,7 +54,19 @@ export async function enhanceArticle(root:HTMLElement){
   for(const button of root.querySelectorAll<HTMLButtonElement>('[data-copy-code]')){
     if(button.dataset.bound)continue;button.dataset.bound='true'
     button.textContent=copyLabel;button.setAttribute('aria-label',en?'Copy code':'复制代码')
-    button.onclick=async()=>{try{await navigator.clipboard.writeText(button.closest('.article-code')!.querySelector('code')!.textContent||'');button.textContent=copiedLabel;setTimeout(()=>button.textContent=copyLabel,1600)}catch{button.textContent=en?'Select & copy':'请选中后复制'}}
+    let resetTimer:ReturnType<typeof setTimeout>|undefined,copyVersion=0
+    button.onclick=async()=>{
+      const version=++copyVersion
+      clearTimeout(resetTimer)
+      try {
+        await navigator.clipboard.writeText(button.closest('.article-code')!.querySelector('code')!.textContent||'')
+        if(version!==copyVersion||!button.isConnected)return
+        button.textContent=copiedLabel
+        resetTimer=setTimeout(()=>{button.textContent=copyLabel},CODE_COPY_FEEDBACK_DURATION_MS)
+      } catch {
+        if(version===copyVersion&&button.isConnected)button.textContent=en?'Select & copy':'请选中后复制'
+      }
+    }
   }
   const images=[...root.querySelectorAll<HTMLImageElement>('img.zoomable:not([data-preview-zoom])')]
   images.forEach(img=>img.dataset.previewZoom='true')
