@@ -599,7 +599,7 @@ export class SiteComments extends HTMLElement {
     if(preview) {
       const body=this.el<HTMLTextAreaElement>('textarea').value
       if(body.trim()) renderCommentMarkdown(output,body,this.en,'preview')
-      else output.textContent=this.t('写点内容，就能在这里预览排版。','Write something to preview its formatting here.')
+      else output.replaceChildren(this.node('span',this.t('写点内容，就能在这里预览排版。','Write something to preview its formatting here.'),'comment-preview-hint'))
     } else output.replaceChildren()
     if(focus) (preview ? output : this.el<HTMLTextAreaElement>('textarea')).focus({preventScroll:true})
   }
