@@ -1,4 +1,5 @@
 ---
+import '@/assets/styles/password-control.css'
 interface Props {
   lang?: 'zh' | 'en'
   id?: string
@@ -41,7 +42,7 @@ const en = lang === 'en'
           <label for={`${id}-password`} class='mb-1 block text-sm font-medium'>{en ? 'Password' : '密码'}</label>
           <div class='auth-password-control'>
             <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' autocapitalize='none' spellcheck='false' required aria-describedby={`${id}-password-hint`} class='auth-input' />
-            <button type='button' data-password-toggle='password' aria-controls={`${id}-password`} aria-pressed='false' class='auth-password-toggle'>{en ? 'Show' : '显示'}</button>
+            <button type='button' data-password-toggle='password' aria-controls={`${id}-password`} aria-pressed='false' aria-label={en ? 'Show password' : '显示密码'} class='auth-password-toggle'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z' /><circle cx='12' cy='12' r='3' /><path class='password-eye-slash' d='m3 3 18 18' /></svg></button>
           </div>
           <p id={`${id}-password-hint`} data-password-hint hidden class='mt-1 text-xs text-muted-foreground'>
             {en ? 'Use at least 8 characters. Pasting and password managers are supported.' : '新密码至少 8 个字符，可粘贴或使用密码管理器。'}
@@ -326,9 +327,6 @@ const en = lang === 'en'
   }
   .auth-action[aria-pressed='true'] { border-color: hsl(var(--foreground)); }
   .auth-primary { background: hsl(var(--foreground)); color: hsl(var(--background)); }
-  .auth-password-control { display:flex; align-items:stretch; gap:.5rem; margin-top:.4rem; }
-  :global(site-comments .auth-password-control input) { margin-top:0; }
-  .auth-password-toggle { flex-shrink:0; min-width:3rem; min-height:2.75rem; padding:.4rem .5rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font-size:.875rem; }
   button:disabled { cursor: wait; opacity: 0.6; }
   input:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
   [hidden] { display: none !important; }

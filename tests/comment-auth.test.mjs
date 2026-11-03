@@ -179,9 +179,9 @@ test('missing or privileged public configuration stays disabled without creating
 test('password visibility is scoped to each form, keeps input intact, and resets on abort', () => {
   const instance = runtime()
   const dom = new JSDOM(`<form><input name="password" type="password" value="local-only-fixture">
-    <button type="button" data-password-toggle="password">显示</button>
+    <button type="button" data-password-toggle="password"><svg aria-hidden="true"><path /></svg></button>
     <input name="repeat" type="password" value="local-only-fixture">
-    <button type="button" data-password-toggle="repeat">显示</button></form>`)
+    <button type="button" data-password-toggle="repeat"><svg aria-hidden="true"><path /></svg></button></form>`)
   try {
     const root = dom.window.document.querySelector('form')
     const controller = new dom.window.AbortController()
@@ -192,7 +192,9 @@ test('password visibility is scoped to each form, keeps input intact, and resets
     button.click()
     assert.equal(password.type, 'text')
     assert.equal(repeat.type, 'password')
-    assert.equal(button.textContent, '隐藏')
+    assert.equal(button.textContent, '')
+    assert.ok(button.querySelector('svg'), 'Visibility toggles preserve the inline eye icon')
+    assert.equal(button.getAttribute('aria-label'), '隐藏密码')
     assert.equal(button.getAttribute('aria-pressed'), 'true')
     assert.equal(password.value, 'local-only-fixture')
     reset()

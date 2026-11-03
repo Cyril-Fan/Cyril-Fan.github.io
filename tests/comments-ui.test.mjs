@@ -225,6 +225,39 @@ async function setup(context, language, { identity = guest(), rows = [], configu
 }
 
 for (const language of ['zh', 'en']) {
+  test(`${language}: long comments collapse independently, survive list refresh and reveal keyboard targets`,async context=>{
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1,{body:'Long comment [link](https://example.com)'}),row(2)]})
+    const realRect=ui.window.HTMLElement.prototype.getBoundingClientRect
+    let height=600
+    ui.window.HTMLElement.prototype.getBoundingClientRect=function(){
+      return this.classList.contains('comment-body')&&this.textContent.startsWith('Long comment') ? {...realRect.call(this),height} : realRect.call(this)
+    }
+    const resize=()=>ui.window.dispatchEvent(new ui.window.Event('resize'))
+    const toggle=()=>ui.select(`#comment-${row(1).id} .comment-body-toggle`)
+    const viewport=()=>ui.select(`#comment-${row(1).id} .comment-body-viewport`)
+    resize()
+    assert.equal(toggle().hidden,false)
+    assert.equal(toggle().getAttribute('aria-expanded'),'false')
+    assert.equal(viewport().classList.contains('is-collapsed'),true)
+    assert.equal(ui.select(`#comment-${row(2).id} .comment-body-toggle`).hidden,true)
+    assert.equal(ui.select(`#comment-${row(1).id} .comment-item-actions`).parentElement.className,'comment-item-top')
+    ui.draft('Preserve the unfinished reply')
+    toggle().click()
+    assert.equal(viewport().style.maxHeight,'')
+    ui.select('[data-refresh]').click()
+    await until(()=>ui.select('[data-list]').getAttribute('aria-busy')==='false','refresh expanded comments')
+    assert.equal(toggle().getAttribute('aria-expanded'),'true')
+    assert.equal(ui.textarea.value,'Preserve the unfinished reply')
+    toggle().click()
+    assert.equal(toggle().getAttribute('aria-expanded'),'false')
+    ui.select(`#comment-${row(1).id} .comment-body a`).focus()
+    assert.equal(toggle().getAttribute('aria-expanded'),'true')
+    height=80;resize()
+    assert.equal(toggle().hidden,true)
+    assert.equal(viewport().style.maxHeight,'')
+    assert.equal(ui.calls.some(call=>['comment_create','comment_delete'].includes(call.name)),false)
+  })
+
   test(`${language}: owner avatar follows configured hashed, built or HTTPS home image`,async context=>{
     for(const ownerAvatar of ['/media/image-0123456789abcdefabcd.webp','/_astro/avatar.hash.png','https://images.example.invalid/owner.png?v=2']){
       const ui=await setup(context,language,{ownerAvatar,identity:member({is_admin:true}),rows:[row(1,{is_admin_author:true})]})
@@ -264,7 +297,7 @@ for (const language of ['zh', 'en']) {
     assert.deepEqual([...thread.querySelectorAll(':scope > .comment-thread-replies > .comment-item')].map(item=>item.id),[earlier,reply,nested].map(item=>`comment-${item.id}`))
     assert.equal(thread.querySelectorAll('.comment-thread-replies .comment-thread-replies').length,0,'All replies share one visual level')
     assert.equal(ui.select(`#comment-${nested.id} .comment-context a`).getAttribute('href'),`#comment-${reply.id}`)
-    thread.querySelector(':scope > .comment-item-actions > button').click()
+    thread.querySelector(':scope > .comment-item-top .comment-item-actions > button').click()
     assert.equal(ui.compose.nextElementSibling,thread.querySelector(':scope > .comment-thread-replies'),'Root composer remains immediately above its replies')
   })
 
@@ -312,7 +345,7 @@ for (const language of ['zh', 'en']) {
     const first=[original,...replies.slice(0,29)]
     const ui=await setup(context,language,{identity:member(),rows:first})
     ui.handlers.comment_thread_list=args=>ok(args.p_focus_id ? [original,{...posted,gap_before:true}] : args.p_after_id ? [...replies.slice(29),posted] : first)
-    ui.select(`#comment-${original.id} > .comment-item-actions > button`).click()
+    ui.select(`#comment-${original.id} > .comment-item-top .comment-item-actions > button`).click()
     ui.draft(posted.body); ui.submit()
     await until(()=>!ui.post.disabled && ui.list.querySelector(`#comment-${posted.id}`),'new reply located')
     assert.equal(ui.calls.filter(call=>call.name==='comment_thread_list').length,3,'Only initial, refresh and one focus read occur')
@@ -383,7 +416,7 @@ for (const language of ['zh', 'en']) {
     const ui=await setup(context,language,{rows:[original,reply]})
     assert.equal(ui.list.children.length,1)
     assert.ok(ui.select(`#comment-${original.id}`).contains(ui.select(`#comment-${reply.id}`)))
-    assert.match(ui.select(`#comment-${original.id} > .comment-body`).textContent,language==='en' ? /deleted/ : /已删除/)
+    assert.match(ui.select(`#comment-${original.id} > .comment-body-viewport > .comment-body`).textContent,language==='en' ? /deleted/ : /已删除/)
   })
 
   test(`${language}: afternoon and midnight dates always use 00–23 hours`, async context => {
@@ -530,7 +563,7 @@ for (const language of ['zh', 'en']) {
     const ui = await setup(context, language, { rows: [row(1, { deleted: true, body: 'Previously private text' })] })
     assert.equal(ui.list.textContent.includes('Previously private text'), false)
     assert.match(ui.list.querySelector('.comment-body').textContent, language === 'en' ? /deleted/i : /已删除/)
-    assert.equal(ui.list.querySelectorAll('button').length, 0)
+    assert.equal(ui.list.querySelectorAll('.comment-item-actions button').length, 0)
   })
 
   test(`${language}: network failure preserves draft and retry reuses the same request ID`, async (context) => {
@@ -555,20 +588,20 @@ for (const language of ['zh', 'en']) {
 
   test(`${language}: auth change immediately removes pending rows and old action permissions`, async (context) => {
     const ui = await setup(context, language, { identity: member({ is_admin: true }), rows: [row(1, { can_delete: true }), row(2, { can_delete: true, is_pending: true, body: 'Pending private comment' })] })
-    assert.ok(ui.list.querySelectorAll('button').length > 0)
+    assert.ok(ui.list.querySelectorAll('.comment-item-actions button').length > 0)
     ui.draft('Private draft must not survive confirmed logout')
     const response = deferred()
     ui.handlers.comment_thread_list = () => response.promise
     ui.changeIdentity(guest())
     assert.equal(ui.post.disabled, true)
-    assert.equal(ui.list.querySelectorAll('button').length, 0)
+    assert.equal(ui.list.querySelectorAll('.comment-item-actions button').length, 0)
     assert.equal(ui.list.textContent.includes('Pending private comment'), false)
     assert.equal(ui.select('[data-admin]').hidden, true)
     assert.equal(ui.textarea.value, '')
     assert.equal(ui.select('[data-counter]').textContent, '0 / 2000')
     response.resolve({ data: null, error: { message: 'Offline' } })
     await until(() => ui.select('[data-list]').getAttribute('aria-busy') === 'false', 'failed logout refresh')
-    assert.equal(ui.list.querySelectorAll('button').length, 0)
+    assert.equal(ui.list.querySelectorAll('.comment-item-actions button').length, 0)
     assert.equal(ui.textarea.value, '')
   })
 
@@ -638,7 +671,7 @@ for (const language of ['zh', 'en']) {
   test(`${language}: a banned account sees its own delete action but cannot reply or post`, async (context) => {
     const ui = await setup(context, language, { identity: member({ can_post: false, banned: true }), rows: [row(1, { can_delete: true })] })
     assert.equal(ui.post.disabled, true)
-    const actions = [...ui.list.querySelectorAll('button')]
+    const actions = [...ui.list.querySelectorAll('.comment-item-actions button')]
     assert.equal(actions.length, 1)
     assert.equal(actions[0].textContent, language === 'en' ? 'Delete' : '删除')
     assert.equal(actions[0].disabled, false)

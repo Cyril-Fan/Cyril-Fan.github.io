@@ -20,7 +20,6 @@ export function bindPasswordVisibility(root: HTMLElement, language: CommentAuthL
     if (!input) return
     input.type = visible ? 'text' : 'password'
     button.setAttribute('aria-pressed', String(visible))
-    button.textContent = language === 'en' ? (visible ? 'Hide' : 'Show') : (visible ? '隐藏' : '显示')
     button.setAttribute('aria-label', language === 'en'
       ? `${visible ? 'Hide' : 'Show'} ${name === 'repeat' ? 'repeated password' : 'password'}`
       : `${visible ? '隐藏' : '显示'}${name === 'repeat' ? '再次输入的密码' : '密码'}`)

@@ -1,4 +1,5 @@
 ---
+import '@/assets/styles/password-control.css'
 import '@/assets/styles/app.css'
 import ThemeProvider from '@/components/basic/ThemeProvider.astro'
 import SiteIcons from '@/components/SiteIcons.astro'
@@ -35,7 +36,7 @@ const title = en ? 'Confirm your account' : '确认账户操作'
             <label for='recovery-password' class='mb-1 block text-sm font-medium'>{en ? 'New password' : '新密码'}</label>
             <div class='confirm-password-control'>
               <input id='recovery-password' name='password' type='password' required minlength='8' autocomplete='new-password' autocapitalize='none' spellcheck='false' aria-describedby='recovery-password-hint' class='confirm-input' />
-              <button type='button' data-password-toggle='password' aria-controls='recovery-password' aria-pressed='false' class='confirm-password-toggle'>{en ? 'Show' : '显示'}</button>
+              <button type='button' data-password-toggle='password' aria-controls='recovery-password' aria-pressed='false' aria-label={en ? 'Show password' : '显示密码'} class='confirm-password-toggle'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z' /><circle cx='12' cy='12' r='3' /><path class='password-eye-slash' d='m3 3 18 18' /></svg></button>
             </div>
             <p id='recovery-password-hint' class='mt-1 text-xs text-muted-foreground'>{en ? 'At least 8 characters. You may paste a password or use a password manager.' : '至少 8 个字符，可粘贴或使用密码管理器。'}</p>
           </div>
@@ -43,7 +44,7 @@ const title = en ? 'Confirm your account' : '确认账户操作'
             <label for='recovery-password-repeat' class='mb-1 block text-sm font-medium'>{en ? 'Repeat new password' : '再次输入新密码'}</label>
             <div class='confirm-password-control'>
               <input id='recovery-password-repeat' name='repeat' type='password' required minlength='8' autocomplete='new-password' autocapitalize='none' spellcheck='false' class='confirm-input' />
-              <button type='button' data-password-toggle='repeat' aria-controls='recovery-password-repeat' aria-pressed='false' class='confirm-password-toggle'>{en ? 'Show' : '显示'}</button>
+              <button type='button' data-password-toggle='repeat' aria-controls='recovery-password-repeat' aria-pressed='false' aria-label={en ? 'Show password' : '显示密码'} class='confirm-password-toggle'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z' /><circle cx='12' cy='12' r='3' /><path class='password-eye-slash' d='m3 3 18 18' /></svg></button>
             </div>
           </div>
           <p class='text-sm text-muted-foreground'>{en ? 'After saving, you will be signed out of your comment sessions and asked to sign in with your new password.' : '保存后会退出评论登录会话，请使用新密码重新登录。'}</p>
@@ -311,8 +312,6 @@ const title = en ? 'Confirm your account' : '确认账户操作'
 
 <style>
   .confirm-input { width: 100%; min-width:0; font-size:1rem; border: 1px solid hsl(var(--border)); border-radius: 0.5rem; background: hsl(var(--background)); padding: 0.55rem 0.75rem; }
-  .confirm-password-control { display:flex; align-items:stretch; gap:.5rem; }
-  .confirm-password-toggle { flex-shrink:0; min-width:3rem; min-height:2.75rem; padding:.4rem .5rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font-size:.875rem; }
   .confirm-primary { min-height: 2.75rem; border-radius: 0.5rem; background: hsl(var(--foreground)); color: hsl(var(--background)); padding: 0.6rem 1rem; font-size: 0.875rem; }
   button:disabled { cursor: wait; opacity: 0.6; }
   input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }

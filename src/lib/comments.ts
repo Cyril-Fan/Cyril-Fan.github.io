@@ -26,6 +26,8 @@ export class SiteComments extends HTMLElement {
   private rows: CommentRow[] = []
   private focusedRows: CommentRow[] = []
   private authorEmails = new Map<string, string | null>()
+  private expandedComments = new Set<string>()
+  private bodyDisclosures: Array<() => void> = []
   private emailOperation?: AbortController
   private emailGeneration = 0
   private me = guestIdentity()
@@ -144,6 +146,7 @@ export class SiteComments extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.bodyDisclosures.splice(0).forEach(dispose=>dispose())
     this.clearAuthorEmails()
     this.resetAvatarEditor()
     this.lifetime?.abort(); this.lifetime=undefined; this.generation++; this.accountVersion++
@@ -354,6 +357,7 @@ export class SiteComments extends HTMLElement {
     avatar.referrerPolicy='no-referrer'; avatar.src=source; container.append(avatar)
   }
   private render() {
+    this.bodyDisclosures.splice(0).forEach(dispose=>dispose())
     // The single composer must leave the old list before its children are replaced.
     const compose=this.el<HTMLFormElement>('[data-compose]')
     const focused=document.activeElement
@@ -376,11 +380,12 @@ export class SiteComments extends HTMLElement {
         const avatar=this.node('span',undefined,'comment-avatar'); avatar.setAttribute('aria-hidden','true')
         const displayName=this.rowName(row)
         this.renderAvatar(avatar,row.deleted?'':displayName,!row.deleted&&row.is_admin_author,row.deleted?null:row.avatar_path)
+        const headerRow=this.node('div',undefined,'comment-item-top')
         const header=this.node('div',undefined,'comment-item-header'); header.append(avatar,this.node('strong',displayName))
         if(row.is_admin_author&&!row.deleted) header.append(this.node('span',this.t('站长','Site owner'),'comment-badge'))
         if(row.is_pending) header.append(this.node('span',this.t('待审核','Pending review'),'comment-badge'))
         const time=this.node('time',new Intl.DateTimeFormat(this.en?'en':'zh-CN',{dateStyle:'medium',timeStyle:'short',hourCycle:'h23'}).format(new Date(row.created_at)))
-        time.dateTime=row.created_at; header.append(time); item.append(header)
+        time.dateTime=row.created_at; header.append(time); headerRow.append(header); item.append(headerRow)
         if(row.parent_id) {
           const context=this.node('p',undefined,'comment-context')
           const loadedParent=displayedRows.find(parent=>parent.id===row.parent_id)
@@ -392,7 +397,9 @@ export class SiteComments extends HTMLElement {
         const body=this.node('div',undefined,'comment-body comment-markdown')
         if(row.deleted) body.textContent=this.t('此评论已删除','This comment has been deleted.')
         else renderCommentMarkdown(body,row.body,this.en,row.id)
-        item.append(body)
+        const viewport=this.node('div',undefined,'comment-body-viewport')
+        viewport.append(body); item.append(viewport)
+        if(!row.deleted) viewport.dataset.collapsibleComment=row.id
         const actions=this.node('div',undefined,'comment-item-actions')
         const action=(container:HTMLElement,label:string,run:()=>void)=>{
           const button=this.node('button',label); button.type='button'; button.disabled=this.busy
@@ -428,7 +435,7 @@ export class SiteComments extends HTMLElement {
           if(this.me.is_admin && commentHasReplies(row,displayedRows)) action(choices,this.t('删除此条及其回复','Delete this comment and its replies'),()=>void this.removeComment(row,true))
           menu.append(choices); actions.append(menu)
         }
-        item.append(actions)
+        if(actions.children.length) headerRow.append(actions)
         if(this.me.is_admin && this.authorEmails.has(row.id)) {
           const address=this.authorEmails.get(row.id)
           const email=this.node('p',address ? this.t('作者邮箱（仅站长可见）：','Author email (owner only): ')+address : this.t('此作者账户已不可用','This author account is unavailable.'),'comment-author-email')
@@ -450,6 +457,7 @@ export class SiteComments extends HTMLElement {
       if(replies.children.length) thread.append(replies)
       list.append(thread)
     }
+    list.querySelectorAll<HTMLElement>('[data-collapsible-comment]').forEach(viewport=>this.bindBodyDisclosure(viewport))
     if(this.parent) {
       const current=displayedRows.find(row=>row.id===this.parent!.id)
       this.replyUnavailable=!current || current.deleted || !this.me.can_post
@@ -458,6 +466,51 @@ export class SiteComments extends HTMLElement {
     }
     this.placeComposer()
     if(selection && focusedInput && this.me.can_post && !focusedInput.disabled) {focusedInput.focus({preventScroll:true}); focusedInput.setSelectionRange(selection[0],selection[1])}
+  }
+
+  private bindBodyDisclosure(viewport:HTMLElement) {
+    const id=viewport.dataset.collapsibleComment!, body=viewport.firstElementChild as HTMLElement
+    const toggle=this.node('button',this.t('展开','Show more'),'comment-body-toggle')
+    toggle.type='button'; toggle.hidden=true
+    viewport.id=`comment-body-${id}`
+    toggle.setAttribute('aria-controls',viewport.id)
+    viewport.after(toggle)
+    const controller=new AbortController(), options={signal:controller.signal}
+    let long=false
+    const update=()=>{
+      // Measure rendered content, including code/math and late-loading images.
+      const limit=18*(parseFloat(getComputedStyle(this).fontSize)||16)
+      long=body.getBoundingClientRect().height>limit+32
+      const expanded=this.expandedComments.has(id)
+      viewport.style.maxHeight=long&&!expanded ? `${limit}px` : ''
+      viewport.classList.toggle('is-collapsed',long&&!expanded)
+      toggle.hidden=!long
+      toggle.textContent=expanded ? this.t('收起','Show less') : this.t('展开','Show more')
+      toggle.setAttribute('aria-expanded',String(expanded))
+    }
+    const expand=()=>{this.expandedComments.add(id);update()}
+    toggle.addEventListener('click',()=>{
+      if(this.expandedComments.has(id)) {
+        this.expandedComments.delete(id); update()
+        // Keep the control reachable when a very long comment shrinks above it.
+        if(toggle.getBoundingClientRect().top<80) toggle.scrollIntoView?.({block:'center'})
+      } else expand()
+    },options)
+    // Keyboard navigation and footnote anchors must never land in clipped content.
+    body.addEventListener('focusin',()=>{if(long&&!this.expandedComments.has(id)) expand()},options)
+    const revealAnchor=()=>{
+      const hash=window.location.hash.slice(1)
+      if(hash&&Array.from(body.querySelectorAll('[id]')).some(node=>node.id===hash)) expand()
+    }
+    body.addEventListener('click',event=>{
+      if((event.target as Element).closest('a[href^="#"]')) expand()
+    },options)
+    window.addEventListener('hashchange',revealAnchor,options)
+    window.addEventListener('resize',update,options)
+    const observer=typeof ResizeObserver==='undefined' ? null : new ResizeObserver(update)
+    observer?.observe(body)
+    this.bodyDisclosures.push(()=>{controller.abort();observer?.disconnect()})
+    update(); revealAnchor()
   }
 
   private placeComposer() {
