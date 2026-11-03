@@ -33,7 +33,10 @@ export class ContributionSnake extends HTMLElement {
       square.setAttribute('data-selected', '')
       square.setAttribute('tabindex', '0')
       if (date) date.value = square.dataset.date || ''
-      if (output) output.textContent = square.getAttribute('aria-label')
+      if (output) {
+        output.textContent = en ? `${square.dataset.count} contributions` : `当日 ${square.dataset.count} 次贡献`
+        output.setAttribute('aria-label', square.getAttribute('aria-label') || '')
+      }
       if (focus) square.focus()
     }
     // Delegate to the stable calendar container; refreshed cells get the same controls.
@@ -56,7 +59,10 @@ export class ContributionSnake extends HTMLElement {
     date?.addEventListener('change', () => {
       const square = squares.find(square => square.dataset.date === date.value)
       if (square) show(square)
-      else if (output) output.textContent = en ? 'Choose a date within the displayed range.' : '请选择展示范围内的日期。'
+      else if (output) {
+        output.textContent = en ? 'Choose a date within the displayed range.' : '请选择展示范围内的日期。'
+        output.removeAttribute('aria-label')
+      }
     }, { signal })
     setPlaying(this.dataset.playing ? this.dataset.playing === 'true' : !motion.matches)
     button.hidden = false
@@ -130,8 +136,10 @@ export class ContributionSnake extends HTMLElement {
       const text = `${en?'Data updated':'数据更新'}: ${format(this.dataset.updated!)} UTC+8 · ${en?'Last checked':'最近检查'}: ${format(this.dataset.checkedAt)} UTC+8`
       count.title = text
       count.setAttribute('aria-label', count.textContent + ' · ' + text)
-      const time = this.querySelector<HTMLElement>('[data-contribution-time]')
-      if(time)time.textContent=text
+      for (const [selector, value] of [['[data-contribution-updated]', this.dataset.updated!], ['[data-contribution-checked]', this.dataset.checkedAt]]) {
+        const time = this.querySelector<HTMLTimeElement>(selector)
+        if (time) { time.textContent = `${format(value)} UTC+8`; time.dateTime = value }
+      }
     }
     const showFreshness = () => {
       const notice = this.querySelector<HTMLElement>('[data-contribution-stale]')

@@ -131,6 +131,9 @@ function view(context,{en=false,remote=async()=>null,published=async()=>{throw E
   const dom=new JSDOM(`<contribution-snake data-updated="2026-10-25T00:00:00.000Z" data-lang="${en?'en':'zh'}"><div class="contribution-canvas"><svg class="contribution-surface" viewBox="-16 -32 880 192"><g class="snake-animated"><image class="snake-light" href="/old-light.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/><image class="snake-dark" href="/old-dark.svg" x="-16" y="-32" width="880" height="192" preserveAspectRatio="none"/></g><g class="contribution-calendar">${cells}</g></svg></div><span data-contribution-total>old total</span><input type="date" data-contribution-date><output data-contribution-detail></output><button data-snake-toggle hidden></button></contribution-snake>`,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://cyril-fan.top/'})
   context.after(()=>dom.window.close())
   const {window}=dom
+  for (const attribute of ['data-contribution-updated','data-contribution-checked']) {
+    const time=window.document.createElement('time');time.setAttribute(attribute,'');window.document.querySelector('contribution-snake').append(time)
+  }
   const media=new window.EventTarget();media.matches=reduced
   window.matchMedia=()=>media
   let sequence=0
@@ -200,11 +203,13 @@ for(const en of [false,true]) test(`${en?'en':'zh'}: keyboard, hover, date picke
   ui.button.click();assert.equal(ui.host.dataset.playing,'true');assert.equal(ui.input.disabled,true)
   ui.button.click()
   ui.cells[3].dispatchEvent(new ui.window.Event('pointerover',{bubbles:true}))
-  assert.equal(ui.output.textContent,'day 3: 3 contributions')
+  assert.equal(ui.output.textContent,en?'3 contributions':'当日 3 次贡献')
+  assert.equal(ui.output.getAttribute('aria-label'),'day 3: 3 contributions')
   ui.cells[9].dispatchEvent(new ui.window.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))
-  assert.equal(ui.output.textContent,'day 2: 2 contributions')
+  assert.equal(ui.output.textContent,en?'2 contributions':'当日 2 次贡献')
   ui.input.value='2026-10-06';ui.input.dispatchEvent(new ui.window.Event('change'))
-  assert.equal(ui.output.textContent,'day 5: 5 contributions')
+  assert.equal(ui.output.textContent,en?'5 contributions':'当日 5 次贡献')
+  assert.equal(ui.output.getAttribute('aria-label'),'day 5: 5 contributions')
   ui.media.matches=false;ui.media.dispatchEvent(new ui.window.Event('change'))
   assert.equal(ui.host.dataset.playing,'false','Explicit static choice is preserved')
   ui.host.remove();ui.window.document.body.append(ui.host);ui.button.click()
@@ -264,6 +269,8 @@ test('a successful unchanged check updates the check time without advancing the 
  assert.equal(ui.host.dataset.updated,original)
  assert.ok(ui.host.dataset.checkedAt)
  assert.match(ui.host.querySelector('[data-contribution-total]').title,/数据更新.*最近检查/)
+ assert.equal(ui.host.querySelector('[data-contribution-updated]').dateTime,original)
+ assert.equal(ui.host.querySelector('[data-contribution-checked]').dateTime,ui.host.dataset.checkedAt)
  const offline=view(context,{remote:async()=>{throw Error('offline')},published:async()=>{throw Error('offline')}});await flush()
  assert.equal(offline.host.dataset.checkedAt,undefined)
 })

@@ -105,6 +105,7 @@ const ownerAvatar = profileAvatar(profile.avatar)
   site-comments a { text-decoration:underline; text-underline-offset:3px; }
   site-comments .comment-compose-foot, site-comments .comment-list-heading, site-comments .comment-dialog-actions { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
   site-comments .comment-list-heading { margin:1.5rem 0 .5rem; }
+  site-comments :is([data-refresh],[data-more]) { display:inline-flex; align-items:center; justify-content:center; min-height:2.25rem; padding:.3rem .8rem; line-height:1.5; }
   site-comments .comment-list { padding:0; list-style:none; }
   site-comments .comment-item { border-top:1px solid hsl(var(--border)); padding:1.15rem 0; overflow-wrap:anywhere; scroll-margin-top:6rem; }
   site-comments .comment-item-reply { margin-left:clamp(.75rem,3vw,2.25rem); }
@@ -236,6 +237,8 @@ const ownerAvatar = profileAvatar(profile.avatar)
   site-comments dialog { width:min(90vw,28rem); padding:1.5rem; border:1px solid hsl(var(--border)); border-radius:1rem; color:hsl(var(--foreground)); background:hsl(var(--background)); }
   @media (pointer:coarse) {
     site-comments button, site-comments summary { min-height:2.75rem; }
+    site-comments :is([data-refresh],[data-more]) { position:relative; min-height:2.5rem; }
+    site-comments :is([data-refresh],[data-more])::after { content:''; position:absolute; inset:-2px 0; }
     site-comments .comment-item-actions button, site-comments .comment-menu summary, site-comments .comment-body-toggle { min-height:2.75rem; }
     site-comments .article-body .article-code-bar button { min-height:2.75rem; }
   }
