@@ -27,3 +27,12 @@ Follow-up: Show more / Show less sits below the comment on the right, aligned wi
 - 本次局部验证：170 项相关隔离测试通过；Astro 检查 0 errors、0 warnings（11 条已有 hints）；独立目录构建及 53 页检查通过。Edge 检查 1440 / 1280px 桌面及 430 / 375 / 320px 手机模拟尺寸，覆盖中英文与深浅色。未修改正式评论或浏览器编辑副本。
 
 Refresh and Load more use compact borders while retaining 44px touch targets. Contribution details expand below the controls without changing the 8px graph-to-button gap. Data and check timestamps remain distinct; the selected date is no longer repeated beside its input. All 170 focused tests, type-check and isolated build passed. Responsive checks used Edge emulation, not a physical iPhone.
+
+## 2026-11-04：操作反馈与取消回复 / Feedback and cancelling replies
+
+- 已确认成功的留言、资料更新和管理操作提示显示 3 秒；正在处理、需要操作的说明和失败提示不会按此时限自动清除。新提示替换旧提示时取消旧计时，离开评论组件时清理计时器。
+- 提示框采用紧凑的上下内边距；在编辑框末尾显示时不叠加底部外边距。
+- 取消回复保留输入内容、退出回复模式，将键盘焦点交还原评论，并补偿编辑框移回顶部造成的位置变化，不滚动到顶部编辑框。接近页面底部时仍受浏览器滚动边界限制。
+- 148 项评论隔离测试和独立构建通过；浏览器检查覆盖桌面中文浅色和 430px 英文深色。测试使用本机模拟留言与接口，没有修改正式留言、管理设置或其他标签页草稿。响应式模拟不等同于实体 iPhone Safari 验收。
+
+Confirmed successful actions dismiss after 3 seconds; progress, actionable guidance and errors remain until replaced. A new message cancels the previous expiry. Cancelling a reply keeps the draft, returns focus to the original comment and preserves its reading position within browser scroll limits. The 148 isolated comment tests and build passed, followed by desktop and 430px responsive checks without production writes.

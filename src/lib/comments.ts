@@ -2,6 +2,7 @@ import { getCommentClient, type CommentAuthChangeDetail } from './comment-auth'
 import { commentError, commentHasReplies, groupCommentRows, type CommentRow, type CommentMe } from './comment-utils'
 import { prepareCommentAvatar, commentAvatarUrl, captureAvatarAuthorization, saveCommentAvatar, removeCommentAvatar, commentAvatarMessage } from './comment-avatar'
 import { renderCommentMarkdown } from './comment-markdown'
+import { UI_FEEDBACK_DURATION_MS } from './ui-feedback'
 
 const guestIdentity = (): CommentMe => ({ nickname:null, can_post:false, is_admin:false, banned:false, moderation_enabled:false })
 
@@ -37,10 +38,17 @@ export class SiteComments extends HTMLElement {
   private requestId: string | null = null
   private fingerprint = ''
   private pendingConfirmation: ((value:boolean)=>void) | null = null
+  private statusTimer?: number
   private get en() { return this.dataset.lang === 'en' }
   private t(zh:string,en:string) { return this.en ? en : zh }
   private el<T extends Element = HTMLElement>(selector:string) { return this.querySelector<T>(selector)! }
-  private status(text:string,error=false) { const el=this.el('[data-status]'); el.textContent=text; el.dataset.error=String(error) }
+  private status(text:string,error=false,transient=false) {
+    window.clearTimeout(this.statusTimer); this.statusTimer=undefined
+    const el=this.el('[data-status]'); el.textContent=text; el.dataset.error=String(error)
+    if(text && !error && transient) this.statusTimer=window.setTimeout(()=>{
+      this.statusTimer=undefined; el.textContent=''
+    },UI_FEEDBACK_DURATION_MS)
+  }
   private signal() { return AbortSignal.any([this.lifetime!.signal, this.accountLifetime.signal, AbortSignal.timeout(20000)]) }
   private current(lifetime:AbortController|undefined, account:number) { return this.isConnected && this.lifetime===lifetime && this.accountVersion===account }
   private name() { return this.me.is_admin ? 'Cyril Fan' : this.me.nickname }
@@ -68,7 +76,7 @@ export class SiteComments extends HTMLElement {
     this.el('[data-refresh]').addEventListener('click',()=>void this.load(false,true),options)
     this.el('[data-apply-update]').addEventListener('click',()=>void this.load(false,true),options)
     this.el('[data-more]').addEventListener('click',()=>void this.load(true),options)
-    this.el('[data-cancel-reply]').addEventListener('click',()=>this.setReply(null,true),options)
+    this.el('[data-cancel-reply]').addEventListener('click',()=>this.cancelReply(),options)
     this.el('[data-cancel-login-reply]').addEventListener('click',()=>{
       this.loginReply=null; this.updateControls()
       const authOpen=!this.el<HTMLElement>('comment-auth [data-guest]').hidden
@@ -146,6 +154,7 @@ export class SiteComments extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.status('')
     this.bodyDisclosures.splice(0).forEach(dispose=>dispose())
     this.clearAuthorEmails()
     this.resetAvatarEditor()
@@ -581,6 +590,17 @@ export class SiteComments extends HTMLElement {
       this.status(commentError(error as Error,this.en),true)
     } finally {if(generation===this.emailGeneration) this.emailOperation=undefined}
   }
+  private cancelReply() {
+    if(this.busy) return
+    const target=this.parent ? this.querySelector<HTMLElement>(`#comment-${this.parent.id}`) : null
+    const top=target?.getBoundingClientRect().top
+    this.setPreview(false); this.setReply(null)
+    if(target && top!==undefined) {
+      target.querySelector<HTMLElement>(':scope > .comment-item-top .comment-item-actions > button')?.focus({preventScroll:true})
+      const shift=target.getBoundingClientRect().top-top
+      if(shift) window.scrollBy({top:shift,behavior:'instant'})
+    }
+  }
   private setReply(row:CommentRow|null,focus=false) {
     if(row && (this.busy || !this.me.can_post || row.deleted)) return
     this.parent=row; this.replyUnavailable=false; this.placeComposer(); this.updateControls()
@@ -664,7 +684,7 @@ export class SiteComments extends HTMLElement {
       this.resetAvatarEditor(); this.busy=true
       const loaded=await this.load(false,true)
       if(!this.current(lifetime,account)) return
-      this.status(loaded ? this.t('头像已更新，之前的留言也会显示新头像。','Avatar updated, including your earlier comments.') : this.t('头像已保存，但留言列表刷新失败。请点击刷新查看。','Your avatar was saved, but comments could not refresh. Please refresh the list.'),!loaded)
+      this.status(loaded ? this.t('头像已更新，之前的留言也会显示新头像。','Avatar updated, including your earlier comments.') : this.t('头像已保存，但留言列表刷新失败。请点击刷新查看。','Your avatar was saved, but comments could not refresh. Please refresh the list.'),!loaded,loaded)
     } catch(error) {
       if(this.current(lifetime,account) && this.avatarOperation===operation) this.status(commentAvatarMessage(error,this.en),true)
     } finally {
@@ -691,7 +711,7 @@ export class SiteComments extends HTMLElement {
       // Storage DELETE may return 200 with [] if RLS filters the object out.
       // Never report a deletion while the server profile still exposes that image.
       const removed=loaded && !this.me.avatar_path
-      this.status(removed ? this.t('头像已移除，留言恢复默认头像。','Avatar removed. Your comments now use the default avatar.') : loaded ? this.t('头像仍未移除，请刷新确认账户权限后重试。','The avatar is still present. Refresh to check account permissions and retry.') : this.t('已请求移除头像，但暂时无法确认结果。请刷新查看。','Avatar removal was requested, but the result could not be confirmed. Please refresh to check.'),!removed)
+      this.status(removed ? this.t('头像已移除，留言恢复默认头像。','Avatar removed. Your comments now use the default avatar.') : loaded ? this.t('头像仍未移除，请刷新确认账户权限后重试。','The avatar is still present. Refresh to check account permissions and retry.') : this.t('已请求移除头像，但暂时无法确认结果。请刷新查看。','Avatar removal was requested, but the result could not be confirmed. Please refresh to check.'),!removed,removed)
     } catch(error) {
       if(this.current(lifetime,account) && this.avatarOperation===operation) this.status(commentAvatarMessage(error,this.en),true)
     } finally {
@@ -716,7 +736,7 @@ export class SiteComments extends HTMLElement {
       this.editingProfile=false; this.updateControls()
       const loaded=await this.load(false,true)
       if(!this.current(lifetime,account)) return
-      this.status(loaded ? this.t('昵称已更新，之前的留言和回复也会显示新昵称。','Nickname updated, including your earlier comments and replies.') : this.t('昵称已保存，但留言列表刷新失败。请刷新查看新昵称。','Your nickname was saved, but comments could not refresh. Refresh to see the new name.'),!loaded)
+      this.status(loaded ? this.t('昵称已更新，之前的留言和回复也会显示新昵称。','Nickname updated, including your earlier comments and replies.') : this.t('昵称已保存，但留言列表刷新失败。请刷新查看新昵称。','Your nickname was saved, but comments could not refresh. Refresh to see the new name.'),!loaded,loaded)
     } catch(error) {if(this.current(lifetime,account)) this.status(commentError(error as Error,this.en),true)}
     finally {if(this.current(lifetime,account)) {this.busy=false; this.updateControls()}}
   }
@@ -745,7 +765,7 @@ export class SiteComments extends HTMLElement {
       if(!this.current(lifetime,account)) return
       this.status(!loaded ? this.t('留言已提交，但列表刷新失败。请点击刷新，无需重复提交。','Your comment was submitted, but the list could not refresh. Refresh the list; you do not need to post again.')
         : !shown ? this.t('留言已提交，但暂时无法定位。请刷新或继续加载查看，无需重复提交。','Your comment was submitted, but could not be located yet. Refresh or load more to view it; do not submit it again.')
-        : data?.is_pending ? this.t('已提交，审核通过后公开。','Submitted for review.') : this.t('留言已发布。','Your comment has been posted.'),!loaded || !shown)
+        : data?.is_pending ? this.t('已提交，审核通过后公开。','Submitted for review.') : this.t('留言已发布。','Your comment has been posted.'),!loaded || !shown,loaded && shown)
       ;(shown ? this.querySelector(`#comment-${data.id}`) : this.el('[data-status]'))?.scrollIntoView?.({block:'nearest'})
     } catch(error) {if(this.current(lifetime,account)) this.status(commentError(error as Error,this.en),true)}
     finally {if(this.current(lifetime,account)) {this.busy=false; this.updateControls()}}
@@ -786,7 +806,7 @@ export class SiteComments extends HTMLElement {
       if(error) throw error
       const loaded=await this.load(false,true)
       if(!this.current(lifetime,account)) return
-      this.status(loaded ? this.t('操作已完成。','Done.') : this.t('操作已完成，但列表刷新失败。请点击刷新查看结果。','The action succeeded, but the list could not refresh. Please refresh to see the result.'),!loaded)
+      this.status(loaded ? this.t('操作已完成。','Done.') : this.t('操作已完成，但列表刷新失败。请点击刷新查看结果。','The action succeeded, but the list could not refresh. Please refresh to see the result.'),!loaded,loaded)
     } catch(error) {if(this.current(lifetime,account)) this.status(commentError(error as Error,this.en),true)}
     finally {if(this.current(lifetime,account)) {this.busy=false; this.updateControls()}}
   }

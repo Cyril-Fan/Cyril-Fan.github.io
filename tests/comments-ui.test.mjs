@@ -174,7 +174,7 @@ async function setup(context, language, { identity = guest(), rows = [], configu
     const require = (id) => {
       if (id === '@supabase/supabase-js') return { createClient: () => client }
       if (id === './comment-markdown') return commentMarkdown
-      if (id === './comment-auth' || id === './comment-utils' || id === './comment-avatar') return loadModule(id.slice(2))
+      if (id === './comment-auth' || id === './comment-utils' || id === './comment-avatar' || id === './ui-feedback') return loadModule(id.slice(2))
       throw new Error(`Unexpected module at test boundary: ${id}`)
     }
     window.Function('require', 'module', 'exports', code)(require, module, module.exports)
@@ -225,6 +225,31 @@ async function setup(context, language, { identity = guest(), rows = [], configu
 }
 
 for (const language of ['zh', 'en']) {
+  test(`${language}: successful feedback expires, later errors remain, and disconnect cancels expiry`,async context=>{
+    const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1)]})
+    const timers=new Map(),realSet=ui.window.setTimeout.bind(ui.window),realClear=ui.window.clearTimeout.bind(ui.window)
+    let next=-1
+    ui.window.setTimeout=(fn,ms,...args)=>{
+      if(ms!==3000) return realSet(fn,ms,...args)
+      const id=next--;timers.set(id,fn);return id
+    }
+    ui.window.clearTimeout=id=>{if(!timers.delete(id))realClear(id)}
+    const change=()=>ui.select('[data-moderation]').dispatchEvent(new ui.window.Event('change',{bubbles:true}))
+    const completed=()=>!ui.select('[data-moderation]').disabled && timers.size===1
+    change();await until(completed,'successful moderation feedback')
+    assert.equal(ui.status.textContent,language==='en'?'Done.':'操作已完成。')
+    const expire=timers.values().next().value;timers.clear();expire()
+    assert.equal(ui.status.textContent,'')
+    change();await until(completed,'second successful feedback')
+    ui.handlers.comment_moderation=()=>({data:null,error:{message:'network unavailable'}})
+    change();await until(()=>!ui.select('[data-moderation]').disabled && ui.status.dataset.error==='true','failure replaces success')
+    assert.equal(timers.size,0,'Previous expiry cannot erase the newer error')
+    assert.notEqual(ui.status.textContent,'')
+    delete ui.handlers.comment_moderation
+    change();await until(completed,'successful retry gets its own expiry')
+    ui.panel.remove();assert.equal(timers.size,0,'Detached components leave no feedback timer')
+  })
+
   test(`${language}: long comments collapse independently, survive list refresh and reveal keyboard targets`,async context=>{
     const ui=await setup(context,language,{identity:member({is_admin:true}),rows:[row(1,{body:'Long comment [link](https://example.com)'}),row(2)]})
     const realRect=ui.window.HTMLElement.prototype.getBoundingClientRect
@@ -945,11 +970,23 @@ for (const language of ['zh', 'en']) {
     assert.equal(ui.textarea.value, 'Draft stays with me')
     assert.equal(ui.window.document.activeElement, ui.textarea)
     assert.equal(ui.textarea.selectionStart, 2)
+    const target=ui.select(`#comment-${row(2).id}`),scrolls=[]
+    target.getBoundingClientRect=()=>({top:ui.compose.parentElement===ui.select('[data-compose-home]')?520:120})
+    ui.window.scrollBy=options=>scrolls.push(options)
+    let scrolledToComposer=false
+    ui.compose.scrollIntoView=()=>{scrolledToComposer=true}
+    ui.select('[data-markdown-preview-toggle]').click()
     ui.select('[data-cancel-reply]').click()
     assert.equal(ui.compose.parentElement, ui.select('[data-compose-home]'))
     assert.equal(ui.textarea.value, 'Draft stays with me')
     assert.equal(ui.post.textContent, label('发布留言', 'Post comment'))
     assert.equal(ui.panel.querySelectorAll('[data-status]').length, 1)
+    assert.equal(ui.window.document.activeElement,replyTo(ui,2),'Cancel returns keyboard focus to the original comment')
+    assert.equal(scrolledToComposer,false,'Cancel must not scroll to the top-level composer')
+    assert.equal(scrolls.length,1)
+    assert.equal(scrolls[0].top,400,'Keep the original comment at the same viewport position when moving the form')
+    assert.equal(scrolls[0].behavior,'instant')
+    assert.equal(ui.select('[data-markdown-preview]').hidden,true)
   })
 
   test(`${language}: an unavailable reply target requires cancellation before a root comment can be sent`, async (context) => {
