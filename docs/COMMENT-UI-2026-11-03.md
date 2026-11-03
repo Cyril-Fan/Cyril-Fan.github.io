@@ -2,6 +2,7 @@
 
 - 登录、注册及找回密码表单使用输入框内的眼睛按钮。切换不改变密码内容；切换表单、登录状态或离开组件时恢复隐藏。按钮保留中英文无障碍名称。
 - 每条留言的回复和更多操作位于作者栏右侧，底部对齐。手机菜单使用整条留言的可用宽度，避免文字被挤在窄列中。
+- 展开／收起位于正文右下方，与作者栏操作的右边缘对齐；正文和按钮之间保留间距，手机触控区域保持足够高度。
 - 长评论按实际渲染高度默认折叠，保留约 18rem 预览（超出不足 2rem 时不折叠）。可随时展开／收起；仅折叠正文，不折叠回复或编辑框。展开状态仅保留在当前页面内存中，刷新留言列表时保留，重新载入页面后重置。脚注和键盘焦点进入正文时自动展开，避免落入裁剪区域。
 - 不修改账户权限、数据库记录、留言原文、评论草稿或其他标签页。
 
@@ -15,3 +16,5 @@ Sign-in, registration and password recovery share an inline eye button with acce
 - 测试账户与留言仅存在于本机内存模拟环境，未向正式站提交测试内容。
 
 All 361 isolated tests passed. Type-check and production build passed. Browser checks covered desktop and mobile viewport sizes, both languages and themes, with no production test comments or account mutations. Mobile checks used Edge viewport emulation, not a physical iPhone.
+
+Follow-up: Show more / Show less sits below the comment on the right, aligned with the header actions, with spacing above and an appropriate mobile touch target. This changes layout only; expansion behavior and comment data remain unchanged.
