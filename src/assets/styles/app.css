@@ -9,6 +9,11 @@
 
 /* Preserve the theme's Tailwind 3 defaults during the framework migration. */
 @layer base {
+  /* Keep centered navigation aligned when moving between short and long pages. */
+  html { scrollbar-gutter: stable; }
+  @supports not (scrollbar-gutter: stable) {
+    html { overflow-y: scroll; }
+  }
   button:not(:disabled), [role="button"]:not(:disabled) { cursor:pointer; }
   input::placeholder, textarea::placeholder { color:var(--color-gray-400); }
   dialog { margin:auto; }
