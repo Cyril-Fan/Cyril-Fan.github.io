@@ -211,7 +211,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .feed-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.4rem 1rem; margin:.85rem 0; font-size:.75rem; color:hsl(var(--muted-foreground)); }
   [data-feed-checked] { margin-left:auto; text-align:right; }
   [data-feed-update], [data-feed-stale] { flex-basis:100%; }
-  .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
+  .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:.5px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
   .author-dialog[open] { display:flex; flex-direction:column; }
   .author-dialog::backdrop { background:rgb(0 0 0/.45); backdrop-filter:blur(3px); }
   .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:none; }
