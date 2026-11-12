@@ -216,7 +216,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .author-dialog::backdrop { background:rgb(0 0 0/.45); backdrop-filter:blur(3px); }
   .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:none; }
   [data-author-site] { flex:none; align-self:flex-start; }
-  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:calc(1px - 1.25rem); padding-inline-end:1rem; }
+  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:-1.25rem; padding-inline-end:1rem; }
   .author-dialog h3 { font-weight:600; }
   .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2rem; height:2rem; min-height:2rem; flex:none; padding:.375rem; position:relative; border:1px solid hsl(var(--border)); border-radius:.5rem; }
   @media(pointer:coarse) { .feed-close::after { content:"";position:absolute;inset:-6px; } }
