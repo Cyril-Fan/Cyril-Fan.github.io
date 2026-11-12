@@ -50,7 +50,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   <dialog class='author-dialog' aria-labelledby='feed-author-title'>
     <div class='author-dialog-header'><h3 id='feed-author-title'></h3><button type='button' data-close-author class='feed-close' aria-label={en ? 'Close recent posts' : '关闭近期文章'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button></div>
     <a data-author-site target='_blank' rel='noopener noreferrer'>{en ? 'Visit this blog' : '访问博客'} ↗</a>
-    <ul data-author-articles></ul>
+    <div class='author-dialog-scroll' tabindex='0' role='region' aria-label={en ? 'Recent posts list' : '近期文章列表'}><ul data-author-articles></ul></div>
   </dialog>
 </friend-feed>
 <script>
@@ -202,15 +202,20 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .feed-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.4rem 1rem; margin:.85rem 0; font-size:.75rem; color:hsl(var(--muted-foreground)); }
   [data-feed-checked] { margin-left:auto; text-align:right; }
   [data-feed-update], [data-feed-stale] { flex-basis:100%; }
-  .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
+  .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
+  .author-dialog[open] { display:flex; flex-direction:column; }
+  :global(html:has(.author-dialog[open])) { overflow:hidden; scrollbar-gutter:stable; }
+  :global(body:has(.author-dialog[open])) { overflow:hidden; }
   .author-dialog::backdrop { background:rgb(0 0 0/.45); backdrop-filter:blur(3px); }
-  .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+  .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:none; }
+  [data-author-site] { flex:none; align-self:flex-start; }
+  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:-1rem; padding-inline-end:1rem; }
   .author-dialog h3 { font-weight:600; }
   .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2rem; height:2rem; min-height:2rem; flex:none; padding:.375rem; position:relative; border:1px solid hsl(var(--border)); border-radius:.5rem; }
   @media(pointer:coarse) { .feed-close::after { content:"";position:absolute;inset:-6px; } }
   .feed-close svg { width:1.125rem; height:1.125rem; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   .author-dialog a { color:hsl(var(--primary)); }
-  [data-author-articles] { padding:0; margin-top:1rem; }
+  [data-author-articles] { padding:0; margin:0; }
   :global([data-author-articles] li) { display:flex; flex-direction:column; gap:.3rem; padding:.8rem 0; border-top:1px solid hsl(var(--border)); }
   @media(max-width:640px) { .feed-article { grid-template-columns:minmax(0,1fr) auto; gap:.3rem .75rem; padding:.75rem .2rem 1rem; } .feed-title { grid-column:1/-1; grid-row:2; } .feed-article time { grid-column:2; grid-row:1; } .random-card { column-gap:.5rem; padding:.75rem; } .feed-panel-header { padding:.5rem .75rem; gap:.5rem; } .feed-panel-actions { gap:.1rem; } .feed-panel-actions button { min-height:2.75rem; } .feed-articles { padding:0 .75rem; } }
   @media(prefers-reduced-motion:reduce){.feed-article,.feed-author img { transition:none; } .feed-author:is(:hover,:focus-visible) img { transform:none; }}
