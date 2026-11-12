@@ -166,6 +166,8 @@ test('manual feed UI refresh replaces only reading rows and restores pagination 
  const initial={friends:[{...friend,avatar:'/avatar.png'}],feeds:[],checkedAt:'2026-10-20'}
  const dom=new JSDOM(`<friend-feed data-lang="zh"><script data-feed-data type="application/json">${JSON.stringify(initial)}</script><template data-feed-row><article data-feed-article><button class="feed-author"><img><span></span></button><a class="feed-title"></a><time></time></article></template><button data-random-refresh>随便读读</button><button data-check-update>刷新</button><section data-random-panel hidden><a data-random-title></a><span data-random-meta></span><button data-close-random></button></section><div class="feed-articles"></div><button data-load-more></button><p data-feed-status></p><span data-feed-counts></span><span data-feed-checked><time></time></span><span data-feed-stale></span><dialog><h3 id="feed-author-title"></h3><a data-author-site></a><ul data-author-articles></ul></dialog></friend-feed><textarea>Unsubmitted comment</textarea>`,{url:'https://cyril-fan.top/links/',runScripts:'outside-only'})
  t.after(()=>dom.window.close());const w=dom.window;let timer
+ const dialog=w.document.querySelector('dialog'),list=dialog.querySelector('[data-author-articles]'),scrollArea=w.document.createElement('div')
+ scrollArea.className='author-dialog-scroll';list.replaceWith(scrollArea);scrollArea.append(list)
  w.setTimeout=(fn,ms)=>{assert.equal(ms,3000);timer=fn;return 1};w.clearTimeout=()=>{}
  const articles=Array.from({length:23},(_,i)=>({...parseFeed(rss,friend,now)[0],title:`Article ${i+1}`,link:`https://example.com/post-${i}`}))
  const updated={...initial,checkedAt:'2026-10-24T16:02:01Z',feeds:[{source:friend.link,status:'ok',articles}]}
@@ -175,6 +177,13 @@ test('manual feed UI refresh replaces only reading rows and restores pagination 
  const feedback=browserModule(w,'../src/lib/ui-feedback.ts')
  w.Function('require','exports',js)(name=>name.endsWith('/ui-feedback')?feedback:refresh,{})
  const host=w.document.querySelector('friend-feed');host.querySelector('[data-check-update]').click();await new Promise(setImmediate)
+ dialog.getBoundingClientRect=()=>({left:100,right:500,top:100,bottom:600})
+ const wheel=(target,x,y,ctrlKey=false)=>{const event=new w.WheelEvent('wheel',{bubbles:true,cancelable:true,clientX:x,clientY:y,deltaY:100,ctrlKey});target.dispatchEvent(event);return event.defaultPrevented}
+ assert.equal(wheel(dialog.querySelector('h3'),200,150),true,'The panel header must not scroll the background')
+ assert.equal(wheel(dialog,110,300),true,'The panel padding must not scroll the background')
+ assert.equal(wheel(list,200,300),false,'The list keeps native scrolling; CSS contains overscroll')
+ assert.equal(wheel(dialog,600,300),false,'Wheel events on the backdrop may scroll the background')
+ assert.equal(wheel(dialog.querySelector('h3'),200,150,true),false,'Browser pinch/Control zoom is preserved')
  assert.equal(host.querySelectorAll('[data-feed-article]').length,23);assert.match(host.querySelector('[data-feed-status]').textContent,/已更新/)
  assert.equal(host.querySelectorAll('[data-feed-article]:not([hidden])').length,10)
  assert.equal(host.querySelector('time').dateTime,'2026-10-20T00:00:00.000Z');assert.equal(host.querySelector('[data-feed-checked] time').dateTime,updated.checkedAt)

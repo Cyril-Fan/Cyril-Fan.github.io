@@ -1,10 +1,10 @@
 # 近期文章弹窗 / Recent-post dialog
 
-- 仅文章列表滚动，标题、博客链接和关闭按钮保持可见。滚动条靠近右边框，约留 4px 间距，上下与圆角保持距离。
-- 弹窗打开时锁定背景滚动，列表到达顶部或底部后继续滚动不会传到背景。关闭、Esc 或点击遮罩后恢复页面滚动及打开按钮焦点。
+- 仅文章列表滚动，标题、博客链接和关闭按钮保持可见。滚动条靠近右边框，约留 1px 内距，上下与圆角保持距离。
+- 鼠标在弹窗内部时，列表到达顶部或底部后继续滚动不会传到背景；标题和内边距区域也不会带动背景。鼠标移到弹窗外时可正常滚动背景，不再全局锁定页面。关闭、Esc 或点击遮罩后恢复打开按钮焦点。
 - 使用现有原生 dialog 和 CSS 布局，不改变朋友圈数据、刷新逻辑、评论或编辑副本。
 
-Only the article list scrolls. The header and close button stay visible; the scrollbar sits close to the right edge without meeting the rounded corners. While the dialog is open, background scrolling is locked and overscroll stays within the list. Closing restores normal page scrolling and focus. Feed content and other data are unaffected.
+Only the article list scrolls. The header and close button stay visible; the scrollbar has about 1px of inner spacing from the right border. Wheel scrolling inside the panel never scrolls the background, including over the header or at list boundaries. Outside the panel, the background remains scrollable. Closing restores focus. Feed content and other data are unaffected.
 
 ## 验证 / Checks
 

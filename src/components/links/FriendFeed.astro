@@ -66,6 +66,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       const en = this.dataset.lang === 'en'
       let cards = [...this.querySelectorAll<HTMLElement>('[data-feed-article]')]
       const dialog = this.querySelector<HTMLDialogElement>('dialog')!
+      const dialogScroll = this.querySelector<HTMLElement>('.author-dialog-scroll')!
       const more = this.querySelector<HTMLButtonElement>('[data-load-more]')
       const status = this.querySelector<HTMLElement>('[data-feed-status]')
       const pageSize = 10
@@ -163,6 +164,14 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         dialog.showModal()
       }, { signal })
       dialog.addEventListener('close', () => opener?.focus(), { signal })
+      dialog.addEventListener('wheel', event => {
+        if (event.ctrlKey) return
+        const rect = dialog.getBoundingClientRect()
+        const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+        // The backdrop also targets dialog. Only the panel's header/padding
+        // needs guarding; the list keeps its native, contained scrolling.
+        if (inside && !dialogScroll.contains(event.target as Node)) event.preventDefault()
+      }, { passive:false, signal })
       paginate()
     }
     disconnectedCallback() { this.controller?.abort() }
@@ -204,12 +213,10 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   [data-feed-update], [data-feed-stale] { flex-basis:100%; }
   .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
   .author-dialog[open] { display:flex; flex-direction:column; }
-  :global(html:has(.author-dialog[open])) { overflow:hidden; scrollbar-gutter:stable; }
-  :global(body:has(.author-dialog[open])) { overflow:hidden; }
   .author-dialog::backdrop { background:rgb(0 0 0/.45); backdrop-filter:blur(3px); }
   .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:none; }
   [data-author-site] { flex:none; align-self:flex-start; }
-  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:-1rem; padding-inline-end:1rem; }
+  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:calc(1px - 1.25rem); padding-inline-end:1rem; }
   .author-dialog h3 { font-weight:600; }
   .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2rem; height:2rem; min-height:2rem; flex:none; padding:.375rem; position:relative; border:1px solid hsl(var(--border)); border-radius:.5rem; }
   @media(pointer:coarse) { .feed-close::after { content:"";position:absolute;inset:-6px; } }
