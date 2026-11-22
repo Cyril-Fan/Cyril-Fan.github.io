@@ -25,7 +25,7 @@ const en = lang === 'en'
       : '浏览器存储不可用，本次登录仅在当前页面保留；刷新或关闭后需重新登录。'}
   </p>
   <div data-guest hidden class='auth-guest-panel'>
-    <div class='mt-4 flex flex-wrap gap-2' aria-label={en ? 'Account actions' : '账户操作'}>
+    <div class='flex flex-wrap gap-2' aria-label={en ? 'Account actions' : '账户操作'}>
       <button type='button' data-mode='login' aria-pressed='true' class='auth-action'>{en ? 'Sign in' : '登录'}</button>
       <button type='button' data-mode='signup' aria-pressed='false' class='auth-action' hidden={context === 'admin'}>{en ? 'Create account' : '注册'}</button>
       <button type='button' data-mode='recover' aria-pressed='false' class='auth-action'>{en ? 'Forgot password' : '找回密码'}</button>
@@ -51,7 +51,7 @@ const en = lang === 'en'
         <button data-submit type='submit' class='auth-primary justify-self-start'>{en ? 'Sign in' : '登录'}</button>
       </fieldset>
     </form>
-    <p class='mt-3 text-xs leading-relaxed text-muted-foreground' hidden={context === 'admin'}>
+    <p class='auth-privacy text-xs leading-relaxed text-muted-foreground' hidden={context === 'admin'}>
       {en ? 'Reading is open to everyone. Posting requires a verified email. Your email is private; only the signed-in site owner can view it when managing comments.' : '阅读评论无需登录，发布评论需验证邮箱。邮箱不公开，只有已登录的站长可在管理留言时查看。'}
       <a class='underline underline-offset-4' href={en ? '/en/terms/privacy-policy' : '/terms/privacy-policy'}>{en ? 'Privacy' : '隐私说明'}</a>
     </p>
@@ -308,7 +308,10 @@ const en = lang === 'en'
   .auth-session-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
   .auth-session-row [data-account] { margin:.5rem 0; min-width:0; max-width:100%; overflow-wrap:anywhere; }
   .auth-session-row [data-signout] { min-height:2rem; padding:.25rem .5rem; border-color:transparent; color:hsl(var(--muted-foreground)); }
-  .auth-guest-panel { border:1px solid hsl(var(--border)); border-radius:.75rem; padding:0 1rem 1rem; margin:.5rem 0 1rem; }
+  .auth-guest-panel { border:1px solid hsl(var(--border)); border-radius:.75rem; padding:1rem; margin:.5rem 0 1rem; }
+  [data-context='comments'] [data-auth-form] label { margin-block:.5rem .55rem; }
+  [data-context='comments'] .auth-primary { margin-block-start:.5rem; }
+  .auth-guest-panel .auth-privacy { margin:.65rem 0 0; }
   [data-message]:empty { display:none; }
   .auth-input {
     width: 100%;
