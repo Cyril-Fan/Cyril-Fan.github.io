@@ -223,6 +223,49 @@ test('password visibility is scoped to each form, keeps input intact, and resets
   }
 })
 
+test('mouse password previews end on exit and clicks still toggle persistent visibility', (context) => {
+  const dom = new JSDOM('<form><fieldset><input name="password" type="password" value="local-only-fixture"><button type="button" data-password-toggle="password"></button></fieldset></form>')
+  context.after(() => dom.window.close())
+  const root = dom.window.document.querySelector('form')
+  const controller = new dom.window.AbortController()
+  const input = root.querySelector('input')
+  const button = root.querySelector('button')
+  const pointer = (type, pointerType = 'mouse') => button.dispatchEvent(Object.assign(new dom.window.Event(type), { pointerType }))
+  let loginMode = true
+  runtime().api.bindPasswordVisibility(root, 'en', controller.signal, () => loginMode)
+
+  pointer('pointerenter')
+  assert.equal(input.type, 'text')
+  assert.equal(button.getAttribute('aria-pressed'), 'false')
+  pointer('pointerleave')
+  assert.equal(input.type, 'password')
+  pointer('pointerenter')
+  dom.window.dispatchEvent(new dom.window.Event('blur'))
+  assert.equal(input.type, 'password')
+
+  pointer('pointerenter')
+  button.click()
+  pointer('pointerleave')
+  assert.equal(input.type, 'text', 'The click stays active after mouse exit')
+  assert.equal(button.getAttribute('aria-pressed'), 'true')
+  pointer('pointerenter')
+  button.click()
+  assert.equal(input.type, 'password', 'Clicking to hide takes effect while still hovered')
+  pointer('pointerleave')
+  pointer('pointerenter', 'touch')
+  assert.equal(input.type, 'password')
+
+  loginMode = false
+  pointer('pointerenter')
+  assert.equal(input.type, 'password', 'Other form modes use click only')
+  loginMode = true
+  pointer('pointerenter')
+  assert.equal(input.type, 'text')
+  controller.abort()
+  assert.equal(input.type, 'password')
+  assert.equal(input.value, 'local-only-fixture')
+})
+
 test('one shared client disables automatic URL consumption and isolates project storage', () => {
   const instance = runtime()
   assert.equal(instance.api.getCommentClient(), instance.api.getCommentClient())

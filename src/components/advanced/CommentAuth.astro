@@ -92,7 +92,7 @@ const en = lang === 'en'
       if (this.dataset.context === 'admin') this.guestExpanded = true
       this.controller = new AbortController()
       const { signal } = this.controller
-      this.hidePasswords = bindPasswordVisibility(this, this.language, signal)
+      this.hidePasswords = bindPasswordVisibility(this, this.language, signal, () => this.mode === 'login' && !this.busy)
       this.querySelector<HTMLFormElement>('[data-auth-form]')?.addEventListener('submit', this.submit, { signal })
       this.querySelector<HTMLButtonElement>('[data-signout]')?.addEventListener('click', this.signOut, { signal })
       this.addEventListener('comment-auth-open', () => {

@@ -11,23 +11,44 @@ export const COMMENT_AUTH_EVENT = 'comment-auth-change'
 export const COMMENT_PASSWORD_MIN_LENGTH = 8
 
 /** Keep visibility local to the active form and reset it when its mode/session changes. */
-export function bindPasswordVisibility(root: HTMLElement, language: CommentAuthLanguage, signal: AbortSignal): () => void {
-  const buttons = root.querySelectorAll<HTMLButtonElement>('[data-password-toggle]')
-  const update = (button: HTMLButtonElement, visible: boolean) => {
+export function bindPasswordVisibility(
+  root: HTMLElement,
+  language: CommentAuthLanguage,
+  signal: AbortSignal,
+  canPreview?: () => boolean
+): () => void {
+  const resetControls: Array<() => void> = []
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-password-toggle]')) {
     const name = button.dataset.passwordToggle
-    if (name !== 'password' && name !== 'repeat') return
+    if (name !== 'password' && name !== 'repeat') continue
     const input = root.querySelector<HTMLInputElement>(`input[name="${name}"]`)
-    if (!input) return
-    input.type = visible ? 'text' : 'password'
-    button.setAttribute('aria-pressed', String(visible))
-    button.setAttribute('aria-label', language === 'en'
-      ? `${visible ? 'Hide' : 'Show'} ${name === 'repeat' ? 'repeated password' : 'password'}`
-      : `${visible ? '隐藏' : '显示'}${name === 'repeat' ? '再次输入的密码' : '密码'}`)
+    if (!input) continue
+
+    const isRevealedByClick = () => button.getAttribute('aria-pressed') === 'true'
+    const setVisibility = (visible: boolean) => {
+      input.type = visible ? 'text' : 'password'
+      button.setAttribute('aria-pressed', String(visible))
+      button.setAttribute('aria-label', language === 'en'
+        ? `${visible ? 'Hide' : 'Show'} ${name === 'repeat' ? 'repeated password' : 'password'}`
+        : `${visible ? '隐藏' : '显示'}${name === 'repeat' ? '再次输入的密码' : '密码'}`)
+    }
+    button.addEventListener('click', () => setVisibility(!isRevealedByClick()), { signal })
+    resetControls.push(() => setVisibility(false))
+
+    if (canPreview) {
+      const endPreview = () => { input.type = isRevealedByClick() ? 'text' : 'password' }
+      const onPointerExit = (event: PointerEvent) => {
+        if (event.pointerType === 'mouse') endPreview()
+      }
+      button.addEventListener('pointerenter', (event) => {
+        if (event.pointerType === 'mouse' && canPreview() && !button.matches(':disabled')) input.type = 'text'
+      }, { signal })
+      button.addEventListener('pointerleave', onPointerExit, { signal })
+      button.addEventListener('pointercancel', onPointerExit, { signal })
+      root.ownerDocument.defaultView?.addEventListener('blur', endPreview, { signal })
+    }
   }
-  const reset = () => buttons.forEach((button) => update(button, false))
-  buttons.forEach((button) => button.addEventListener('click', () => {
-    update(button, button.getAttribute('aria-pressed') !== 'true')
-  }, { signal }))
+  const reset = () => resetControls.forEach((hide) => hide())
   signal.addEventListener('abort', reset, { once: true })
   reset()
   return reset
