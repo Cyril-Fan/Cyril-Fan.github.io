@@ -247,7 +247,7 @@ const en = lang === 'en'
             return
           }
           passwordField.value = ''
-          this.message(this.dataset.context === 'admin' ? this.say('登录成功，正在读取内容编辑器。', 'Signed in. Loading the content editor.') : this.say('登录成功。评论草稿已保留。', 'Signed in. Your comment draft is preserved.'))
+          this.message(this.dataset.context === 'admin' ? this.say('登录成功，正在读取内容编辑器。', 'Signed in. Loading the content editor.') : '')
           emitCommentAuthChange(data.user.id)
         } else {
           this.mailCooldownUntil = Date.now() + 60_000

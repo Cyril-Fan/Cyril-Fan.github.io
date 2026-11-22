@@ -310,6 +310,8 @@ test('legacy short passwords can sign in; registration rejects 7 and accepts 8 c
   await element.submit({ preventDefault() {} })
   assert.equal(instance.calls.filter(([name]) => name === 'login').length, 1)
   assert.equal(instance.calls.find(([name]) => name === 'login')[1].email, 'Me@example.com')
+  assert.equal(element.querySelector('[data-account]').textContent, '已登录 · 邮箱已验证')
+  assert.equal(element.querySelector('[data-message]').textContent, '', 'The account status is the only sign-in confirmation in comments')
   const registration = runtime()
   const signup = registration.mount('CommentAuth.astro')
   await tick()
