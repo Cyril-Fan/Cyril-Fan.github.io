@@ -332,6 +332,24 @@ const en = lang === 'en'
   }
   .auth-action[aria-pressed='true'] { border-color: hsl(var(--foreground)); }
   .auth-primary { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+  /* Match the vertical padding and line height of the About page contact buttons. */
+  [data-context='comments'] .auth-guest-panel :is(.auth-action, .auth-primary, .auth-input) {
+    min-height:0;
+    padding-block:.5rem;
+    line-height:1.25rem;
+  }
+  [data-context='comments'] .auth-password-control [data-password-toggle] {
+    height:calc(100% - 2px);
+    min-height:0;
+  }
+  @media (pointer:coarse) {
+    [data-context='comments'] .auth-guest-panel :is(.auth-action, .auth-primary) { position:relative; }
+    [data-context='comments'] .auth-guest-panel :is(.auth-action, .auth-primary, [data-password-toggle])::after {
+      content:'';
+      position:absolute;
+      inset:-4px 0;
+    }
+  }
   button:disabled { cursor: wait; opacity: 0.6; }
   input:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--foreground)); outline-offset: 3px; }
   [hidden] { display: none !important; }
