@@ -153,14 +153,27 @@ test('owner sign-in is available on a direct admin visit and after signing out',
   element.disconnectedCallback()
 })
 
-test('comment sign-in remains collapsed until the visitor requests it', async () => {
-  const instance = runtime()
-  const element = instance.mount('CommentAuth.astro', { context: 'comments' })
-  await tick()
-  assert.equal(element.querySelector('[data-guest]').hidden, true)
-  element.dispatchEvent(new Event('comment-auth-open'))
-  assert.equal(element.querySelector('[data-guest]').hidden, false)
-  element.disconnectedCallback()
+test('the comment sign-in form opens on demand and account changes need no extra notice', async () => {
+  for (const lang of ['zh', 'en']) {
+    const instance = runtime()
+    const element = instance.mount('CommentAuth.astro', { context: 'comments', lang })
+    await tick()
+    assert.equal(element.querySelector('[data-guest]').hidden, true)
+    element.dispatchEvent(new Event('comment-auth-open'))
+    assert.equal(element.querySelector('[data-guest]').hidden, false)
+    element.querySelector('[name=email]').value = 'reader@example.com'
+    element.querySelector('[name=password]').value = 'isolated-only'
+    await element.submit({ preventDefault() {} })
+    await tick()
+    assert.equal(element.querySelector('[data-member]').hidden, false)
+    assert.equal(element.querySelector('[data-account]').textContent, lang === 'en' ? 'Signed in · Email verified' : '已登录 · 邮箱已验证')
+    assert.equal(element.querySelector('[data-message]').textContent, '')
+    await element.signOut()
+    await tick()
+    assert.equal(element.querySelector('[data-member]').hidden, true)
+    assert.equal(element.querySelector('[data-message]').textContent, '')
+    element.disconnectedCallback()
+  }
 })
 
 test('missing or privileged public configuration stays disabled without creating a client', () => {
@@ -310,8 +323,6 @@ test('legacy short passwords can sign in; registration rejects 7 and accepts 8 c
   await element.submit({ preventDefault() {} })
   assert.equal(instance.calls.filter(([name]) => name === 'login').length, 1)
   assert.equal(instance.calls.find(([name]) => name === 'login')[1].email, 'Me@example.com')
-  assert.equal(element.querySelector('[data-account]').textContent, '已登录 · 邮箱已验证')
-  assert.equal(element.querySelector('[data-message]').textContent, '', 'The account status is the only sign-in confirmation in comments')
   const registration = runtime()
   const signup = registration.mount('CommentAuth.astro')
   await tick()

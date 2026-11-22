@@ -286,7 +286,9 @@ const en = lang === 'en'
         const { error } = await client.auth.signOut({ scope: 'local' })
         if (!this.isConnected || connection !== this.controller) return
         if (error) throw error
-        this.message(this.dataset.context === 'admin' ? this.say('已退出登录。已暂存的本地副本保留，重新登录后可恢复。', 'Signed out. Saved local copies are kept and can be restored after signing in again.') : this.say('已退出当前设备，并清除本页的留言草稿。', 'Signed out on this device. This page’s comment draft has been cleared.'))
+        this.message(this.dataset.context === 'admin'
+          ? this.say('已退出登录。已暂存的本地副本保留，重新登录后可恢复。', 'Signed out. Saved local copies are kept and can be restored after signing in again.')
+          : '')
         emitCommentAuthChange(null)
       } catch (error) {
         if (connection === this.controller) this.message(authMessage(error, this.language, 'logout'), true)
