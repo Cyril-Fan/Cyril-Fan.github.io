@@ -24,8 +24,16 @@ export function bindPasswordVisibility(
     const input = root.querySelector<HTMLInputElement>(`input[name="${name}"]`)
     if (!input) continue
 
+    const preview = button.parentElement?.querySelector<HTMLElement>('[data-password-preview]')
+    let previewing = false
+    const endPreview = () => {
+      previewing = false
+      if (preview) preview.textContent = ''
+    }
+
     const isRevealedByClick = () => button.getAttribute('aria-pressed') === 'true'
     const setVisibility = (visible: boolean) => {
+      endPreview()
       input.type = visible ? 'text' : 'password'
       button.setAttribute('aria-pressed', String(visible))
       button.setAttribute('aria-label', language === 'en'
@@ -35,16 +43,23 @@ export function bindPasswordVisibility(
     button.addEventListener('click', () => setVisibility(!isRevealedByClick()), { signal })
     resetControls.push(() => setVisibility(false))
 
-    if (canPreview) {
-      const endPreview = () => { input.type = isRevealedByClick() ? 'text' : 'password' }
+    if (canPreview && preview) {
+      const refreshPreview = () => {
+        if (previewing) preview.textContent = input.value
+      }
       const onPointerExit = (event: PointerEvent) => {
         if (event.pointerType === 'mouse') endPreview()
       }
       button.addEventListener('pointerenter', (event) => {
-        if (event.pointerType === 'mouse' && canPreview() && !button.matches(':disabled')) input.type = 'text'
+        if (event.pointerType !== 'mouse' || !canPreview() || button.matches(':disabled') || isRevealedByClick()) return
+        // Keep the native password input intact for browser autofill during a peek.
+        previewing = true
+        refreshPreview()
       }, { signal })
       button.addEventListener('pointerleave', onPointerExit, { signal })
       button.addEventListener('pointercancel', onPointerExit, { signal })
+      input.addEventListener('input', refreshPreview, { signal })
+      input.form?.addEventListener('submit', endPreview, { signal })
       root.ownerDocument.defaultView?.addEventListener('blur', endPreview, { signal })
     }
   }

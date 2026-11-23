@@ -43,6 +43,7 @@ const en = lang === 'en'
           <div class='auth-password-control'>
             <input id={`${id}-password`} name='password' type='password' autocomplete='current-password' autocapitalize='none' spellcheck='false' required aria-describedby={`${id}-password-hint`} class='auth-input' />
             <button type='button' data-password-toggle='password' aria-controls={`${id}-password`} aria-pressed='false' aria-label={en ? 'Show password' : '显示密码'} class='auth-password-toggle'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z' /><circle cx='12' cy='12' r='3' /><path class='password-eye-slash' d='m3 3 18 18' /></svg></button>
+            <span class='auth-password-preview' data-password-preview aria-hidden='true' translate='no'></span>
           </div>
           <p id={`${id}-password-hint`} data-password-hint hidden class='mt-1 text-xs text-muted-foreground'>
             {en ? 'Use at least 8 characters. Pasting and password managers are supported.' : '新密码至少 8 个字符，可粘贴或使用密码管理器。'}
@@ -322,6 +323,36 @@ const en = lang === 'en'
     background: hsl(var(--background));
     padding: 0.55rem 0.75rem;
     color: hsl(var(--foreground));
+  }
+  .auth-input:is(:autofill, :-webkit-autofill) {
+    box-shadow: inset 0 0 0 100vmax hsl(var(--background));
+    -webkit-text-fill-color: hsl(var(--foreground));
+    caret-color: hsl(var(--foreground));
+  }
+  .auth-password-preview {
+    display:none;
+    position:absolute;
+    inset-block:1px;
+    inset-inline:1px calc(3.25rem + 1px);
+    padding-inline-start:.7rem;
+    border-start-start-radius:.4375rem;
+    border-end-start-radius:.4375rem;
+    align-content:center;
+    overflow:hidden;
+    background:hsl(var(--background));
+    color:hsl(var(--foreground));
+    font-size:.875rem;
+    white-space:pre;
+    text-overflow:ellipsis;
+    pointer-events:none;
+    user-select:none;
+  }
+  [data-context='comments'] .auth-password-preview {
+    padding-inline-start:.85rem;
+    font-size:1rem;
+  }
+  @media (any-hover:hover) {
+    .auth-password-toggle:enabled:hover + .auth-password-preview:not(:empty) { display:block; }
   }
   .auth-action, .auth-primary {
     min-height: 2.75rem;
