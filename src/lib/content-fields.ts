@@ -5,7 +5,7 @@ const list=(key:string,label:string,fields:Field[],en?:string):Field=>({key,labe
 const g=(key:string,label:string,fields:Field[],en?:string):Field=>({key,label,en,type:'group',fields})
 export const friendFields:Field[]=[t('name','名称','Name'),t('intro','简介','Description'),t('link','网站地址','Website'),{...t('avatar','头像','Avatar'),type:'image'},t('feed','RSS / Atom')]
 const profileFields:Field[]=[
- t('name','显示姓名','Display name'),t('homeName','首页姓名','Home name'),t('location','所在地','Location'),t('role','身份','Role'),t('spoiler','悬停介绍','Spoiler'),
+ t('name','显示姓名','Display name'),t('homeName','首页姓名','Home name'),t('role','身份','Role'),t('spoiler','悬停介绍','Spoiler'),
  {...t('intro','首页介绍','Home introduction'),type:'textarea'},m('about','关于正文','About body'),t('photoAlt','照片说明','Photo description'),
  {...t('interests','研究兴趣（每行一项）','Interests (one per line)'),type:'textarea'},
  g('education','学历',[

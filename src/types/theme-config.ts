@@ -175,9 +175,6 @@ export const ThemeConfigSchema = () =>
 
     /** Personal information configuration */
     personal: z.object({
-      /** Your location */
-      location: z.string().optional().describe('Your location'),
-
       /** Your GitHub username */
       githubUsername: z.string().optional().describe('Your GitHub username'),
 

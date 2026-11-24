@@ -1,5 +1,5 @@
 ---
-import { Button, Card, Icon, Label } from '@/components/user'
+import { Button, Card, Icon } from '@/components/user'
 import ContributionSnake from './ContributionSnake.astro'
 import PageLayout from '@/layouts/BaseLayout.astro'
 import Section from './Section.astro'
@@ -21,23 +21,21 @@ const education = educationCards(p, profile.schoolUrl)
         <img src={profileAvatar(profile.avatar)} alt={p.name} class='profile-avatar shrink-0 rounded-lg border p-1' width='176' height='176' loading='eager' />
         <div class='profile-details flex min-w-0 flex-col gap-y-4'>
           <h1 class='text-3xl font-bold'>{p.homeName}</h1>
-          <div class='flex flex-wrap gap-x-1 gap-y-1'>
-            {p.location && (
-              <Label title={p.location}>
-                <Icon name='location' class='size-4' slot='icon' />
-              </Label>
-            )}
-            {profile.github && (
-              <Label title='GitHub' as='a' href={`https://github.com/${profile.github}`} target='_blank' rel='noopener noreferrer'>
-                <Icon name='github' class='size-4' slot='icon' />
-              </Label>
-            )}
-            {profile.email && (
-              <Label title={en ? 'Email' : '邮箱'} as='a' href={`mailto:${profile.email}`}>
-                <Icon name='email' class='size-4' slot='icon' />
-              </Label>
-            )}
-          </div>
+          {(profile.github || profile.email) && (
+            <div class='profile-links'>
+              {profile.github && (
+                <a class='profile-link' href={`https://github.com/${profile.github}`} target='_blank' rel='noopener noreferrer'
+                  aria-label='GitHub' title='GitHub'>
+                  <Icon name='github-mark' />
+                </a>
+              )}
+              {profile.email && (
+                <a class='profile-link' href={`mailto:${profile.email}`} aria-label={en ? 'Email' : '邮箱'} title={en ? 'Email' : '邮箱'}>
+                  <Icon name='email' />
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -73,6 +71,25 @@ const education = educationCards(p, profile.schoolUrl)
   .home-profile { display:flex; flex-direction:column; align-items:center; margin-bottom:2.5rem; }
   .profile-heading { display:flex; flex-direction:row; align-items:center; gap:1.5rem; }
   .profile-avatar { width:7rem; height:7rem; object-fit:cover; }
+  .profile-links { display:flex; flex-wrap:wrap; gap:.25rem; margin-inline-start:-.625rem; }
+  .profile-link {
+    display:grid;
+    place-items:center;
+    width:2.75rem;
+    height:2.75rem;
+    border-radius:.375rem;
+    color:hsl(var(--muted-foreground));
+    transition:color .3s ease;
+  }
+  .profile-link > :global(svg) { width:1.5rem; height:1.5rem; transition:transform .3s ease, filter .3s ease; }
+  .profile-link:focus-visible { color:hsl(var(--primary)); outline:2px solid currentColor; outline-offset:2px; }
+  @media (hover:hover) {
+    .profile-link:hover { color:hsl(var(--primary)); }
+    .profile-link:hover > :global(svg) {
+      transform:translateY(-2px);
+      filter:drop-shadow(0 .15rem .2rem hsl(var(--primary) / .3));
+    }
+  }
   .home-content { display:flex; width:100%; min-width:0; flex-direction:column; gap:2.5rem; }
   .home-intro { line-height:1.9; text-align:justify; text-align-last:start; text-wrap:pretty; }
   .home-intro:lang(en) { text-align:start; }
@@ -81,7 +98,10 @@ const education = educationCards(p, profile.schoolUrl)
   .role-spoiler[aria-expanded='true'] span, .role-spoiler:focus-visible span { opacity:1; }
   .role-spoiler:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
   @media (hover:hover) { .role-spoiler:hover span { opacity:1; } }
-  @media (prefers-reduced-motion:reduce) { .role-spoiler span { transition:none; } }
+  @media (prefers-reduced-motion:reduce) {
+    .role-spoiler span, .profile-link, .profile-link > :global(svg) { transition:none; }
+    .profile-link:hover > :global(svg) { transform:none; }
+  }
   @media (min-width:640px) { .profile-avatar { width:9rem; height:9rem; } }
   @media (min-width:768px) and (max-width:1023px) { .home-content { width:80%; } }
   @media (min-width:1024px) {

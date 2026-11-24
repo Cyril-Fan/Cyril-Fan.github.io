@@ -76,8 +76,6 @@ export const theme: ThemeUserConfig = {
 
   /** Personal information configuration */
   personal: {
-    /** Your location */
-    location: 'China',
     /** Your GitHub username */
     githubUsername: 'Cyril-Fan',
     /** Your email address */

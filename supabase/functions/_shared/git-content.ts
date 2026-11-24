@@ -129,7 +129,7 @@ export function validateText(path: string, text: string) {
     if (kind === 'profile' && (typeof data.zh.name !== 'string' || typeof data.en.name !== 'string')) throw new Error('Profile names are required; use clear-content instead of deleting the page')
     if(kind==='profile'){
       for(const lang of ['zh','en']){
-        for(const key of ['name','homeName','location','role','spoiler','intro','about','photoAlt','interests','contactIntro'])if(typeof data[lang][key]!=='string')throw new Error('Expected profile text: '+lang+'.'+key)
+        for(const key of ['name','homeName','role','spoiler','intro','about','photoAlt','interests','contactIntro'])if(typeof data[lang][key]!=='string')throw new Error('Expected profile text: '+lang+'.'+key)
         const education=data[lang].education
         if(education!==undefined){
           if(!education||Array.isArray(education)||typeof education!=='object')throw new Error('Invalid education')
