@@ -2,6 +2,10 @@
 @config "../../../tailwind.config.mjs";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@utility home-card-feedback {
+  @apply shadow-xs motion-safe:transition-[border-color,box-shadow] hover:border-foreground/25 hover:shadow-lg focus-visible:border-foreground/25 focus-visible:shadow-lg;
+}
+
 /* Astro-rendered MDX and the shared browser renderer use the same dual themes. */
 .astro-code, .astro-code span { color:var(--shiki-light); background-color:var(--shiki-light-bg); }
 .dark .astro-code, .dark .astro-code span { color:var(--shiki-dark); background-color:var(--shiki-dark-bg); }

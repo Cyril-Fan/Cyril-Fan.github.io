@@ -65,7 +65,9 @@ const socialLinks = ([
           const showEmblem = jilinUniversityName.test(item.school)
           return (
             <Card as={item.href ? 'a' : 'div'} href={item.href || undefined}
-              class={showEmblem && 'education-card-jlu'} heading={item.school} subheading={item.major} date={item.period}>
+              target={item.href ? '_blank' : undefined} rel={item.href ? 'noopener noreferrer' : undefined}
+              class:list={['home-card-feedback', showEmblem && 'education-card-jlu']}
+              heading={item.school} subheading={item.major} date={item.period}>
               {showEmblem && <span slot='decoration' class='education-emblem' aria-hidden='true'>
                 <JilinUniversityEmblem />
               </span>}
@@ -108,9 +110,9 @@ const socialLinks = ([
   }
   .home-content { display:flex; width:100%; min-width:0; flex-direction:column; gap:2.5rem; }
   .home-content :global(.education-card-jlu) {
-    --education-emblem-size:clamp(3.25rem, 13vw, 4.5rem);
-    --education-emblem-inset:clamp(.875rem, 4vw, 1.5rem);
-    padding-inline-end:calc(var(--education-emblem-size) + var(--education-emblem-inset) + .75rem);
+    --education-emblem-size:clamp(3.75rem, 16vw, 4.5rem);
+    --education-emblem-inset:clamp(.75rem, 4vw, 1.5rem);
+    padding-inline-end:calc(var(--education-emblem-size) + var(--education-emblem-inset) + clamp(.625rem, 2.6vw, .75rem));
   }
   .education-emblem {
     position:absolute;
@@ -122,10 +124,8 @@ const socialLinks = ([
     color:hsl(var(--primary));
     opacity:.52;
     pointer-events:none;
-    transition:opacity .2s ease;
   }
   .education-emblem > :global(svg) { display:block; inline-size:100%; block-size:100%; }
-  .home-content :global(.education-card-jlu:is(:hover,:focus-visible)) .education-emblem { opacity:.68; }
   .home-intro { line-height:1.9; text-align:justify; text-align-last:start; text-wrap:pretty; }
   .home-intro:lang(en) { text-align:start; }
   .role-spoiler { display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; }
@@ -134,7 +134,7 @@ const socialLinks = ([
   .role-spoiler:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
   @media (hover:hover) { .role-spoiler:hover span { opacity:1; } }
   @media (prefers-reduced-motion:reduce) {
-    .role-spoiler span, .profile-link, .profile-link > :global(svg), .education-emblem { transition:none; }
+    .role-spoiler span, .profile-link, .profile-link > :global(svg) { transition:none; }
     .profile-link:hover > :global(svg) { transform:none; }
   }
   @media (max-width:767px) {

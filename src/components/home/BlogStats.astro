@@ -10,6 +10,7 @@ interface BlogStatsProps {
 
 const { blogStartDate } = Astro.props as BlogStatsProps
 const startDate = blogStartDate
+const cardClass = 'home-card-feedback group flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-4'
 
 const allPosts = await getBlogCollection()
 
@@ -50,26 +51,26 @@ const formatDate = (date: Date) => {
 
 <div class="flex flex-col gap-y-5">
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-    <div class="group flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-4 shadow-xs transition-all hover:border-foreground/25 hover:shadow-lg">
-      <Icon name="time" class="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
+    <div class={cardClass}>
+      <Icon name="time" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <site-days data-started={startDate.toISOString()} class="block text-2xl font-bold text-foreground group-hover:text-primary transition-colors">{daysDiff}</site-days>
+        <site-days data-started={startDate.toISOString()} class="block text-2xl font-bold text-foreground group-hover:text-primary motion-safe:transition-colors">{daysDiff}</site-days>
         <div class="text-sm text-muted-foreground">{english ? 'Days Online' : '建站天数'}</div>
       </div>
     </div>
     
-    <div class="group flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-4 shadow-xs transition-all hover:border-foreground/25 hover:shadow-lg">
-      <Icon name="calendar" class="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
+    <div class={cardClass}>
+      <Icon name="calendar" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <div class="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{lastUpdated ? formatDate(lastUpdated) : (english ? 'No posts yet' : '暂无文章')}</div>
+        <div class="text-sm font-medium text-foreground group-hover:text-primary motion-safe:transition-colors">{lastUpdated ? formatDate(lastUpdated) : (english ? 'No posts yet' : '暂无文章')}</div>
         <div class="text-sm text-muted-foreground">{english ? 'Latest Update' : '最近更新'}</div>
       </div>
     </div>
     
-    <div class="group flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-4 shadow-xs transition-all hover:border-foreground/25 hover:shadow-lg">
-      <Icon name="document" class="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
+    <div class={cardClass}>
+      <Icon name="document" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <div class="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">{formatNumber(totalWords)}</div>
+        <div class="text-2xl font-bold text-foreground group-hover:text-primary motion-safe:transition-colors">{formatNumber(totalWords)}</div>
         <div class="text-sm text-muted-foreground">{english ? 'Total Words' : '文章字数'}</div>
       </div>
     </div>
@@ -96,5 +97,12 @@ const formatDate = (date: Date) => {
 </script>
 
 <style>
-  .group { min-width: 0; overflow-wrap: anywhere; }
+  .group {
+    --stat-icon-color: hsl(var(--foreground));
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  @media (hover:hover) {
+    .group:hover { --stat-icon-color: hsl(var(--primary)); }
+  }
 </style>
