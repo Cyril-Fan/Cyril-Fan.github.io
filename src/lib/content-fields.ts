@@ -29,7 +29,13 @@ const academicFields:Field[]=[
  list('projects','项目',[t('title','名称','Title'),{...t('description','说明','Description'),type:'textarea'},t('category','分类','Category'),t('year','年份（可选）','Year (optional)'),{...t('status','状态','Status'),type:'select',options:['active','completed','archived']},{...t('image','图片','Image'),type:'image'},t('imageAlt','图片说明','Image description'),list('links','相关链接',links,'Links')],'Projects')
 ]
 export const jsonFields:Record<string,Field[]>={
- profile:[g('zh','中文',profileFields),g('en','English',profileFields),{...t('avatar','主页头像','Home avatar'),type:'image'},{...t('photo','关于页照片','About photo'),type:'image'},t('email','公开联系邮箱','Public email'),t('github','GitHub 用户名','GitHub username'),t('schoolUrl','学校链接','School link')],
+ profile:[
+  g('zh','中文',profileFields),g('en','English',profileFields),
+  {...t('avatar','主页头像','Home avatar'),type:'image'},{...t('photo','关于页照片','About photo'),type:'image'},
+  t('email','公开联系邮箱','Public email'),t('github','GitHub 用户名','GitHub username'),
+  t('acwingUrl','AcWing 个人主页','AcWing profile URL'),t('zhihuUrl','知乎个人主页','Zhihu profile URL'),
+  t('schoolUrl','学校链接','School link')
+ ],
  academic:[g('zh','中文',academicFields),g('en','English',academicFields)]
 }
 export const articleFields:Field[]=[t('title','标题','Title'),{...t('description','摘要','Description'),type:'textarea'},{...t('publishDate','发布日期','Publish date'),type:'date'},{...t('updatedDate','更新日期（可选）','Updated date (optional)'),type:'date'},t('category','分类','Category'),t('tags','标签（逗号分隔）','Tags (comma separated)'),g('heroImage','封面 / Cover',[{...t('src','图片','Image'),type:'image'},t('alt','图片说明','Alt text'),t('color','主题色（可选）','Accent (optional)')]),t('source','来源链接（可选）','Source URL (optional)'),t('pixivLink','Pixiv 作品编号（保留原字段）','Pixiv artwork ID (legacy)'),{...t('comment','允许评论','Enable comments'),type:'checkbox'},{...t('draft','暂不公开（提交后仍不展示）','Keep unpublished'),type:'checkbox'}]

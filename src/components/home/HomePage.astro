@@ -8,10 +8,17 @@ import config from '@/site-config'
 import { profile } from '../../lib/cms-content'
 import { profileAvatar } from '../../lib/content-image'
 import { educationCards } from '../../lib/profile-education'
+import { safeUrl } from '../../../supabase/functions/_shared/git-content'
 
 const en = Astro.currentLocale === 'en'
 const p = profile[en ? 'en' : 'zh']
 const education = educationCards(p, profile.schoolUrl)
+const socialLinks = ([
+  { icon: 'github-mark', label: 'GitHub', href: profile.github ? `https://github.com/${profile.github}` : '' },
+  { icon: 'acwing', label: 'AcWing', href: profile.acwingUrl },
+  { icon: 'zhihu', label: en ? 'Zhihu' : '知乎', href: profile.zhihuUrl },
+  { icon: 'email', label: en ? 'Email' : '邮箱', href: profile.email ? `mailto:${profile.email}` : '' }
+] as const).filter(({ icon, href }) => icon === 'email' ? Boolean(href) : safeUrl(href))
 ---
 
 <PageLayout meta={{ title: en ? 'Home' : '首页' }} highlightColor='#659EB966'>
@@ -21,19 +28,17 @@ const education = educationCards(p, profile.schoolUrl)
         <img src={profileAvatar(profile.avatar)} alt={p.name} class='profile-avatar shrink-0 rounded-lg border p-1' width='176' height='176' loading='eager' />
         <div class='profile-details flex min-w-0 flex-col gap-y-4'>
           <h1 class='text-3xl font-bold'>{p.homeName}</h1>
-          {(profile.github || profile.email) && (
+          {socialLinks.length > 0 && (
             <div class='profile-links'>
-              {profile.github && (
-                <a class='profile-link' href={`https://github.com/${profile.github}`} target='_blank' rel='noopener noreferrer'
-                  aria-label='GitHub' title='GitHub'>
-                  <Icon name='github-mark' />
-                </a>
-              )}
-              {profile.email && (
-                <a class='profile-link' href={`mailto:${profile.email}`} aria-label={en ? 'Email' : '邮箱'} title={en ? 'Email' : '邮箱'}>
-                  <Icon name='email' />
-                </a>
-              )}
+              {socialLinks.map(({ icon, label, href }) => {
+                const external = icon !== 'email'
+                return (
+                  <a class='profile-link' {href} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}
+                    aria-label={label} title={label}>
+                    <Icon name={icon} />
+                  </a>
+                )
+              })}
             </div>
           )}
         </div>
@@ -101,6 +106,14 @@ const education = educationCards(p, profile.schoolUrl)
   @media (prefers-reduced-motion:reduce) {
     .role-spoiler span, .profile-link, .profile-link > :global(svg) { transition:none; }
     .profile-link:hover > :global(svg) { transform:none; }
+  }
+  @media (max-width:767px) {
+    .home-profile { align-self:flex-start; }
+    .profile-links { column-gap:.125rem; }
+  }
+  @media (max-width:359px) {
+    .profile-heading { gap:.75rem; }
+    .profile-avatar { width:5.5rem; height:5.5rem; }
   }
   @media (min-width:640px) { .profile-avatar { width:9rem; height:9rem; } }
   @media (min-width:768px) and (max-width:1023px) { .home-content { width:80%; } }
