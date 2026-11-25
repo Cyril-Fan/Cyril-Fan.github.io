@@ -12,6 +12,13 @@
           "feed": "https://axi404.top/rss.xml"
         },
         {
+          "name": "Elio",
+          "intro": "Thank me",
+          "link": "https://jy.xn--wut303ivvd.space/",
+          "avatar": "https://jy.xn--wut303ivvd.space/favicon.svg",
+          "feed": "https://jy.xn--wut303ivvd.space/rss.xml"
+        },
+        {
           "avatar": "https://leonwater1.github.io/avatar/tonight.jpg",
           "name": "Liang Jo-shui",
           "intro": "Software Engineering undergraduate · Large Language Models",
@@ -23,7 +30,7 @@
           "name": "Roy Zhao",
           "intro": "🏔️",
           "link": "https://royzhao.cn/",
-          "feed": "https://royzhao.cn/rss.xml"
+          "feed": "https://royzrh.github.io/rss.xml"
         },
         {
           "avatar": "https://VYS3N.github.io/images/avatar.webp",
@@ -31,13 +38,6 @@
           "intro": "Sliver Bullet",
           "link": "https://vys3n.github.io/",
           "feed": "https://vys3n.github.io/rss.xml"
-        },
-        {
-          "name": "Elio",
-          "intro": "Thank me",
-          "link": "https://jy.xn--wut303ivvd.space/",
-          "avatar": "https://jy.xn--wut303ivvd.space/favicon.svg",
-          "feed": "https://jy.xn--wut303ivvd.space/rss.xml"
         }
       ]
     }
