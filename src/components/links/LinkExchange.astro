@@ -76,9 +76,6 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
     .exchange-fields > div { grid-template-columns:2.75rem minmax(0,1fr); gap:.5rem; }
     dd button { padding-inline:.45rem; font-size:clamp(.75rem,3.4vw,.9rem); }
   }
-  @media (max-width:385px) {
-    .exchange-fields > .exchange-avatar { grid-template-columns:minmax(0,1fr); gap:.15rem; }
-  }
   button, a { transition:color .2s, background-color .2s; }
   :is(button,a):active { color:hsl(var(--primary)); background:hsl(var(--muted)); }
   @media (hover:hover) { :is(button,a):hover { color:hsl(var(--primary)); background:hsl(var(--muted)); } }
