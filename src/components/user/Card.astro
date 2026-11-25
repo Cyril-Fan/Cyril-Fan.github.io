@@ -18,7 +18,7 @@ const { as: Tag = 'div', class: className, href, target, rel, heading, subheadin
   <!-- 内容区域 -->
   <div class='relative flex flex-col gap-y-2'>
     <div class='flex flex-col gap-y-1'>
-      <h2 class='text-lg font-semibold text-foreground motion-safe:transition-colors group-hover:text-primary group-focus-visible:text-primary'>{heading}</h2>
+      <h2 class='text-lg font-semibold text-foreground motion-safe:transition-colors group-hover:text-primary group-active:text-primary group-focus-visible:text-primary'>{heading}</h2>
       <p class='text-sm text-muted-foreground'>{subheading}</p>
       {date && <p class='text-xs text-muted-foreground/80 font-mono'>{date}</p>}
     </div>

@@ -54,7 +54,7 @@ const formatDate = (date: Date) => {
     <div class={cardClass}>
       <Icon name="time" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <site-days data-started={startDate.toISOString()} class="block text-2xl font-bold text-foreground group-hover:text-primary motion-safe:transition-colors">{daysDiff}</site-days>
+        <site-days data-started={startDate.toISOString()} class="block text-2xl font-bold text-foreground group-hover:text-primary group-active:text-primary motion-safe:transition-colors">{daysDiff}</site-days>
         <div class="text-sm text-muted-foreground">{english ? 'Days Online' : '建站天数'}</div>
       </div>
     </div>
@@ -62,7 +62,7 @@ const formatDate = (date: Date) => {
     <div class={cardClass}>
       <Icon name="calendar" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <div class="text-sm font-medium text-foreground group-hover:text-primary motion-safe:transition-colors">{lastUpdated ? formatDate(lastUpdated) : (english ? 'No posts yet' : '暂无文章')}</div>
+        <div class="text-sm font-medium text-foreground group-hover:text-primary group-active:text-primary motion-safe:transition-colors">{lastUpdated ? formatDate(lastUpdated) : (english ? 'No posts yet' : '暂无文章')}</div>
         <div class="text-sm text-muted-foreground">{english ? 'Latest Update' : '最近更新'}</div>
       </div>
     </div>
@@ -70,7 +70,7 @@ const formatDate = (date: Date) => {
     <div class={cardClass}>
       <Icon name="document" color="var(--stat-icon-color)" class="motion-safe:transition-colors" />
       <div class="text-center">
-        <div class="text-2xl font-bold text-foreground group-hover:text-primary motion-safe:transition-colors">{formatNumber(totalWords)}</div>
+        <div class="text-2xl font-bold text-foreground group-hover:text-primary group-active:text-primary motion-safe:transition-colors">{formatNumber(totalWords)}</div>
         <div class="text-sm text-muted-foreground">{english ? 'Total Words' : '文章字数'}</div>
       </div>
     </div>
@@ -102,6 +102,7 @@ const formatDate = (date: Date) => {
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .group:active { --stat-icon-color: hsl(var(--primary)); }
   @media (hover:hover) {
     .group:hover { --stat-icon-color: hsl(var(--primary)); }
   }

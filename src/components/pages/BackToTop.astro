@@ -12,14 +12,14 @@ const { header: headerName, content: contentName, end: endName, needPercent = tr
   id='to-top-btn'
 >
   <div
-    class='absolute bottom-0 end-0 start-0 top-0 flex items-center justify-center transition-opacity group-hover:opacity-0 group-[.ended]:opacity-0'
+    class='absolute bottom-0 end-0 start-0 top-0 flex items-center justify-center motion-safe:transition-opacity group-hover:opacity-0 group-active:opacity-0 group-focus-visible:opacity-0 group-[.ended]:opacity-0'
   >
     <span class='text'>0</span>
     <span class='text-xs'>%</span>
   </div>
   <Icon
     name='up'
-    class='opacity-0 transition-opacity group-hover:opacity-100 group-[.ended]:opacity-100'
+    class='opacity-0 motion-safe:transition-opacity group-hover:opacity-100 group-active:opacity-100 group-focus-visible:opacity-100 group-[.ended]:opacity-100'
   />
 </button>
 

@@ -60,7 +60,7 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
       </details>
       <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Turn on animation' : '开启动画'}</button>
     </div>
-    <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are temporarily delayed. The last verified contribution history is shown; hover over the total for its date.' : '更新暂有延迟，当前展示上次核实的贡献记录；悬停贡献总数可查看数据时间。'}</p>
+    <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are temporarily delayed. Expand the contribution total for the latest verified data time.' : '更新暂有延迟。展开贡献总数可查看最近核实的数据时间。'}</p>
     <div class='calendar-inspector text-xs text-muted-foreground'>
       <label>{en ? 'Date' : '日期'} <input type='date' data-contribution-date min={first} max={last} value={last} /></label>
       <output data-contribution-detail aria-live='polite' aria-atomic='true' aria-label={dayLabel(days[days.length - 1])}>{en ? `${days[days.length - 1].count} contributions` : `当日 ${days[days.length - 1].count} 次贡献`}</output>
@@ -93,7 +93,8 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
   .contribution-times time { white-space:nowrap; font-variant-numeric:tabular-nums; }
   .contribution-update-note { max-width:65ch; }
   .snake-caption button { grid-column:2; grid-row:1; z-index:1; align-self:start; padding:.3rem .75rem; min-height:2.25rem; border:1px solid hsl(var(--border)); border-radius:.5rem; }
-  .snake-caption button:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
+  .snake-caption button:active { background:hsl(var(--muted)); color:hsl(var(--foreground)); }
+  @media(hover:hover) { .snake-caption button:hover { background:hsl(var(--muted)); color:hsl(var(--foreground)); } }
   .snake-caption button:focus-visible, .calendar-inspector input:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
   .calendar-inspector { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:center; min-height:2.25rem; margin-top:.4rem; }
   .calendar-inspector label { display:flex; align-items:center; gap:.5rem; }

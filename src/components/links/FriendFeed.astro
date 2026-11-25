@@ -1,6 +1,5 @@
 ---
 import snapshot from '@/assets/friend-feeds.json'
-import { createHash } from 'node:crypto'
 import links from '@/public/links.json'
 interface Article { title: string; link: string; date: string; source: string }
 interface Feed { source: string; status: string; lastSuccessAt?: string | null; articles: Article[] }
@@ -12,10 +11,9 @@ const sourceMap = new Map(friends.map(friend => [friend.link, friend]))
 const readable = feeds.filter(feed => feed.status === 'ok').length
 const stale = feeds.some(feed => feed.status === 'unavailable')
 const lastUpdated = snapshot.checkedAt as string | null
-const revision = createHash('sha256').update(JSON.stringify(feeds.map(feed => ({ source:feed.source, articles:feed.articles })))).digest('hex')
 const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', { timeZone:'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23' }).format(new Date(lastUpdated)) : null
 ---
-<friend-feed class='not-prose' data-lang={en ? 'en' : 'zh'} data-revision={revision} data-checked={lastUpdated}>
+<friend-feed class='not-prose' data-lang={en ? 'en' : 'zh'}>
   <script type='application/json' data-feed-data set:html={JSON.stringify({friends,feeds,checkedAt:lastUpdated}).replace(/</g,'\\u003c')} />
   <template data-feed-row><article class='feed-article' role='listitem' data-feed-article><button class='feed-author' type='button'><img class='no-lightbox' width='40' height='40' alt='' loading='lazy'/><span></span></button><a class='feed-title' target='_blank' rel='noopener noreferrer'></a><time></time></article></template>
   <div class='feed-panel'>
@@ -42,13 +40,12 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
     <p data-feed-status class='feed-meta' role='status' aria-live='polite'></p>
   </div>
   <div class='feed-summary'>
-    <span data-feed-update hidden role='status'>{en ? 'New reading-feed content is available. ' : '朋友圈有更新。'}<a target='_blank' rel='noopener noreferrer'>{en ? 'Open the latest feed in a new tab ↗' : '在新标签页查看最新版 ↗'}</a></span>
     <span data-feed-counts>{en ? `${friends.length} blogs · ${readable} feeds available` : `${friends.length} 位朋友 · ${readable} 个订阅可用`}</span>
     <span data-feed-checked>{en ? 'Last checked: ' : '上次检查：'}<time datetime={lastUpdated||undefined}>{updateTime||'—'}</time> (UTC+8)</span>
     <span data-feed-stale hidden={!stale}>{en ? 'Some feeds are temporarily unavailable; saved posts remain available.' : '部分订阅暂时无法更新，已保留上次可用的文章。'}</span>
   </div>
   <dialog class='author-dialog' aria-labelledby='feed-author-title'>
-    <div class='author-dialog-header'><h3 id='feed-author-title'></h3><button type='button' data-close-author class='feed-close' aria-label={en ? 'Close recent posts' : '关闭近期文章'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button></div>
+    <div class='author-dialog-header'><h3 id='feed-author-title' tabindex='-1' autofocus></h3><button type='button' data-close-author class='feed-close' aria-label={en ? 'Close recent posts' : '关闭近期文章'}><svg viewBox='0 0 24 24' aria-hidden='true'><path d='m6 6 12 12M18 6 6 18' /></svg></button></div>
     <a data-author-site target='_blank' rel='noopener noreferrer'>{en ? 'Visit this blog' : '访问博客'} ↗</a>
     <div class='author-dialog-scroll' tabindex='0' role='region' aria-label={en ? 'Recent posts list' : '近期文章列表'}><ul data-author-articles></ul></div>
   </dialog>
@@ -64,11 +61,21 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
       this.controller = new AbortController()
       const { signal } = this.controller
       const en = this.dataset.lang === 'en'
+      const initial = JSON.parse(this.querySelector('[data-feed-data]')!.textContent!) as FeedData
+      const articleList = this.querySelector('.feed-articles')!
+      const rowTemplate = this.querySelector<HTMLTemplateElement>('[data-feed-row]')!
       let cards = [...this.querySelectorAll<HTMLElement>('[data-feed-article]')]
       const dialog = this.querySelector<HTMLDialogElement>('dialog')!
       const dialogScroll = this.querySelector<HTMLElement>('.author-dialog-scroll')!
+      const dialogTitle = this.querySelector<HTMLElement>('#feed-author-title')!
       const more = this.querySelector<HTMLButtonElement>('[data-load-more]')
       const status = this.querySelector<HTMLElement>('[data-feed-status]')
+      const contentKey = (data: FeedData) => JSON.stringify([
+        data.friends.map(({ link, name, avatar }) => [link, name, avatar]),
+        data.feeds.map(feed => feed.articles)
+      ])
+      let renderedKey = contentKey(initial)
+      let pendingFeed: FeedData | undefined
       const pageSize = 10
       let count = pageSize
       let lastRandom = -1
@@ -80,30 +87,68 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         if (more) more.hidden = cards.length <= count
         if (status) status.textContent = en ? `Showing ${Math.min(count,cards.length)} of ${cards.length} posts.` : `已显示 ${Math.min(count,cards.length)} / ${cards.length} 篇文章。`
       }
-      const update=(data:FeedData)=>{
-        const sourceMap=new Map(data.friends.map(f=>[f.link,f]))
-        const articles=data.feeds.flatMap(f=>f.articles).sort((a,b)=>b.date.localeCompare(a.date)||a.link.localeCompare(b.link))
-        const list=this.querySelector('.feed-articles')!,template=this.querySelector<HTMLTemplateElement>('[data-feed-row]')!
-        const fragment=document.createDocumentFragment()
-        for(const article of articles){
-          const friend=sourceMap.get(article.source);if(!friend)continue
-          const row=template.content.firstElementChild!.cloneNode(true) as HTMLElement
-          row.dataset.source=friend.link
-          const author=row.querySelector<HTMLButtonElement>('.feed-author')!;author.dataset.author=friend.link;author.dataset.name=friend.name;author.setAttribute('aria-label',en?`Recent posts by ${friend.name}`:`查看 ${friend.name} 的近期文章`);author.querySelector('span')!.textContent=friend.name
-          row.querySelector('img')!.src=friend.avatar
-          const link=row.querySelector<HTMLAnchorElement>('.feed-title')!;link.href=article.link;link.textContent=article.title
-          const time=row.querySelector('time')!;time.dateTime=article.date;time.textContent=article.date.slice(0,10);fragment.append(row)
+      const showRows = (data: FeedData) => {
+        const key = contentKey(data)
+        pendingFeed = undefined
+        if (key === renderedKey) return
+        if (dialog.open) { pendingFeed = data; return }
+
+        const active = document.activeElement
+        const focusedRow = articleList.contains(active) ? active?.closest('[data-feed-article]') : null
+        const focusedLink = focusedRow?.querySelector('.feed-title')?.getAttribute('href')
+        const focusSelector = active?.matches('.feed-author') ? '.feed-author' : '.feed-title'
+        const randomLink = cards[lastRandom]?.querySelector('.feed-title')?.getAttribute('href')
+        const rowKey = (source: string | undefined, link: string | null | undefined) => JSON.stringify([source, link])
+        const existing = new Map(cards.map(card => [rowKey(card.dataset.source, card.querySelector('.feed-title')?.getAttribute('href')), card]))
+        const sourceMap = new Map(data.friends.map(friend => [friend.link, friend]))
+        const articles = data.feeds.flatMap(feed => feed.articles).sort((a,b) => b.date.localeCompare(a.date) || a.link.localeCompare(b.link))
+        const nextCards: HTMLElement[] = []
+        let nextFocus: HTMLElement | undefined
+        for (const article of articles) {
+          const friend = sourceMap.get(article.source)
+          if (!friend) continue
+          const id = rowKey(article.source, article.link)
+          const row = existing.get(id) ?? rowTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement
+          existing.delete(id)
+          row.dataset.source = friend.link
+          const author = row.querySelector<HTMLButtonElement>('.feed-author')!
+          author.dataset.author = friend.link
+          author.dataset.name = friend.name
+          author.setAttribute('aria-label', en ? `Recent posts by ${friend.name}` : `查看 ${friend.name} 的近期文章`)
+          const authorName = author.querySelector('span')!
+          if (authorName.textContent !== friend.name) authorName.textContent = friend.name
+          const avatar = row.querySelector('img')!
+          if (avatar.getAttribute('src') !== friend.avatar) avatar.src = friend.avatar
+          const link = row.querySelector<HTMLAnchorElement>('.feed-title')!
+          link.href = article.link
+          if (link.textContent !== article.title) link.textContent = article.title
+          const time = row.querySelector('time')!
+          time.dateTime = article.date
+          if (time.textContent !== article.date.slice(0,10)) time.textContent = article.date.slice(0,10)
+          if (article.link === focusedLink) nextFocus = row.querySelector<HTMLElement>(focusSelector)!
+          nextCards.push(row)
         }
-        list.replaceChildren(fragment);cards=[...list.querySelectorAll<HTMLElement>('[data-feed-article]')];lastRandom=-1
-        this.querySelector<HTMLElement>('[data-random-panel]')!.hidden=true
-        this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.disabled=!cards.length
-        this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.setAttribute('aria-expanded','false')
+        existing.forEach(card => card.remove())
+        nextCards.forEach((card, index) => {
+          const atIndex = articleList.children[index]
+          if (atIndex !== card) articleList.insertBefore(card, atIndex ?? null)
+        })
+        cards = nextCards
+        renderedKey = key
+        lastRandom = cards.findIndex(card => card.querySelector('.feed-title')?.getAttribute('href') === randomLink)
+        this.querySelector<HTMLButtonElement>('[data-random-refresh]')!.disabled = !cards.length
+        paginate()
+        if (focusedRow) {
+          const focus = nextFocus && !nextFocus.closest('[hidden]') ? nextFocus : this.querySelector<HTMLElement>('[data-check-update]')
+          if (focus !== document.activeElement) focus?.focus({ preventScroll: true })
+        }
+      }
+      const update = (data: FeedData) => {
         this.querySelector('[data-feed-counts]')!.textContent=en?`${data.friends.length} blogs · ${data.feeds.filter(f=>f.status==='ok').length} feeds available`:`${data.friends.length} 位朋友 · ${data.feeds.filter(f=>f.status==='ok').length} 个订阅可用`
         const checked=this.querySelector<HTMLTimeElement>('[data-feed-checked] time')!;checked.dateTime=data.checkedAt;checked.textContent=new Intl.DateTimeFormat(en?'en-GB':'zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(data.checkedAt))
         this.querySelector<HTMLElement>('[data-feed-stale]')!.hidden=!data.feeds.some(f=>f.status==='unavailable')
-        this.dataset.checked=data.checkedAt;paginate()
+        showRows(data)
       }
-      const initial=JSON.parse(this.querySelector('[data-feed-data]')!.textContent!) as FeedData
       const checkUpdates=watchFriendFeed(this,signal,initial,update)
       signal.addEventListener('abort',()=>clearTimeout(statusTimer),{once:true})
       const random = () => {
@@ -152,7 +197,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
         if (!button?.dataset.author) return
         opener = button
         const author = button.dataset.author
-        this.querySelector('#feed-author-title')!.textContent = en ? `Recent posts · ${button.dataset.name}` : `${button.dataset.name} · 近期文章`
+        dialogTitle.textContent = en ? `Recent posts · ${button.dataset.name}` : `${button.dataset.name} · 近期文章`
         this.querySelector<HTMLAnchorElement>('[data-author-site]')!.href = author
         const list = this.querySelector('[data-author-articles]')!
         list.replaceChildren()
@@ -162,8 +207,13 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
           list.append(item)
         }
         dialog.showModal()
+        dialogTitle.focus({ preventScroll:true })
+        dialogScroll.scrollTop = 0
       }, { signal })
-      dialog.addEventListener('close', () => opener?.focus(), { signal })
+      dialog.addEventListener('close', () => {
+        opener?.focus({ preventScroll:true })
+        if (pendingFeed) showRows(pendingFeed)
+      }, { signal })
       dialog.addEventListener('wheel', event => {
         if (event.ctrlKey) return
         const rect = dialog.getBoundingClientRect()
@@ -191,39 +241,48 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .feed-panel-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.7rem 1rem; border-bottom:1px solid hsl(var(--border)); color:hsl(var(--muted-foreground)); font-size:.8125rem; }
   .feed-panel-actions { display:flex; align-items:center; justify-content:flex-end; margin-left:auto; gap:.5rem; }
   .feed-panel-actions button { padding:.45rem .5rem; border-radius:.4rem; min-height:2.5rem; }
-  .feed-panel-actions button:hover { background:hsl(var(--muted)); }
+  .feed-panel-actions button:active { background:hsl(var(--muted)); }
   .feed-panel-actions button:disabled { opacity:.5; cursor:wait; }
   .feed-articles { display:flex; flex-direction:column; padding:0 1rem; }
   .feed-article { min-width:0; display:grid; grid-template-columns:8rem minmax(0,1fr) 5.3rem; align-items:center; gap:1rem; padding:.85rem 0; border-bottom:1px solid hsl(var(--border)); transition:background-color .18s; }
-  .feed-article:hover,.feed-article:focus-within { background:hsl(var(--muted)/.35); }
-  .feed-author { display:flex; align-items:center; gap:.5rem; text-align:start; font-size:.78rem; color:hsl(var(--muted-foreground)); min-height:2.75rem; overflow-wrap:anywhere; }
+  .feed-article:focus-within { background:hsl(var(--muted)/.35); }
+  .feed-author { display:flex; align-items:center; gap:.5rem; text-align:start; font-size:.78rem; color:hsl(var(--muted-foreground)); min-height:2.75rem; overflow-wrap:anywhere; touch-action:manipulation; }
   .feed-author img { border-radius:50%; width:1.8rem; height:1.8rem; object-fit:cover; flex-shrink:0; transition:transform .2s ease; }
-  .feed-author:focus-visible img { transform:scale(1.06); }
-  @media(hover:hover) { .feed-author:hover img { transform:scale(1.06); } }
+  .feed-author:is(:active,:focus-visible) img { transform:scale(1.06); }
   .feed-title { overflow-wrap:anywhere; line-height:1.6; font-size:.9rem; }
   .feed-article time { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:.75rem; }
   button { transition:color .2s, background-color .2s; }
-  button:hover, a:hover { color:hsl(var(--primary)); }
+  button:not(:disabled):active, a:active { color:hsl(var(--primary)); }
+  @media(hover:hover) {
+    .feed-panel-actions button:hover { background:hsl(var(--muted)); }
+    .feed-article:hover { background:hsl(var(--muted)/.35); }
+    .feed-author:hover img { transform:scale(1.06); }
+    button:hover, a:hover { color:hsl(var(--primary)); }
+  }
   :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; border-radius:.3rem; }
   .feed-more, .random-card>button { border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.55rem .8rem; min-height:2.75rem; }
   .feed-more { display:block; margin:.85rem auto .4rem; padding:.3rem .8rem; min-height:2.15rem; }
   [data-feed-status] { text-align:center; margin-top:.75rem; }
   .feed-summary { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.4rem 1rem; margin:.85rem 0; font-size:.75rem; color:hsl(var(--muted-foreground)); }
   [data-feed-checked] { margin-left:auto; text-align:right; }
-  [data-feed-update], [data-feed-stale] { flex-basis:100%; }
-  .author-dialog { padding:1.25rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:.5px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
+  [data-feed-stale] { flex-basis:100%; }
+  .author-dialog { --dialog-inset:1.25rem; padding:1.25rem 0 .9rem; width:min(36rem,calc(100vw - 2rem)); max-height:80dvh; overflow:hidden; border:.5px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--background)); color:hsl(var(--foreground)); }
   .author-dialog[open] { display:flex; flex-direction:column; }
   .author-dialog::backdrop { background:rgb(0 0 0/.45); backdrop-filter:blur(3px); }
   .author-dialog-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex:none; }
+  .author-dialog-header, [data-author-site] { margin-inline:var(--dialog-inset); }
   [data-author-site] { flex:none; align-self:flex-start; }
-  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin-top:1rem; margin-inline-end:-1.25rem; padding-inline-end:1rem; }
+  .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; margin-top:1rem; }
   .author-dialog h3 { font-weight:600; }
+  .author-dialog h3:focus { outline:none; }
   .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2rem; height:2rem; min-height:2rem; flex:none; padding:.375rem; position:relative; border:1px solid hsl(var(--border)); border-radius:.5rem; }
+  .feed-close { touch-action:manipulation; }
   @media(pointer:coarse) { .feed-close::after { content:"";position:absolute;inset:-6px; } }
+  @media(hover:none) { .author-dialog .feed-close { transition:none; } }
   .feed-close svg { width:1.125rem; height:1.125rem; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   .author-dialog a { color:hsl(var(--primary)); }
-  [data-author-articles] { padding:0; margin:0; }
+  [data-author-articles] { padding:0 var(--dialog-inset); margin:0; }
   :global([data-author-articles] li) { display:flex; flex-direction:column; gap:.3rem; padding:.8rem 0; border-top:1px solid hsl(var(--border)); }
   @media(max-width:640px) { .feed-article { grid-template-columns:minmax(0,1fr) auto; gap:.3rem .75rem; padding:.75rem .2rem 1rem; } .feed-title { grid-column:1/-1; grid-row:2; } .feed-article time { grid-column:2; grid-row:1; } .random-card { column-gap:.5rem; padding:.75rem; } .feed-panel-header { padding:.5rem .75rem; gap:.5rem; } .feed-panel-actions { gap:.1rem; } .feed-panel-actions button { min-height:2.75rem; } .feed-articles { padding:0 .75rem; } }
-  @media(prefers-reduced-motion:reduce){.feed-article,.feed-author img { transition:none; } .feed-author:is(:hover,:focus-visible) img { transform:none; }}
+  @media(prefers-reduced-motion:reduce){.feed-article,.feed-author img { transition:none; } .feed-author:is(:hover,:active,:focus-visible) img { transform:none; }}
 </style>

@@ -29,32 +29,62 @@ export function parseBrowserFeed(xml:string,friend:Friend,now=Date.now()):FeedAr
     seen.add(link);return [{title,link,date:new Date(date).toISOString(),source:friend.link}]
   }).sort((a,b)=>b.date.localeCompare(a.date)||a.link.localeCompare(b.link))
 }
-/** Read only operator-configured public feeds; no credentials, proxy, or arbitrary URL input. */
-export async function refreshBrowserFeeds(previous:FeedData,signal:AbortSignal,fetcher=fetch):Promise<FeedData>{
-  const options={cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(15000)])} as const
-  const config=JSON.parse(await readFeedResponse(await fetcher('/links.json',options),256000))
-  const raw=config?.friends?.flatMap((g:{link_list:unknown[]})=>g.link_list)
-  if(!Array.isArray(raw)||raw.length>100)throw new Error('Invalid friend list')
-  const friends:Friend[]=raw.map(f=>{
-    if(typeof f.name!=='string'||typeof f.avatar!=='string'||!safeFeedUrl(f.link)||!f.link.startsWith('https:')||(f.feed&&(!safeFeedUrl(f.feed)||!f.feed.startsWith('https:'))))throw new Error('Invalid friend')
-    return {name:f.name.slice(0,150),avatar:f.avatar,link:f.link,feed:f.feed}
+function savedFeed(friend: Friend, previous: Feed[], published: Feed[]): Feed {
+  const now = Date.now()
+  const matching = [...published, ...previous].filter(feed => {
+    const successTime = Date.parse(feed?.lastSuccessAt || '')
+    return feed?.source === friend.link && feed.feed === friend.feed &&
+      Number.isFinite(successTime) && successTime <= now + 300_000 && Array.isArray(feed.articles)
   })
-  let fallback=previous.feeds
-  try{const published=JSON.parse(await readFeedResponse(await fetcher('/data/friend-feeds.json',options),2000000));if(published.version===1&&Array.isArray(published.feeds))fallback=published.feeds}catch{ /* Initial in-page data remains a fallback. */ }
-  const feeds=await Promise.all(friends.map(async friend=>{
-    if(!friend.feed)return {source:friend.link,status:'unconfigured',articles:[]}
-    try{const xml=await readFeedResponse(await fetcher(friend.feed,options),4*1024*1024);return {source:friend.link,feed:friend.feed,status:'ok',lastSuccessAt:new Date().toISOString(),articles:parseBrowserFeed(xml,friend)}}
-    catch{
-      const candidates=[...previous.feeds,...fallback].filter(f=>f.source===friend.link&&f.feed===friend.feed&&Array.isArray(f.articles))
-      const old=candidates.sort((a,b)=>Date.parse(b.lastSuccessAt||'')-Date.parse(a.lastSuccessAt||''))[0]
-      const seen=new Set<string>(),articles=(old?.articles||[]).flatMap(a=>{
-        const link=typeof a.link==='string'?safeFeedUrl(a.link,friend.link):'',date=Date.parse(a.date)
-        if(!link||typeof a.title!=='string'||!a.title.trim()||!Number.isFinite(date)||date>Date.now()+86400000||seen.has(link))return []
-        seen.add(link);return [{title:a.title.slice(0,300),link,date:new Date(date).toISOString(),source:friend.link}]
-      })
-      return {source:friend.link,feed:friend.feed,status:'unavailable',lastSuccessAt:old?.lastSuccessAt||null,articles}
+  const latest = matching.sort((a, b) => Date.parse(b.lastSuccessAt!) - Date.parse(a.lastSuccessAt!))[0]
+  const seen = new Set<string>()
+  const articles = (latest?.articles ?? []).flatMap(article => {
+    const link = safeFeedUrl(article?.link, friend.link)
+    const date = Date.parse(article?.date)
+    if (!link || typeof article.title !== 'string' || !article.title.trim() ||
+        !Number.isFinite(date) || date > now + 86_400_000 || seen.has(link)) return []
+    seen.add(link)
+    return [{ title: article.title.slice(0, 300), link, date: new Date(date).toISOString(), source: friend.link }]
+  })
+  // When a source blocks browser requests, a successful published snapshot is
+  // still usable. A failed poll must never replace a newer set of articles.
+  const status = latest?.status === 'ok' && published.includes(latest) ? 'ok' : 'unavailable'
+  return { source: friend.link, feed: friend.feed, status, lastSuccessAt: latest?.lastSuccessAt ?? null, articles }
+}
+
+/** Read only operator-configured public feeds, without credentials or arbitrary URL input. */
+export async function refreshBrowserFeeds(previous: FeedData, signal: AbortSignal, fetcher = fetch): Promise<FeedData> {
+  const request = (url: string) => fetcher(url, {
+    cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error',
+    signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+  })
+  const config = JSON.parse(await readFeedResponse(await request('/links.json'), 256_000))
+  const raw = config?.friends?.flatMap((group: { link_list: unknown[] }) => group.link_list)
+  if (!Array.isArray(raw) || raw.length > 100) throw new Error('Invalid friend list')
+  const friends: Friend[] = raw.map(friend => {
+    if (typeof friend?.name !== 'string' || typeof friend.avatar !== 'string' ||
+        !safeFeedUrl(friend.link) || !friend.link.startsWith('https:') ||
+        (friend.feed && (!safeFeedUrl(friend.feed) || !friend.feed.startsWith('https:')))) throw new Error('Invalid friend')
+    return { name: friend.name.slice(0, 150), avatar: friend.avatar, link: friend.link, feed: friend.feed }
+  })
+  let published: Promise<Feed[]> | undefined
+  const readPublished = () => published ??= request('/data/friend-feeds.json')
+    .then(response => readFeedResponse(response, 2_000_000))
+    .then(text => {
+      const snapshot = JSON.parse(text)
+      return snapshot?.version === 1 && Array.isArray(snapshot.feeds) ? snapshot.feeds : []
+    })
+    .catch(() => [])
+  const feeds = await Promise.all(friends.map(async friend => {
+    if (!friend.feed) return { source: friend.link, status: 'unconfigured', articles: [] }
+    try {
+      const xml = await readFeedResponse(await request(friend.feed), 4 * 1024 * 1024)
+      return { source: friend.link, feed: friend.feed, status: 'ok', lastSuccessAt: new Date().toISOString(), articles: parseBrowserFeed(xml, friend) }
+    } catch {
+      if (signal.aborted) return savedFeed(friend, previous.feeds, [])
+      return savedFeed(friend, previous.feeds, await readPublished())
     }
   }))
-  if(signal.aborted)throw new Error('Aborted')
-  return {friends,feeds,checkedAt:new Date().toISOString()}
+  if (signal.aborted) throw new Error('Aborted')
+  return { friends, feeds, checkedAt: new Date().toISOString() }
 }

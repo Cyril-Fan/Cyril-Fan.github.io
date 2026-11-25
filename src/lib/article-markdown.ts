@@ -52,17 +52,25 @@ function themeBlocks(){
 function codeMetadata(){return (tree:any)=>{const walk=(n:any)=>{if(n.type==='code'&&n.meta){n.data||={};n.data.hProperties={...n.data.hProperties,dataMeta:n.meta}};for(const c of n.children||[])walk(c)};walk(tree)}}
 /** Reuse Axi's trusted Aside icons and Steps presentation after sanitizing author input.
  * This does not permit author-supplied SVG, CSS, scripts or arbitrary MDX components. */
-function themePresentation(){
+function themePresentation(options: { en?: boolean } = {}){
   const icons={note:'info',tip:'bulb',caution:'alert',danger:'octangon'} as const
   return (tree:any)=>{
     const walk=(node:any)=>{
       if(node.type==='element'){
         const classes=node.properties?.className||[]
         const kind=(Object.keys(icons) as (keyof typeof icons)[]).find(k=>classes.includes('theme-'+k))
-        if(kind&&node.tagName==='aside'){
+        if(node.tagName==='aside'){
           const title=node.children.find((n:any)=>n.type==='element'&&n.properties?.className?.includes('theme-block-title'))
-          const path=Icons[icons[kind]].match(/<path fill="currentColor" d="([^"]+)"/)?.[1]
+          const path=kind&&Icons[icons[kind]].match(/<path fill="currentColor" d="([^"]+)"/)?.[1]
           if(title&&path)title.children.unshift({type:'element',tagName:'svg',properties:{className:['theme-block-icon'],viewBox:'0 0 24 24',width:22,height:22,ariaHidden:'true',focusable:'false'},children:[{type:'element',tagName:'path',properties:{fill:'currentColor',d:path},children:[]}]})
+          if(title&&classes.includes('theme-spoiler')){
+            title.tagName='label'
+            title.children.unshift({
+              type:'element', tagName:'input',
+              properties:{ type:'checkbox', className:['theme-spoiler-toggle'], ariaLabel:options.en?'Show spoiler content':'显示隐藏内容' },
+              children:[]
+            })
+          }
         }
         if(classes.includes('theme-steps'))for(const list of node.children.filter((n:any)=>n.type==='element'&&n.tagName==='ol')){
           list.properties||={};list.properties.className=['sl-steps'];list.properties.role='list'
@@ -118,5 +126,5 @@ export function articleMarkdown(source: string,en=false): string {
     // remark-rehype already prefixes footnote IDs. Raw HTML is literal text, so
     // sanitizing a second prefix would break every footnote/back-reference link.
     .use(remarkRehype,{footnoteLabel:en?'Footnotes':'脚注',footnoteBackLabel:en?'Back to reference':'返回引用'}).use(rehypeSanitize,{...defaultSchema,clobberPrefix:'',tagNames:[...defaultSchema.tagNames!,'aside','details','summary'],attributes:{...defaultSchema.attributes,'*':[...(defaultSchema.attributes?.['*']||[]),['className',/^theme-/]],code:[['className',/^language-./,'math-inline','math-display'],'dataMeta']}})
-    .use(themePresentation).use(rehypeKatex,articleMathOptions).use(articleStructure,{en}).use(rehypeStringify).processSync(prepareThemeSource(source.slice(0,500000))))
+    .use(themePresentation,{en}).use(rehypeKatex,articleMathOptions).use(articleStructure,{en}).use(rehypeStringify).processSync(prepareThemeSource(source.slice(0,500000))))
 }

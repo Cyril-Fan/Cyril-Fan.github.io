@@ -51,6 +51,20 @@ test('theme asides reuse trusted Axi icons without allowing author SVG or attrib
   assert.match(doc.body.textContent,/<svg onload=/)
 })
 
+test('article spoilers render a native toggle with translated labels and the original content',()=>{
+  for(const en of [false,true]){
+    const dom=new JSDOM(articleMarkdown('<Spoiler title="Hint">\n\n**Hidden answer**\n\n</Spoiler>',en))
+    const block=dom.window.document.querySelector('aside.theme-spoiler')
+    const control=block.querySelector('label.theme-block-title > input[type="checkbox"]')
+    assert.equal(control.getAttribute('aria-label'),en?'Show spoiler content':'显示隐藏内容')
+    assert.equal(control.checked,false)
+    control.closest('label').click()
+    assert.equal(control.checked,true)
+    assert.equal(block.querySelector('strong').textContent,'Hidden answer')
+    dom.window.close()
+  }
+})
+
 test('safe Steps keeps numbered circles on the outer list, start values and ordinary nested lists',()=>{
   const body='3. First step\n\n   1. Nested item\n   2. Another nested item\n\n4. Second step'
   const directive=new JSDOM(articleMarkdown(':::steps\n\n'+body+'\n\n:::')).window.document

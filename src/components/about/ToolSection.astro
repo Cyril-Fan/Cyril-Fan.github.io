@@ -33,7 +33,7 @@ const { class: className, title, tools, ...props } = Astro.props
           target='_blank'
           rel='noopener noreferrer'
         >
-          <div class='flex items-center gap-x-3 rounded-lg border border-transparent px-1.5 py-2 transition-colors group-hover:border-border group-hover:bg-muted'>
+          <div class='flex items-center gap-x-3 rounded-lg border border-transparent px-1.5 py-2 motion-safe:transition-colors group-hover:border-border group-hover:bg-muted group-active:border-border group-active:bg-muted group-focus-visible:border-border group-focus-visible:bg-muted'>
             <Svg
               src={tool.icon}
               class='size-10 shrink-0 rounded-lg bg-primary-foreground fill-foreground p-2'
@@ -52,5 +52,6 @@ const { class: className, title, tools, ...props } = Astro.props
 
 <style>
   .tool-link:focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
-  .tool-link:hover { color:hsl(var(--primary)); }
+  .tool-link:is(:active,:focus-visible) { color:hsl(var(--primary)); }
+  @media (hover:hover) { .tool-link:hover { color:hsl(var(--primary)); } }
 </style>

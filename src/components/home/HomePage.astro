@@ -51,9 +51,10 @@ const socialLinks = ([
       <Section title={en ? 'About' : '关于我'} class='home-section'>
         <p class='font-medium'>
           {p.role}{' '}
-          <button class='role-spoiler' type='button' aria-expanded='false' aria-label={en ? 'Reveal playful introduction' : '显示趣味介绍'} data-role-spoiler>
+          {p.spoiler && <button class='role-spoiler' type='button' aria-expanded='false' aria-label={en ? 'Reveal playful introduction' : '显示趣味介绍'}
+            data-role-spoiler data-reveal-hint={en ? 'Tap to reveal' : '轻点查看'}>
             <span>{p.spoiler}</span>
-          </button>
+          </button>}
         </p>
         <p class='home-intro text-muted-foreground'>
           {p.intro}
@@ -101,6 +102,8 @@ const socialLinks = ([
   }
   .profile-link > :global(svg) { width:1.5rem; height:1.5rem; transition:transform .3s ease, filter .3s ease; }
   .profile-link:focus-visible { color:hsl(var(--primary)); outline:2px solid currentColor; outline-offset:2px; }
+  .profile-link:active { color:hsl(var(--primary)); }
+  .profile-link:active > :global(svg) { transform:translateY(-2px); }
   @media (hover:hover) {
     .profile-link:hover { color:hsl(var(--primary)); }
     .profile-link:hover > :global(svg) {
@@ -128,14 +131,22 @@ const socialLinks = ([
   .education-emblem > :global(svg) { display:block; inline-size:100%; block-size:100%; }
   .home-intro { line-height:1.9; text-align:justify; text-align-last:start; text-wrap:pretty; }
   .home-intro:lang(en) { text-align:start; }
-  .role-spoiler { display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; }
+  .role-spoiler { position:relative; display:inline-block; border-radius:.3rem; background:hsl(var(--muted)); padding:.08em .35em; cursor:pointer; vertical-align:baseline; touch-action:manipulation; }
   .role-spoiler span { opacity:0; transition:opacity .18s ease; }
   .role-spoiler[aria-expanded='true'] span, .role-spoiler:focus-visible span { opacity:1; }
   .role-spoiler:focus-visible { outline:2px solid hsl(var(--foreground)); outline-offset:3px; }
   @media (hover:hover) { .role-spoiler:hover span { opacity:1; } }
+  @media (hover:none) {
+    .role-spoiler { min-inline-size:4.5rem; }
+    .role-spoiler[aria-expanded='false'] span { opacity:0; }
+    .role-spoiler[aria-expanded='false']::after {
+      content:attr(data-reveal-hint); position:absolute; inset:0; display:grid; place-items:center;
+      color:hsl(var(--muted-foreground)); font-size:.75rem; white-space:nowrap;
+    }
+  }
   @media (prefers-reduced-motion:reduce) {
     .role-spoiler span, .profile-link, .profile-link > :global(svg) { transition:none; }
-    .profile-link:hover > :global(svg) { transform:none; }
+    .profile-link:is(:hover,:active) > :global(svg) { transform:none; }
   }
   @media (max-width:767px) {
     .home-profile { align-self:flex-start; }

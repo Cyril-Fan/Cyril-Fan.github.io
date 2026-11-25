@@ -6,7 +6,7 @@ const { as: Tag = 'a', class: className, title, href, style = 'button', ...props
 
 <Tag
   class={cn(
-    'group relative inline-flex items-center gap-x-2 rounded-lg bg-muted border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:border-foreground/20 hover:bg-muted/80 hover:text-foreground no-underline',
+    'group relative inline-flex items-center gap-x-2 rounded-lg bg-muted border border-border px-3 py-2 text-sm font-medium text-muted-foreground motion-safe:transition-all duration-200 hover:border-foreground/20 hover:bg-muted/80 hover:text-foreground active:border-foreground/20 active:bg-muted/80 active:text-foreground no-underline',
     !href && 'cursor-default',
     style === 'pill' && 'rounded-full px-4',
     className
@@ -35,11 +35,11 @@ const { as: Tag = 'a', class: className, title, href, style = 'button', ...props
               y1='12'
               x2='5'
               y2='12'
-              class='translate-x-3 scale-x-0 transition-all duration-200 ease-in-out group-hover:translate-x-0 group-hover:scale-x-100'
+              class='arrow-shaft translate-x-3 scale-x-0 motion-safe:transition-all duration-200 ease-in-out group-hover:translate-x-0 group-hover:scale-x-100 group-focus-visible:translate-x-0 group-focus-visible:scale-x-100'
             />
             <polyline
               points='12 19 5 12 12 5'
-              class='translate-x-1 transition-all duration-200 ease-in-out group-hover:translate-x-0'
+              class='arrow-head translate-x-1 motion-safe:transition-all duration-200 ease-in-out group-hover:translate-x-0 group-focus-visible:translate-x-0'
             />
           </svg>
         )
@@ -67,11 +67,11 @@ const { as: Tag = 'a', class: className, title, href, style = 'button', ...props
               y1='12'
               x2='19'
               y2='12'
-              class='translate-x-4 scale-x-0 transition-all duration-200 ease-in-out group-hover:translate-x-1 group-hover:scale-x-100'
+              class='arrow-shaft translate-x-4 scale-x-0 motion-safe:transition-all duration-200 ease-in-out group-hover:translate-x-1 group-hover:scale-x-100 group-focus-visible:translate-x-1 group-focus-visible:scale-x-100'
             />
             <polyline
               points='12 5 19 12 12 19'
-              class='translate-x-0 transition-all duration-200 ease-in-out group-hover:translate-x-1'
+              class='arrow-head translate-x-0 motion-safe:transition-all duration-200 ease-in-out group-hover:translate-x-1 group-focus-visible:translate-x-1'
             />
           </svg>
         )
@@ -79,3 +79,9 @@ const { as: Tag = 'a', class: className, title, href, style = 'button', ...props
     </slot>
   </div>
 </Tag>
+
+<style>
+  @media (hover:none) {
+    .arrow-shaft, .arrow-head { translate:0; scale:1; }
+  }
+</style>

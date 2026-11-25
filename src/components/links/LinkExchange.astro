@@ -13,7 +13,7 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
 <link-exchange class='not-prose exchange-panel' data-lang={en ? 'en' : 'zh'}>
   <p>{en ? 'Select a field to copy it, or copy all the site information at once.' : '点击字段即可复制，也可以一次复制本站的全部信息。'}</p>
   <dl class='exchange-fields'>
-    {fields.map(([label, value]) => <div><dt>{label}</dt><dd><button type='button' data-copy={value} aria-label={en ? `Copy ${label}` : `复制 ${label}`}>{value}</button></dd></div>)}
+    {fields.map(([label, value]) => <div class:list={{ 'exchange-avatar': label === 'Avatar' }}><dt>{label}</dt><dd><button type='button' data-copy={value} aria-label={en ? `Copy ${label}` : `复制 ${label}`}>{value}</button></dd></div>)}
   </dl>
   <div class='exchange-actions'>
     <button type='button' data-copy={fields.map(([label, value]) => `${label}: ${value}`).join('\n')}>{en ? 'Copy site information' : '复制本站信息'}</button>
@@ -70,8 +70,20 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
   dt { color:hsl(var(--muted-foreground)); font-size:.8rem; line-height:1.8; padding-block:.4rem; }
   dd { margin:0; min-width:0; }
   dd button { display:block; box-sizing:border-box; width:100%; height:auto; min-height:2.75rem; text-align:start; background:hsl(var(--muted)/.6); border-radius:.4rem; padding:.4rem .6rem; font:inherit; line-height:1.6; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
+  .exchange-avatar button { white-space:nowrap; overflow-x:auto; }
+  @media (max-width:640px) {
+    .exchange-avatar button { font-size:clamp(.75rem, 3vw, .875rem); }
+  }
+  @media (max-width:420px) {
+    .exchange-panel { padding:1rem; }
+  }
+  @media (max-width:385px) {
+    .exchange-fields > .exchange-avatar { grid-template-columns:minmax(0,1fr); gap:.15rem; }
+    .exchange-avatar dt { padding-block:0; }
+  }
   button, a { transition:color .2s, background-color .2s; }
-  button:hover, a:hover { color:hsl(var(--primary)); background:hsl(var(--muted)); }
+  :is(button,a):active { color:hsl(var(--primary)); background:hsl(var(--muted)); }
+  @media (hover:hover) { :is(button,a):hover { color:hsl(var(--primary)); background:hsl(var(--muted)); } }
   :is(button,a):focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:3px; }
   .exchange-actions { display:flex; flex-wrap:wrap; gap:.65rem; }
   .exchange-actions>* { border:1px solid hsl(var(--border)); border-radius:.5rem; padding:.5rem .75rem; min-height:2.75rem; display:inline-flex; align-items:center; gap:.35rem; }
