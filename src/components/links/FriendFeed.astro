@@ -182,7 +182,7 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
           button.disabled=true;button.setAttribute('aria-busy','true')
           clearTimeout(statusTimer)
           if(status)status.textContent=en?'Refreshing…':'正在刷新…'
-          const result=await checkUpdates(true)
+          const result=await checkUpdates()
           if(signal.aborted)return
           button.disabled=false;button.removeAttribute('aria-busy')
           clearTimeout(statusTimer)

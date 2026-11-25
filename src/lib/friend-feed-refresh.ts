@@ -1,14 +1,11 @@
 import { refreshBrowserFeeds, type FeedData } from './friend-feed-client'
 
-const CHECK_INTERVAL = 10 * 60 * 1000
-type Result = 'updated' | 'current' | 'partial' | 'unavailable' | 'busy'
+type Result = 'updated' | 'current' | 'partial' | 'unavailable'
 
 export function watchFriendFeed(host: HTMLElement, signal: AbortSignal, initial: FeedData, apply: (data: FeedData) => void) {
   let current = initial
-  let nextCheck = 0
-  let timer: number | undefined
+  let observer: IntersectionObserver | undefined
   let inFlight: Promise<Result> | undefined
-  let nearFeed = typeof IntersectionObserver !== 'function'
 
   const check = async (): Promise<Result> => {
     try {
@@ -25,33 +22,21 @@ export function watchFriendFeed(host: HTMLElement, signal: AbortSignal, initial:
     }
   }
 
-  const refresh = (manual = false): Promise<Result> => {
-    if (signal.aborted || document.hidden) return Promise.resolve('busy')
-    if (inFlight) return inFlight
-    if (!manual && (!nearFeed || Date.now() < nextCheck)) return Promise.resolve('busy')
-    nextCheck = Date.now() + CHECK_INTERVAL
-    window.clearTimeout(timer)
-    timer = window.setTimeout(() => void refresh(), CHECK_INTERVAL)
-    inFlight = check().finally(() => { inFlight = undefined })
-    return inFlight
+  const refresh = (): Promise<Result> => {
+    if (signal.aborted) return Promise.resolve('unavailable')
+    observer?.disconnect()
+    observer = undefined
+    return inFlight ??= check().finally(() => { inFlight = undefined })
   }
 
-  if (!nearFeed) {
-    const observer = new IntersectionObserver(([entry]) => {
-      nearFeed = entry.isIntersecting
-      if (nearFeed) void refresh()
+  if (typeof IntersectionObserver === 'function') {
+    observer = new IntersectionObserver(entries => {
+      if (observer && entries.some(entry => entry.isIntersecting)) void refresh()
     }, { rootMargin: '240px 0px' })
     observer.observe(host)
-    signal.addEventListener('abort', () => observer.disconnect(), { once: true })
+    signal.addEventListener('abort', () => observer?.disconnect(), { once: true })
   } else {
     void refresh()
   }
-  signal.addEventListener('abort', () => window.clearTimeout(timer), { once: true })
-  document.addEventListener('visibilitychange', () => void refresh(), { signal })
-  window.addEventListener('pageshow', () => void refresh(), { signal })
-  window.addEventListener('online', () => {
-    nextCheck = 0
-    void refresh()
-  }, { signal })
   return refresh
 }

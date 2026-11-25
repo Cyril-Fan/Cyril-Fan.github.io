@@ -60,7 +60,7 @@ const updated = new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
       </details>
       <button type='button' data-snake-toggle aria-controls='contribution-animation' aria-pressed='false' hidden>{en ? 'Turn on animation' : '开启动画'}</button>
     </div>
-    <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are temporarily delayed. Expand the contribution total for the latest verified data time.' : '更新暂有延迟。展开贡献总数可查看最近核实的数据时间。'}</p>
+    <p data-contribution-stale class='text-xs text-muted-foreground' hidden={Date.now() - Date.parse(snapshot.fetchedAt) <= 36 * 60 * 60 * 1000}>{en ? 'Updates are delayed. Showing the last verified contributions.' : '更新暂有延迟，当前显示上次核实的贡献记录。'}</p>
     <div class='calendar-inspector text-xs text-muted-foreground'>
       <label>{en ? 'Date' : '日期'} <input type='date' data-contribution-date min={first} max={last} value={last} /></label>
       <output data-contribution-detail aria-live='polite' aria-atomic='true' aria-label={dayLabel(days[days.length - 1])}>{en ? `${days[days.length - 1].count} contributions` : `当日 ${days[days.length - 1].count} 次贡献`}</output>

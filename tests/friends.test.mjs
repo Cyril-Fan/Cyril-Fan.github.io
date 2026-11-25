@@ -106,7 +106,7 @@ test('published feed restore is bounded, credential-free and fails safely on inv
   await assert.rejects(fetchPublishedFriendSnapshot({fetcher:async()=>new Response('x'.repeat(2_000_001))}))
 })
 
-test('entering the feed checks the live RSS automatically and shares a concurrent manual refresh',async context=>{
+test('entering the feed checks the live RSS only once and shares a concurrent manual refresh',async context=>{
   const dom=new JSDOM('<friend-feed></friend-feed><textarea>Keep my draft</textarea>',{url:'https://cyril-fan.top/links/',runScripts:'outside-only',pretendToBeVisual:true})
   context.after(()=>dom.window.close())
   const w=dom.window, host=w.document.querySelector('friend-feed')
@@ -115,14 +115,13 @@ test('entering the feed checks the live RSS automatically and shares a concurren
   const configured={...friend,avatar:'/avatar.png'}
   const initial={friends:[configured],feeds:[],checkedAt:'2026-10-20T00:00:00Z'}
   const requests=[],applied=[]
-  let scheduled,intersection,ticks=0,disconnected=false,releaseRss
+  let intersection,scheduled=0,disconnected=false,releaseRss
   w.IntersectionObserver=class {
     constructor(callback){intersection=callback}
     observe(element){assert.equal(element,host)}
     disconnect(){disconnected=true}
   }
-  w.Date.now=()=>Date.parse('2026-10-23T12:00:00Z')+ticks
-  w.setTimeout=fn=>{scheduled=fn;return 1};w.clearTimeout=()=>{}
+  w.setTimeout=()=>{scheduled++;return 1}
   w.fetch=async(url,options)=>{
     requests.push(url)
     assert.equal(options.credentials,'omit')
@@ -138,18 +137,25 @@ test('entering the feed checks the live RSS automatically and shares a concurren
   assert.deepEqual(requests,[],'Articles off screen do not trigger third-party requests')
   intersection([{isIntersecting:true}])
   await new Promise(setImmediate)
-  const manual=run(true)
+  const manual=run()
   releaseRss()
   assert.equal(await manual,'updated')
   assert.deepEqual(requests,['/links.json',friend.feed])
   assert.equal(applied[0].feeds[0].articles[0].title,'A & B')
-  assert.equal(await run(),'busy','Checks are spaced while reading')
-  Object.defineProperty(w.document,'hidden',{configurable:true,value:true})
-  ticks+=600001;scheduled();await new Promise(setImmediate)
-  assert.equal(requests.length,2,'Background tabs do not poll')
+  assert.equal(disconnected,true)
+  intersection([{isIntersecting:false}])
+  intersection([{isIntersecting:true}])
+  w.document.dispatchEvent(new w.Event('visibilitychange'))
+  w.dispatchEvent(new w.Event('online'))
+  assert.equal(scheduled,0,'Reading does not schedule another check')
+  assert.equal(requests.length,2,'Returning to the reading feed does not recheck')
+  const next=run()
+  await new Promise(setImmediate)
+  releaseRss()
+  assert.equal(await next,'current')
+  assert.deepEqual(requests,['/links.json',friend.feed,'/links.json',friend.feed])
   assert.equal(w.document.querySelector('textarea').value,'Keep my draft')
   controller.abort()
-  assert.equal(disconnected,true)
 })
 
 test('server and browser retain all supplied RSS entries beyond the former 40-item cap',t=>{

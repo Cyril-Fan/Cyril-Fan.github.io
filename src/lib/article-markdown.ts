@@ -67,7 +67,7 @@ function themePresentation(options: { en?: boolean } = {}){
             title.tagName='label'
             title.children.unshift({
               type:'element', tagName:'input',
-              properties:{ type:'checkbox', className:['theme-spoiler-toggle'], ariaLabel:options.en?'Show spoiler content':'显示隐藏内容' },
+              properties:{ type:'checkbox', className:['theme-spoiler-toggle','sr-only'], ariaLabel:options.en?'Show spoiler content':'显示隐藏内容' },
               children:[]
             })
           }
