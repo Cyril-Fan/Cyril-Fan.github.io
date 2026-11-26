@@ -71,6 +71,9 @@ const template = 'Name: \nDesc: \nLink: https://\nAvatar: https://\nRSS: '
   dd { margin:0; min-width:0; }
   dd button { display:block; box-sizing:border-box; width:100%; height:auto; min-height:2.75rem; text-align:start; background:hsl(var(--muted)/.6); border-radius:.4rem; padding:.4rem .6rem; font:inherit; line-height:1.6; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
   .exchange-avatar button { white-space:nowrap; overflow-x:auto; }
+  @media (min-width:768px) {
+    .exchange-fields dt { font-size:.875rem; }
+  }
   @media (max-width:480px) {
     .exchange-panel { padding:1rem; }
     .exchange-fields > div { grid-template-columns:2.75rem minmax(0,1fr); gap:.5rem; }
