@@ -137,12 +137,12 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
         id='toggleDarkMode'
         type='button'
         title={english ? 'Change color theme' : '切换明暗主题'}
-        class='group/dark inline-flex items-center justify-center box-content size-5 rounded-md border p-1.5 transition-colors hover:bg-border md:group-[.not-top]:rounded-xl'
+        class='inline-flex items-center justify-center box-content size-5 rounded-md border p-1.5 transition-colors hover:bg-border hover:text-primary md:group-[.not-top]:rounded-xl'
       >
         <span class='sr-only' data-theme-label>{english ? 'Change color theme' : '切换明暗主题'}</span>
-        <Icon class='system size-5 group-hover/dark:text-primary' name='computer' />
-        <Icon class='light hidden size-5 group-hover/dark:text-primary' name='sun' />
-        <Icon class='dark hidden size-5 group-hover/dark:text-primary' name='moon' />
+        <Icon class='system size-5' name='computer' />
+        <Icon class='light hidden size-5' name='sun' />
+        <Icon class='dark hidden size-5' name='moon' />
       </button>
       <button
         id='toggleMenu'
@@ -376,6 +376,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
   /* Match the theme's actual 34px controls; Icon's em sizing must not override them. */
   #toggleDarkMode, #toggleMenu { box-sizing:border-box;width:34px;height:34px;padding:6px;align-items:center;justify-content:center;flex:none;position:relative; }
   #toggleDarkMode :global(svg), #toggleMenu :global(svg), .header-search :global(svg) { width:20px;height:20px;display:block;flex:none; }
+  #toggleDarkMode :global(svg) { color:inherit; }
   #toggleDarkMode :global(svg.hidden) { display:none; }
   .header-search { display:flex;align-items:center;justify-content:center;min-width:36px;height:36px;box-sizing:border-box; }
   @media(pointer:coarse) { #toggleDarkMode::after,#toggleMenu::after { content:'';position:absolute;inset:-5px; } }
