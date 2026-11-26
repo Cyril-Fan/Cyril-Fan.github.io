@@ -273,6 +273,33 @@ const updateTime = lastUpdated ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN',
   .author-dialog-header, [data-author-site] { margin-inline:var(--dialog-inset); }
   [data-author-site] { flex:none; align-self:flex-start; }
   .author-dialog-scroll { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; margin-top:1rem; }
+  @media (hover:hover) and (pointer:fine) and (forced-colors:none) {
+    @supports selector(::-webkit-scrollbar-button) {
+      .author-dialog-scroll {
+        --scrollbar-inset: .25rem;
+        --scrollbar-ink: hsl(var(--muted-foreground) / .62);
+        margin-inline-end: var(--scrollbar-inset);
+        scrollbar-width: auto;
+      }
+      .author-dialog-scroll [data-author-articles] { padding-inline-end: calc(var(--dialog-inset) - var(--scrollbar-inset)); }
+      /* The global scrollbar width is also marked important. */
+      .author-dialog-scroll::-webkit-scrollbar { width: 10px !important; }
+      .author-dialog-scroll::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 10px;
+        background: var(--scrollbar-ink) padding-box;
+      }
+      .author-dialog-scroll::-webkit-scrollbar-button { display: none; }
+      .author-dialog-scroll::-webkit-scrollbar-button:vertical:decrement:start,
+      .author-dialog-scroll::-webkit-scrollbar-button:vertical:increment:end {
+        display: block;
+        height: 12px;
+        background: conic-gradient(from var(--arrow-angle) at center var(--arrow-apex), var(--scrollbar-ink) 90deg, transparent 0) center / 6px 3px no-repeat;
+      }
+      .author-dialog-scroll::-webkit-scrollbar-button:vertical:decrement:start { --arrow-angle: 135deg; --arrow-apex: top; }
+      .author-dialog-scroll::-webkit-scrollbar-button:vertical:increment:end { --arrow-angle: 315deg; --arrow-apex: bottom; }
+    }
+  }
   .author-dialog h3 { font-weight:600; }
   .author-dialog h3:focus { outline:none; }
   .random-card>.feed-close, .author-dialog .feed-close { display:grid; place-items:center; width:2rem; height:2rem; min-height:2rem; flex:none; padding:.375rem; position:relative; border:1px solid hsl(var(--border)); border-radius:.5rem; }

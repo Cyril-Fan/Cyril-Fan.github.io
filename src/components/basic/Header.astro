@@ -309,7 +309,7 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     border-radius: 0.375rem;
   }
 
-  header-component a[aria-current] {
+  header-component a[aria-current]:not(.category-link) {
     color: hsl(var(--primary));
     text-decoration: underline;
     text-underline-offset: 0.3em;
