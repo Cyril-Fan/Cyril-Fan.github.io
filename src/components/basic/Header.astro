@@ -430,17 +430,16 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     .blog-disclosure[aria-expanded='true'] { color: hsl(var(--primary)); }
     .blog-disclosure[aria-expanded='true'] :global(svg.chevron-icon) { transform: rotate(180deg); }
     .category-list {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: .25rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      column-gap: .25rem;
       margin-block: .25rem .5rem;
       padding-inline: clamp(.25rem, 25vw - 5rem, 1.75rem);
       align-items: center;
       text-align: center;
     }
-    .category-list > .category-link:first-child { text-align: start; }
-    .category-list > .category-link:last-child { text-align: end; }
-    .dropdown-menu .category-link { padding: .55rem 0; }
+    .dropdown-menu .category-link { padding: .55rem 0; white-space: nowrap; }
   }
 
   @media (prefers-reduced-motion: reduce) {
