@@ -442,6 +442,10 @@ function getAriaCurrent(link: string): 'page' | 'location' | undefined {
     .dropdown-menu .category-link { padding: .55rem 0; white-space: nowrap; }
   }
 
+  @media (max-width: 340px) {
+    .not-top .category-list { margin-inline: -.5rem; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .dropdown-menu, .menu-item-with-dropdown :global(svg.chevron-icon) { transition: none; }
   }
